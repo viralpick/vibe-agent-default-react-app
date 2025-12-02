@@ -2,7 +2,6 @@ import { useState } from "react";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
 import { useApiClient, api } from "../api/api.client";
 import { AuthStatus } from "../types/auth.types";
-import "../App.css";
 
 interface LogEntry {
   id: string;
