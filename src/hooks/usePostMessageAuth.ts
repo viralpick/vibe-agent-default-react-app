@@ -1,20 +1,20 @@
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
+import { validateAuthTokenPayload } from "../schemas/auth.schemas";
 import {
-  PostMessageType,
   AuthStatus,
+  PostMessageType,
   type AuthState,
   type AuthTokenPayload,
-} from '../types/auth.types';
+} from "../types/auth.types";
 import {
-  validateOrigin,
+  clearSensitiveData,
+  DEFAULT_SECURITY_CONFIG,
   generateNonce,
   nonceStore,
   rateLimiter,
-  clearSensitiveData,
   sanitizeError,
-  DEFAULT_SECURITY_CONFIG,
-} from '../utils/security.utils';
-import { validateAuthTokenPayload } from '../schemas/auth.schemas';
+  validateOrigin,
+} from "../utils/security.utils";
 
 function createTokenCache() {
   let cachedToken: string | null = null;
@@ -64,56 +64,53 @@ export function usePostMessageAuth() {
   /**
    * 호스트에 토큰 요청
    */
-  const requestToken = useCallback(
-    (isRefresh = false): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const nonce = generateNonce();
+  const requestToken = useCallback((isRefresh = false): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const nonce = generateNonce();
 
-        // Rate limiting 체크
-        if (!rateLimiter.check('token-request')) {
-          const error = 'Too many token requests. Please try again later.';
-          setAuthState({ status: AuthStatus.FAILED, error });
-          reject(new Error(error));
-          return;
-        }
+      // Rate limiting 체크
+      if (!rateLimiter.check("token-request")) {
+        const error = "Too many token requests. Please try again later.";
+        setAuthState({ status: AuthStatus.FAILED, error });
+        reject(new Error(error));
+        return;
+      }
 
-        // 요청 저장 (응답 대기)
-        globalPendingRequests.set(nonce, resolve);
+      // 요청 저장 (응답 대기)
+      globalPendingRequests.set(nonce, resolve);
 
-        // 타임아웃 설정 (5초)
-        setTimeout(() => {
-          if (globalPendingRequests.has(nonce)) {
-            globalPendingRequests.delete(nonce);
-            const error = 'Token request timeout';
-            setAuthState({ status: AuthStatus.FAILED, error });
-            reject(new Error(error));
-          }
-        }, 5000);
-
-        // 호스트에 메시지 전송
-        const messageType = isRefresh
-          ? PostMessageType.REFRESH_TOKEN
-          : PostMessageType.REQUEST_TOKEN;
-
-        const message = {
-          type: messageType,
-          timestamp: Date.now(),
-          nonce,
-        };
-
-        // 부모 window에 메시지 전송
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage(message, '*'); // origin은 응답에서 검증
-          setAuthState({ status: AuthStatus.REQUESTING });
-        } else {
-          const error = 'Not running in iframe';
+      // 타임아웃 설정 (5초)
+      setTimeout(() => {
+        if (globalPendingRequests.has(nonce)) {
+          globalPendingRequests.delete(nonce);
+          const error = "Token request timeout";
           setAuthState({ status: AuthStatus.FAILED, error });
           reject(new Error(error));
         }
-      });
-    },
-    []
-  );
+      }, 5000);
+
+      // 호스트에 메시지 전송
+      const messageType = isRefresh
+        ? PostMessageType.REFRESH_TOKEN
+        : PostMessageType.REQUEST_TOKEN;
+
+      const message = {
+        type: messageType,
+        timestamp: Date.now(),
+        nonce,
+      };
+
+      // 부모 window에 메시지 전송
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(message, "*"); // origin은 응답에서 검증
+        setAuthState({ status: AuthStatus.REQUESTING });
+      } else {
+        const error = "Not running in iframe";
+        setAuthState({ status: AuthStatus.FAILED, error });
+        reject(new Error(error));
+      }
+    });
+  }, []);
 
   /**
    * 토큰 가져오기 (캐시 또는 요청)
@@ -143,19 +140,19 @@ export function usePostMessageAuth() {
     const handleMessage = (event: MessageEvent) => {
       // 1. Origin 검증
       if (!validateOrigin(event.origin)) {
-        console.warn('[Security] Invalid origin:', event.origin);
+        console.warn("[Security] Invalid origin:", event.origin);
         return;
       }
 
       // 2. Rate limiting
       if (!rateLimiter.check(event.origin)) {
-        console.warn('[Security] Rate limit exceeded:', event.origin);
+        console.warn("[Security] Rate limit exceeded:", event.origin);
         return;
       }
 
       // 3. 메시지 데이터 타입 확인
       const data = event.data;
-      if (!data || typeof data !== 'object') {
+      if (!data || typeof data !== "object") {
         return;
       }
 
@@ -165,10 +162,13 @@ export function usePostMessageAuth() {
         const validationResult = validateAuthTokenPayload(data);
 
         if (!validationResult.success) {
-          console.error('[Security] Invalid token payload:', validationResult.error);
+          console.error(
+            "[Security] Invalid token payload:",
+            validationResult.error
+          );
           setAuthState({
             status: AuthStatus.FAILED,
-            error: 'Invalid token format',
+            error: "Invalid token format",
           });
           return;
         }
@@ -177,7 +177,10 @@ export function usePostMessageAuth() {
 
         // 5. Nonce 검증 (재사용 방지)
         if (!nonceStore.validate(payload.nonce)) {
-          console.debug('[Security] Nonce already used (likely React StrictMode):', payload.nonce);
+          console.debug(
+            "[Security] Nonce already used (likely React StrictMode):",
+            payload.nonce
+          );
           return;
         }
 
@@ -211,18 +214,18 @@ export function usePostMessageAuth() {
 
         // 대기 중인 모든 요청 거부
         globalPendingRequests.forEach((reject) => {
-          reject('');
+          reject("");
         });
         globalPendingRequests.clear();
       }
     };
 
-    window.addEventListener('message', handleMessage);
+    window.addEventListener("message", handleMessage);
 
     return () => {
-      window.removeEventListener('message', handleMessage);
+      window.removeEventListener("message", handleMessage);
       // 컴포넌트 언마운트 시 캐시를 지우지 않음 (다른 컴포넌트와 공유 위해)
-      // globalTokenCache.clear(); 
+      // globalTokenCache.clear();
     };
   }, []);
 
