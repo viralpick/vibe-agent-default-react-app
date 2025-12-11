@@ -144,7 +144,7 @@ export function Grid({
   cols: number;
   gap: number;
   children: React.ReactNode;
-  className: string;
+  className?: string;
 }) {
   return (
     <div
