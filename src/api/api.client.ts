@@ -1,5 +1,5 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
-import { usePostMessageAuth } from '../hooks/usePostMessageAuth';
+import axios, { type InternalAxiosRequestConfig } from "axios";
+import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
 
 const getBaseURL = (): string => {
   // 환경 변수가 설정되어 있으면 우선 사용
@@ -9,25 +9,24 @@ const getBaseURL = (): string => {
 
   // Fallback logic (optional)
   const hostname = window.location.hostname;
-  if (hostname.includes('dev')) {
-    return 'https://app-api-v2-dev.commerceos.ai';
+  if (hostname.includes("dev")) {
+    return "https://app-api-v2-dev.commerceos.ai";
   }
-  return 'https://app-api-v2.commerceos.ai';
+  return "https://app-api-v2.commerceos.ai";
 };
-
 
 export const apiClient = axios.create({
   baseURL: getBaseURL(),
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 type GetTokenFn = () => Promise<string>;
 
 let getTokenFn: GetTokenFn | null = null;
- 
+
 export function setTokenProvider(fn: GetTokenFn) {
   getTokenFn = fn;
 }
@@ -42,7 +41,7 @@ apiClient.interceptors.request.use(
         }
       }
     } catch (error) {
-      console.error('[API] Failed to get token:', error);
+      console.error("[API] Failed to get token:", error);
     }
 
     return config;
@@ -67,7 +66,7 @@ apiClient.interceptors.response.use(
       try {
         // refresh token
         if (getTokenFn) {
-          console.log('[API] Token expired, refreshing...');
+          console.log("[API] Token expired, refreshing...");
           const newToken = await getTokenFn();
 
           // new token retry
@@ -75,7 +74,7 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        console.error('[API] Token refresh failed:', refreshError);
+        console.error("[API] Token refresh failed:", refreshError);
         return Promise.reject(refreshError);
       }
     }
@@ -98,10 +97,10 @@ export function useApiClient() {
 // sample api
 export const api = {
   test: {
-    get: () => apiClient.get('/companies'),
+    get: () => apiClient.get("/companies"),
   },
 
   user: {
-    me: () => apiClient.get('/members/me'),
+    me: () => apiClient.get("/members/me"),
   },
 };
