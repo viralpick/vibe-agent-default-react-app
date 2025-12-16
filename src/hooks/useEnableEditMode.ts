@@ -5,6 +5,7 @@ type EditTextMetaData = {
   currentText: string;
   filePath: string | null;
   lineNumber: string | null;
+  position: { x: number; y: number };
 };
 
 // Hover 스타일을 CSS로 주입 (Tailwind JIT 문제 해결)
@@ -44,6 +45,7 @@ export const useEnableEditMode = () => {
           currentText: target.textContent,
           filePath: target.getAttribute("data-file-path"),
           lineNumber: target.getAttribute("data-line-number"),
+          position: { x: e.clientX, y: e.clientY },
         };
 
         window.parent.postMessage(
