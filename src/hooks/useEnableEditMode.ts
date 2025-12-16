@@ -16,12 +16,13 @@ const injectEditModeStyles = () => {
   const style = document.createElement("style");
   style.id = EDIT_MODE_STYLE_ID;
   style.textContent = `
-    [data-editable][data-edit-mode-active="true"] {
+    [data-editable="true"] {
       cursor: pointer;
     }
-    [data-editable][data-edit-mode-active="true"]:hover {
-      background-color: rgb(186 230 253); /* sky-200 */
-      opacity: 0.5;
+    [data-editable="true"]:hover {
+      background-color: rgba(0, 178, 70, 0.5); 
+      border-left: 3px solid #00B246;
+      padding-left: 8px;
     }
   `;
   document.head.appendChild(style);
