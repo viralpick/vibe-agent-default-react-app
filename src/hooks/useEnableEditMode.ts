@@ -20,9 +20,7 @@ const injectEditModeStyles = () => {
       cursor: pointer;
     }
     [data-editable="true"]:hover {
-      background-color: rgba(0, 178, 70, 0.5); 
-      border-left: 3px solid #00B246;
-      padding-left: 8px;
+      background-color: rgba(0, 178, 70, 0.2); 
     }
   `;
   document.head.appendChild(style);
