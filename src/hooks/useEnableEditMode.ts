@@ -28,46 +28,13 @@ const injectEditModeStyles = () => {
 };
 
 export const useEnableEditMode = () => {
-  const [isEditMode, setIsEditMode] = React.useState(false);
-  // 클릭 이벤트 핸들러에서 최신 isEditMode 값을 참조하기 위한 ref
-  const isEditModeRef = React.useRef(false);
-
-  // isEditMode 상태가 변경될 때마다 ref 업데이트
-  React.useEffect(() => {
-    isEditModeRef.current = isEditMode;
-  }, [isEditMode]);
-
-  // 편집 모드 토글 리스너
   React.useEffect(() => {
     injectEditModeStyles();
-
-    const handleToggleEditMode = (e: MessageEvent) => {
-      if (e.data.type === "TOGGLE_EDIT_MODE") {
-        const enabled = e.data.payload.enabled;
-        setIsEditMode(enabled);
-
-        // enabled 값(payload에서 받은 값)을 직접 사용
-        document.querySelectorAll("[data-editable]").forEach((element) => {
-          const htmlElement = element as HTMLElement;
-          if (enabled) {
-            htmlElement.dataset.editModeActive = "true";
-          } else {
-            delete htmlElement.dataset.editModeActive;
-          }
-        });
-      }
-    };
-
-    window.addEventListener("message", handleToggleEditMode);
-    return () => window.removeEventListener("message", handleToggleEditMode);
   }, []);
 
   // 편집 모드에서 클릭 처리
   React.useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      // 편집 모드가 아니면 무시
-      if (!isEditModeRef.current) return;
-
       const target = e.target as HTMLElement;
 
       if (target.hasAttribute("data-editable")) {
