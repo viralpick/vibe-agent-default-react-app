@@ -7,13 +7,19 @@
  */
 export enum PostMessageType {
   /** 호스트 FE -> 샌드박스: 인증 토큰 전달 */
-  AUTH_TOKEN = 'AUTH_TOKEN',
+  AUTH_TOKEN = "AUTH_TOKEN",
   /** 샌드박스 -> 호스트 FE: 토큰 요청 */
-  REQUEST_TOKEN = 'REQUEST_TOKEN',
+  REQUEST_TOKEN = "REQUEST_TOKEN",
   /** 샌드박스 -> 호스트 FE: 토큰 갱신 요청 */
-  REFRESH_TOKEN = 'REFRESH_TOKEN',
+  REFRESH_TOKEN = "REFRESH_TOKEN",
   /** 호스트 FE -> 샌드박스: 에러 응답 */
-  AUTH_ERROR = 'AUTH_ERROR',
+  AUTH_ERROR = "AUTH_ERROR",
+  /** 호스트 FE -> 샌드박스: 파일 내용 요청 */
+  REQUEST_FILE_CONTENT = "REQUEST_FILE_CONTENT",
+  /** 샌드박스 -> 호스트 FE: 파일 내용 응답 */
+  FILE_CONTENT = "FILE_CONTENT",
+  /** 샌드박스 -> 호스트 FE: 파일 내용 에러 응답 */
+  FILE_CONTENT_ERROR = "FILE_CONTENT_ERROR",
 }
 
 /**
@@ -52,25 +58,71 @@ export interface AuthErrorPayload {
 }
 
 /**
+ * 파일 내용 요청 메시지 페이로드
+ */
+export interface RequestFileContentPayload {
+  type: PostMessageType.REQUEST_FILE_CONTENT;
+  /** 요청할 파일 경로 (예: 'src/App.tsx') */
+  filePath: string;
+  /** Unix timestamp (밀리초) */
+  timestamp: number;
+  /** 재사용 방지를 위한 고유 식별자 */
+  nonce: string;
+}
+
+/**
+ * 파일 내용 응답 메시지 페이로드
+ */
+export interface FileContentPayload {
+  type: PostMessageType.FILE_CONTENT;
+  /** 파일 경로 */
+  filePath: string;
+  /** 파일 내용 */
+  content: string;
+  /** Unix timestamp (밀리초) */
+  timestamp: number;
+  /** 요청의 nonce와 일치 */
+  nonce: string;
+}
+
+/**
+ * 파일 내용 에러 메시지 페이로드
+ */
+export interface FileContentErrorPayload {
+  type: PostMessageType.FILE_CONTENT_ERROR;
+  /** 파일 경로 */
+  filePath: string;
+  /** 에러 메시지 */
+  error: string;
+  /** Unix timestamp (밀리초) */
+  timestamp: number;
+  /** 요청의 nonce와 일치 */
+  nonce: string;
+}
+
+/**
  * PostMessage 유니온 타입
  */
 export type PostMessagePayload =
   | AuthTokenPayload
   | RequestTokenPayload
-  | AuthErrorPayload;
+  | AuthErrorPayload
+  | RequestFileContentPayload
+  | FileContentPayload
+  | FileContentErrorPayload;
 
 /**
  * 인증 상태
  */
 export enum AuthStatus {
   /** 초기화되지 않음 */
-  IDLE = 'IDLE',
+  IDLE = "IDLE",
   /** 토큰 요청 중 */
-  REQUESTING = 'REQUESTING',
+  REQUESTING = "REQUESTING",
   /** 인증됨 */
-  AUTHENTICATED = 'AUTHENTICATED',
+  AUTHENTICATED = "AUTHENTICATED",
   /** 인증 실패 */
-  FAILED = 'FAILED',
+  FAILED = "FAILED",
 }
 
 /**
