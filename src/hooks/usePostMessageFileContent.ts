@@ -9,8 +9,6 @@ import { validateOrigin } from "../utils/security.utils";
 export function usePostMessageFileContent() {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      console.log("[DEBUG] Message received, type:", event.data?.type);
-
       // 1. Origin 검증
       if (!validateOrigin(event.origin)) {
         console.warn(
@@ -20,27 +18,14 @@ export function usePostMessageFileContent() {
         return;
       }
 
-      console.log("[DEBUG] Origin validated, checking data...");
-
       // 2. 메시지 데이터 타입 확인
       const data = event.data;
       if (!data || typeof data !== "object") {
         return;
       }
 
-      console.log(
-        "[DEBUG] Comparing:",
-        data.type,
-        "===",
-        PostMessageType.REQUEST_FILE_CONTENT
-      );
-
       // 3. REQUEST_FILE_CONTENT 메시지 처리
       if (data.type === PostMessageType.REQUEST_FILE_CONTENT) {
-        console.log(
-          "[DEBUG] Match! Processing file request for:",
-          data.filePath
-        );
         const { filePath, nonce } = data;
 
         if (!filePath || typeof filePath !== "string") {
