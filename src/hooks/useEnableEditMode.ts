@@ -8,6 +8,12 @@ type EditTextMetaData = {
   position: { x: number; y: number };
 };
 
+
+const isE2BSandbox = () => {
+  if (typeof window === "undefined") return false;
+  return window.location.hostname.endsWith(".e2b.app");
+};
+
 // Hover 스타일을 CSS로 주입 (Tailwind JIT 문제 해결)
 const EDIT_MODE_STYLE_ID = "edit-mode-styles";
 const injectEditModeStyles = () => {
@@ -27,12 +33,17 @@ const injectEditModeStyles = () => {
 };
 
 export const useEnableEditMode = () => {
+  const isE2B = isE2BSandbox();
+
   React.useEffect(() => {
+    if (!isE2B) return;
     injectEditModeStyles();
-  }, []);
+  }, [isE2B]);
 
   // 편집 모드에서 클릭 처리
   React.useEffect(() => {
+    if (!isE2B) return;
+
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
 
@@ -60,10 +71,12 @@ export const useEnableEditMode = () => {
 
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
-  }, []);
+  }, [isE2B]);
 
   // 파일 업데이트 응답 리스너
   React.useEffect(() => {
+    if (!isE2B) return;
+
     const handleEditResponse = (e: MessageEvent) => {
       if (e.data.type === "FILE_UPDATED") {
         // HMR replacement automatically
@@ -72,5 +85,5 @@ export const useEnableEditMode = () => {
 
     window.addEventListener("message", handleEditResponse);
     return () => window.removeEventListener("message", handleEditResponse);
-  }, []);
+  }, [isE2B]);
 };
