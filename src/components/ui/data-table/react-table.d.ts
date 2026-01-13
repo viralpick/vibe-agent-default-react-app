@@ -9,5 +9,6 @@ declare module '@tanstack/react-table' {
     cellVariant?: string
     headerClassName?: string | ((column: Column<TData, unknown>) => string)
     cellClassName?: string | ((row: TData) => string)
+    filterLabel?: string
   }
 }
