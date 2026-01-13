@@ -146,3 +146,34 @@ export async function fetchSmartDateRange(
     endDate: endDate.toISOString().split("T")[0],
   };
 }
+
+export function getColorClass(
+  color: string | undefined,
+  fallback = "primary",
+  prefix = "bg"
+): string {
+  if (!color) return `${prefix}-${fallback}`;
+
+  const isArbitrary = /^(#|rgb|rgba|hsl|hsla|var\()/.test(color);
+  return isArbitrary ? `${prefix}-[${color}]` : `${prefix}-${color}`;
+}
+
+export function parseArrayString(value: string): string[] | null {
+  try {
+    const trimmed = value.trim();
+
+    if (trimmed === "[]") return [];
+    const match = trimmed.match(/^\[(.*)\]$/);
+    if (!match) return null;
+
+    const content = match[1];
+    const items = content
+      .split(",")
+      .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
+      .filter(Boolean);
+
+    return items.length > 0 ? items : null;
+  } catch {
+    return null;
+  }
+}
