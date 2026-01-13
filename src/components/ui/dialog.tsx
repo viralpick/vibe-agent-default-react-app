@@ -1,3 +1,11 @@
+/**
+ * @component Dialog
+ * @description Modal dialog for focused interactions. Built on Radix UI Dialog.
+ * Composed of Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter,
+ * DialogTitle, DialogDescription, DialogClose.
+ *
+ * @useCase Confirmations, forms, detail views, settings panels
+ */
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";

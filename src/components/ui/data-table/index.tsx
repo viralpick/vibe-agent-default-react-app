@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * @fileoverview Advanced DataTable component built on TanStack Table.
+ * Provides sorting, filtering, pagination, search, and column visibility features.
+ *
+ * @module ui/data-table
+ */
+
 import type {
   ColumnDef,
   ColumnFiltersState,
@@ -36,6 +43,9 @@ import { DataTableFilter } from "@/components/ui/data-table/data-table-filter";
 import { DataTableToolbar } from "@/components/ui/data-table/data-table-toolbar";
 import { DataTablePagination } from "@/components/ui/data-table/data-table-pagination";
 
+/**
+ * Props for DataTable component
+ */
 type DataTableProps<TData, TValue> = {
   title?: React.JSX.Element | string;
   overline?: string;
@@ -80,6 +90,65 @@ type DataTableProps<TData, TValue> = {
   };
 };
 
+/**
+ * @component DataTable
+ * @description A feature-rich data table built on TanStack Table (React Table v8).
+ * Supports sorting, filtering, pagination, search, column visibility, sticky columns,
+ * row selection, and custom cell rendering.
+ *
+ * @dataStructure
+ * - data: TData[] - Array of row data objects (required)
+ * - columns: ColumnDef<TData, TValue>[] - TanStack Table column definitions (required)
+ *   - accessorKey: string - Data field key
+ *   - header: string | Component - Header content
+ *   - cell: Component - Cell renderer
+ *   - size/minSize/maxSize: number - Column widths
+ *   - meta: { sticky, cellClassName, headerClassName } - Extended options
+ * - title?: string | JSX.Element - Table title
+ * - loading?: boolean - Shows loading overlay
+ * - size?: "default" | "sm" | "xs" - Row density
+ * - pageSize?: number - Rows per page (default: 10)
+ * - searchKeys?: (keyof TData)[] - Fields to search
+ * - showSearch?: boolean - Enable search input
+ * - showPageSize?: boolean - Enable page size selector
+ * - showOptions?: boolean - Enable column visibility toggle
+ * - showFilter?: boolean - Enable advanced filters
+ * - manualPagination?: boolean - Server-side pagination mode
+ * - onPageChange?: (pageIndex) => void - Page change callback
+ * - onRowClick?: (row) => void - Row click handler
+ *
+ * @designTokens
+ * - Uses rounded-md for table container
+ * - Uses bg-white for table background
+ * - Uses text-xl font-bold for title
+ * - Size variants affect padding and font size
+ *
+ * @useCase
+ * - Data management interfaces
+ * - Admin panels with CRUD operations
+ * - Report tables with sorting/filtering
+ * - Any tabular data with advanced interactions
+ *
+ * @example
+ * ```tsx
+ * const columns: ColumnDef<User>[] = [
+ *   { accessorKey: "name", header: "Name" },
+ *   { accessorKey: "email", header: "Email" },
+ *   { accessorKey: "role", header: "Role" },
+ * ];
+ *
+ * <DataTable
+ *   title="Users"
+ *   data={users}
+ *   columns={columns}
+ *   showSearch
+ *   searchKeys={["name", "email"]}
+ *   showPageSize
+ *   pageSize={10}
+ *   onRowClick={(user) => navigate(`/users/${user.id}`)}
+ * />
+ * ```
+ */
 function DataTable<TData, TValue>({
   title,
   overline,

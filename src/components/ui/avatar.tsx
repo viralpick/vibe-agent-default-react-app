@@ -1,3 +1,10 @@
+/**
+ * @component Avatar
+ * @description Displays user profile images with fallback initials.
+ * Composed of Avatar, AvatarImage, and AvatarFallback.
+ *
+ * @useCase User profiles, comment authors, team member lists
+ */
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 

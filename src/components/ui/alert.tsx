@@ -1,3 +1,10 @@
+/**
+ * @component Alert
+ * @description Displays important messages with optional icon, title, and description.
+ * Variants: default, destructive.
+ *
+ * @useCase Notifications, warnings, error messages, success confirmations
+ */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 

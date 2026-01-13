@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * @fileoverview Dynamic Data Table component with metadata-driven column rendering.
+ * Automatically formats cells based on column type definitions.
+ *
+ * @module patterns/dynamic-data-table
+ */
+
 import type { ColumnDef } from "@tanstack/react-table";
 import type { JSX } from "react";
 import { useMemo } from "react";
@@ -19,6 +26,15 @@ import {
   ColumnValue,
 } from "@/components/ui/column";
 
+/**
+ * Column metadata definition for DynamicDataTable
+ * @property key - Data field key to access from row data
+ * @property label - Display header label
+ * @property type - Column type for automatic formatting
+ * @property align - Text alignment
+ * @property width - Column width in pixels
+ * @property badgeMap - Status-to-badge mapping for badge columns
+ */
 export type ColumnMeta = {
   key: string;
   label?: string;
@@ -51,6 +67,9 @@ export type ColumnMeta = {
   };
 };
 
+/**
+ * Props for DynamicDataTable component
+ */
 export type DynamicDataTableProps = {
   title: string;
   overline?: string;
@@ -65,6 +84,54 @@ export type DynamicDataTableProps = {
   searchPlaceholder?: string;
 };
 
+/**
+ * @component DynamicDataTable
+ * @description A data table that automatically renders cells based on column metadata.
+ * Supports various data types including text, numbers, currency, dates, badges, and progress bars.
+ *
+ * @dataStructure
+ * - columns: ColumnMeta[] - Column definitions with type information (required)
+ *   - key: string - Field key in data objects
+ *   - label?: string - Header display text
+ *   - type?: "text" | "number" | "currency" | "percent" | "date" | "url" | "badge" | "progress" | "status"
+ *   - align?: "left" | "center" | "right"
+ *   - width?: number, minWidth?: number, maxWidth?: number
+ *   - badgeMap?: { [value]: { label, color } } - For badge type
+ *   - progress?: { color } - For progress type
+ *   - currency?: string - Currency code for currency type
+ *   - dateFormat?: string - Date format string
+ * - data: Record<string, string | number | boolean>[] - Row data array (required)
+ * - title: string - Table title (required)
+ * - searchKeys?: string[] - Fields to include in search
+ * - pageSize?: number - Rows per page (default: 10)
+ *
+ * @useCase
+ * - Order/transaction lists with status badges
+ * - Product inventory with progress indicators
+ * - User management tables
+ * - Any tabular data with mixed column types
+ *
+ * @example
+ * ```tsx
+ * <DynamicDataTable
+ *   title="Orders"
+ *   columns={[
+ *     { key: "id", label: "ID", type: "text" },
+ *     { key: "amount", label: "Amount", type: "currency", align: "right" },
+ *     { key: "date", label: "Date", type: "date" },
+ *     { key: "status", label: "Status", type: "badge", badgeMap: {
+ *       completed: { label: "Completed", color: "#22c55e" },
+ *       pending: { label: "Pending", color: "#f59e0b" }
+ *     }}
+ *   ]}
+ *   data={[
+ *     { id: "ORD-001", amount: 15000, date: "2024-01-15", status: "completed" }
+ *   ]}
+ *   showSearch
+ *   searchKeys={["id"]}
+ * />
+ * ```
+ */
 export const DynamicDataTable = ({
   title,
   overline,

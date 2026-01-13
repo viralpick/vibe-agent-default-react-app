@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * @component Popover
+ * @description Floating content panel triggered by a button. Built on Radix UI Popover.
+ * Composed of Popover, PopoverTrigger, PopoverContent, PopoverAnchor.
+ *
+ * @useCase Dropdowns, date pickers, color pickers, info panels
+ */
 import React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 

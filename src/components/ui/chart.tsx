@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Chart container and tooltip/legend components for Recharts integration.
+ * Provides consistent styling and theming for chart visualizations.
+ *
+ * @module ui/chart
+ */
+
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 
@@ -50,6 +57,42 @@ function useChart() {
   return context;
 }
 
+/**
+ * @component ChartContainer
+ * @description Wrapper component for Recharts charts. Provides responsive container,
+ * theme-aware styling, and configuration context for tooltips/legends.
+ *
+ * @dataStructure
+ * - config: ChartConfig - Series configuration object (required)
+ *   - [seriesKey]: { label: string, color: string } | { label: string, theme: { light, dark } }
+ * - children: Recharts chart component (required)
+ * - className?: string - Additional CSS classes
+ *
+ * @designTokens
+ * - Uses aspect-video for default aspect ratio
+ * - Uses text-xs for chart text
+ * - Applies consistent styling to Recharts elements
+ *
+ * @useCase
+ * - Wrapping any Recharts chart (LineChart, BarChart, etc.)
+ * - Providing consistent theming across charts
+ * - Enabling responsive chart sizing
+ *
+ * @example
+ * ```tsx
+ * <ChartContainer
+ *   config={{
+ *     sales: { label: "Sales", color: "#8884d8" },
+ *     revenue: { label: "Revenue", color: "#82ca9d" }
+ *   }}
+ * >
+ *   <LineChart data={data}>
+ *     <Line dataKey="sales" />
+ *     <Line dataKey="revenue" />
+ *   </LineChart>
+ * </ChartContainer>
+ * ```
+ */
 function ChartContainer({
   id,
   className,
@@ -120,6 +163,31 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+/**
+ * @component ChartTooltipContent
+ * @description Custom tooltip content component for Recharts. Displays series values
+ * with color indicators and formatted labels.
+ *
+ * @dataStructure
+ * - active?: boolean - Whether tooltip is active (from Recharts)
+ * - payload?: TooltipPayloadItem[] - Data items to display (from Recharts)
+ * - label?: string | number - Tooltip header label
+ * - indicator?: "dot" | "line" | "dashed" - Color indicator style
+ * - hideLabel?: boolean - Hide the header label
+ * - hideIndicator?: boolean - Hide color indicators
+ * - formatter?: (value, name, item, index, payload) => ReactNode - Custom formatter
+ *
+ * @useCase
+ * - Custom chart tooltips with consistent styling
+ * - Multi-series value display on hover
+ *
+ * @example
+ * ```tsx
+ * <ChartTooltip
+ *   content={<ChartTooltipContent indicator="dot" />}
+ * />
+ * ```
+ */
 function ChartTooltipContent({
   active,
   payload,
@@ -290,6 +358,26 @@ function ChartTooltipContent({
 
 const ChartLegend = RechartsPrimitive.Legend;
 
+/**
+ * @component ChartLegendContent
+ * @description Custom legend content component for Recharts. Displays series labels
+ * with color indicators.
+ *
+ * @dataStructure
+ * - payload?: LegendPayloadItem[] - Legend items (from Recharts)
+ * - hideIcon?: boolean - Hide color indicators
+ * - verticalAlign?: "top" | "bottom" | "middle" - Legend position
+ * - nameKey?: string - Key to use for series names
+ *
+ * @useCase
+ * - Custom chart legends with consistent styling
+ * - Series identification below/above charts
+ *
+ * @example
+ * ```tsx
+ * <Legend content={<ChartLegendContent />} />
+ * ```
+ */
 function ChartLegendContent({
   className,
   hideIcon = false,

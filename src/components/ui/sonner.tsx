@@ -1,3 +1,10 @@
+/**
+ * @component Toaster
+ * @description Toast notification container using Sonner library.
+ * Place once in app root. Use toast() function to trigger notifications.
+ *
+ * @useCase Success/error messages, action confirmations, notifications
+ */
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, ToasterProps } from "sonner"
 

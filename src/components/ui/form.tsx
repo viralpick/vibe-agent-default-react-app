@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @component Form
+ * @description Form components integrated with react-hook-form.
+ * Provides Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage.
+ * Automatically handles validation states and error messages.
+ *
+ * @useCase Any form with validation - login, registration, settings, data entry
+ */
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";

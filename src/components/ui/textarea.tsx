@@ -1,3 +1,10 @@
+/**
+ * @component Textarea
+ * @description Multi-line text input with auto-sizing.
+ *
+ * @designTokens rounded-medium, px-12, py-8, text-label-l
+ * @useCase Comments, descriptions, long-form input, notes
+ */
 import * as React from "react";
 
 import { cn } from "@/lib/commerce-sdk";

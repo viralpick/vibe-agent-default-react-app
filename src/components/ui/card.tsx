@@ -1,3 +1,11 @@
+/**
+ * @component Card
+ * @description Container for grouped content with header, content, and footer sections.
+ * Composed of Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter.
+ *
+ * @designTokens rounded-xlarge (12px), py-24, px-24, gap-24
+ * @useCase Dashboard widgets, content sections, form containers, data displays
+ */
 import * as React from "react";
 
 import { cn } from "@/lib/commerce-sdk";

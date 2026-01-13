@@ -1,3 +1,10 @@
+/**
+ * @component Tabs
+ * @description Tab-based content switcher. Built on Radix UI Tabs.
+ * Composed of Tabs, TabsList, TabsTrigger, TabsContent.
+ *
+ * @useCase Section navigation, view switching, settings panels
+ */
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 

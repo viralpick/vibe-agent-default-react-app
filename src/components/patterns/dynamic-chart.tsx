@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * @fileoverview Dynamic Chart Components for data visualization.
+ * Provides Line, Area, Bar, and Composed chart types with consistent styling.
+ *
+ * @module patterns/dynamic-chart
+ */
+
 import React, { useMemo } from "react";
 import {
   LineChart,
@@ -33,6 +40,14 @@ import {
 type SeriesType = "line" | "bar" | "area";
 type YAxisSide = "left" | "right";
 
+/**
+ * Configuration for a series in ComposedChart
+ * @property label - Display label for legend
+ * @property color - Hex color code for the series
+ * @property type - Chart type: "line" | "bar" | "area"
+ * @property yAxisId - Which Y axis to use: "left" | "right"
+ * @property stackId - Stack identifier for stacked charts
+ */
 type ComposedSeriesConfig = {
   label: string;
   color: string;
@@ -41,6 +56,9 @@ type ComposedSeriesConfig = {
   stackId?: string;
 };
 
+/**
+ * Base props shared by all dynamic chart components
+ */
 export type BaseDynamicChartProps = {
   title?: string;
   description?: string;
@@ -65,6 +83,44 @@ export type DynamicAreaChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
 };
 
+/**
+ * @component DynamicAreaChart
+ * @description Renders time-series or categorical data as a filled area chart.
+ * Suitable for showing cumulative values, trends over time, or comparing totals.
+ *
+ * @dataStructure
+ * - data: Record<string, unknown>[] - Array of data points (required)
+ *   - Each object must contain xAxisKey field and all keys defined in config
+ * - config: { [seriesKey]: { label: string, color: string } } - Series configuration (required)
+ * - xAxisKey: string - Field name for X axis values (required)
+ * - yAxisKey?: string - Field name for Y axis values (optional)
+ * - title?: string - Chart title (optional)
+ * - description?: string - Chart description (optional)
+ * - height?: number - Chart height in pixels (optional)
+ * - variant?: "monotone" | "linear" | "natural" | "step" - Line interpolation (optional, default: "monotone")
+ * - showLegend?: boolean - Show/hide legend (optional, default: true)
+ *
+ * @useCase
+ * - Revenue accumulation over time
+ * - User growth trends
+ * - Inventory level tracking
+ * - Market share visualization
+ *
+ * @example
+ * ```tsx
+ * <DynamicAreaChart
+ *   title="Monthly Revenue"
+ *   xAxisKey="month"
+ *   data={[
+ *     { month: "Jan", revenue: 4000 },
+ *     { month: "Feb", revenue: 3000 },
+ *   ]}
+ *   config={{
+ *     revenue: { label: "Revenue", color: "#8884d8" }
+ *   }}
+ * />
+ * ```
+ */
 export function DynamicAreaChart({
   title,
   description,
@@ -161,6 +217,45 @@ export type DynamicLineChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
 };
 
+/**
+ * @component DynamicLineChart
+ * @description Renders time-series data as a line chart. Best for showing trends,
+ * changes over time, or comparing multiple series.
+ *
+ * @dataStructure
+ * - data: Record<string, unknown>[] - Array of data points (required)
+ *   - Each object must contain xAxisKey field and all keys defined in config
+ * - config: { [seriesKey]: { label: string, color: string } } - Series configuration (required)
+ * - xAxisKey: string - Field name for X axis values (required)
+ * - yAxisKey?: string - Field name for Y axis values (optional)
+ * - title?: string - Chart title (optional)
+ * - description?: string - Chart description (optional)
+ * - height?: number - Chart height in pixels (optional)
+ * - variant?: "monotone" | "linear" | "natural" | "step" - Line interpolation (optional, default: "monotone")
+ * - showLegend?: boolean - Show/hide legend (optional, default: true)
+ *
+ * @useCase
+ * - Monthly sales trends
+ * - Traffic patterns over time
+ * - Performance metrics tracking
+ * - Multi-series comparison (e.g., this year vs last year)
+ *
+ * @example
+ * ```tsx
+ * <DynamicLineChart
+ *   title="Sales Trend"
+ *   xAxisKey="month"
+ *   data={[
+ *     { month: "Jan", sales: 100, target: 120 },
+ *     { month: "Feb", sales: 150, target: 130 },
+ *   ]}
+ *   config={{
+ *     sales: { label: "Sales", color: "#8884d8" },
+ *     target: { label: "Target", color: "#82ca9d" }
+ *   }}
+ * />
+ * ```
+ */
 export function DynamicLineChart({
   title,
   description,
@@ -255,6 +350,51 @@ export type DynamicBarChartProps = BaseDynamicChartProps & {
   layout?: "vertical" | "horizontal";
 };
 
+/**
+ * @component DynamicBarChart
+ * @description Renders categorical data as a bar chart. Supports both vertical
+ * and horizontal layouts for different comparison needs.
+ *
+ * @dataStructure
+ * - data: Record<string, unknown>[] - Array of data points (required)
+ *   - Each object must contain xAxisKey field and all keys defined in config
+ * - config: { [seriesKey]: { label: string, color: string } } - Series configuration (required)
+ * - xAxisKey: string - Field name for X axis/category values (required)
+ * - yAxisKey?: string - Field name for Y axis values (optional, used in horizontal layout)
+ * - layout?: "vertical" | "horizontal" - Bar orientation (optional, default: "vertical")
+ * - title?: string - Chart title (optional)
+ * - height?: number - Chart height in pixels (optional)
+ * - showLegend?: boolean - Show/hide legend (optional, default: true)
+ *
+ * @useCase
+ * - Category comparison (e.g., sales by product)
+ * - Ranking visualization (horizontal layout)
+ * - Period comparison (e.g., monthly totals)
+ * - Distribution display
+ *
+ * @example
+ * ```tsx
+ * // Vertical bar chart
+ * <DynamicBarChart
+ *   title="Sales by Category"
+ *   xAxisKey="category"
+ *   data={[
+ *     { category: "Electronics", sales: 4000 },
+ *     { category: "Clothing", sales: 3000 },
+ *   ]}
+ *   config={{ sales: { label: "Sales", color: "#8884d8" } }}
+ * />
+ *
+ * // Horizontal bar chart (ranking)
+ * <DynamicBarChart
+ *   layout="horizontal"
+ *   xAxisKey="value"
+ *   yAxisKey="name"
+ *   data={[{ name: "Product A", value: 100 }]}
+ *   config={{ value: { label: "Value", color: "#82ca9d" } }}
+ * />
+ * ```
+ */
 export function DynamicBarChart({
   title,
   description,
@@ -424,6 +564,48 @@ export type DynamicComposedChartProps = Omit<
   order?: string[];
 };
 
+/**
+ * @component DynamicComposedChart
+ * @description Combines multiple chart types (line, bar, area) in a single visualization.
+ * Supports dual Y-axes for comparing metrics with different scales.
+ *
+ * @dataStructure
+ * - data: Record<string, unknown>[] - Array of data points (required)
+ * - config: { [seriesKey]: ComposedSeriesConfig } - Extended series configuration (required)
+ *   - label: string - Display label
+ *   - color: string - Hex color
+ *   - type?: "line" | "bar" | "area" - Chart type for this series
+ *   - yAxisId?: "left" | "right" - Which Y axis to use
+ *   - stackId?: string - Group identifier for stacking
+ * - xAxisKey: string - Field name for X axis values (required)
+ * - yAxisKey?: string - Field for left Y axis (optional)
+ * - yAxisRightKey?: string - Field for right Y axis (optional)
+ * - order?: string[] - Render order of series (optional)
+ * - barMaxBarSize?: number - Maximum bar width (optional, default: 28)
+ * - areaFillOpacity?: number - Area fill opacity (optional, default: 0.4)
+ *
+ * @useCase
+ * - Revenue (bars) vs Growth Rate (line) on dual axes
+ * - Volume (area) with Price (line) overlay
+ * - Complex KPI dashboards with multiple metrics
+ * - Stacked categories with trend line
+ *
+ * @example
+ * ```tsx
+ * <DynamicComposedChart
+ *   title="Revenue & Growth"
+ *   xAxisKey="month"
+ *   data={[
+ *     { month: "Jan", revenue: 4000, growth: 5.2 },
+ *     { month: "Feb", revenue: 3500, growth: -12.5 },
+ *   ]}
+ *   config={{
+ *     revenue: { label: "Revenue", color: "#8884d8", type: "bar", yAxisId: "left" },
+ *     growth: { label: "Growth %", color: "#82ca9d", type: "line", yAxisId: "right" }
+ *   }}
+ * />
+ * ```
+ */
 export function DynamicComposedChart({
   title,
   description,

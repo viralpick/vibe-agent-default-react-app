@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * @component Tooltip
+ * @description Hover-triggered informational popup. Built on Radix UI Tooltip.
+ * Composed of Tooltip, TooltipTrigger, TooltipContent, TooltipProvider.
+ *
+ * @useCase Help text, abbreviation explanations, icon labels
+ */
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 

@@ -1,5 +1,45 @@
 /**
- * Standard Page Header
+ * @component PageHeader
+ * @description Standard page header with title, description, icon, and action buttons.
+ * Provides consistent top-of-page navigation and context.
+ *
+ * @dataStructure
+ * - title: string - Page title text (required)
+ * - description: string - Subtitle/description text (required)
+ * - icon: React.ElementType - Lucide icon component (required)
+ * - children: ReactNode - Action buttons/elements on the right side (required)
+ *
+ * @designTokens
+ * - Uses text-h3 (24px) for title with font-bold
+ * - Uses text-body-m (16px) for description
+ * - Uses text-text-primary for title, text-text-secondary for description
+ * - Uses text-icon-primary for icon
+ * - Uses size-24 (24px) for icon size
+ * - Uses gap-8 between action buttons
+ * - Uses mb-24 for bottom margin
+ *
+ * @useCase
+ * - Top of dashboard pages
+ * - Section headers with actions
+ * - Any page requiring title + description + actions layout
+ *
+ * @example
+ * ```tsx
+ * <PageHeader
+ *   title="Sales Dashboard"
+ *   description="Monitor your sales performance"
+ *   icon={BarChart3}
+ * >
+ *   <Button variant="outline" size="sm">
+ *     <Settings className="size-4" />
+ *     Settings
+ *   </Button>
+ *   <Button size="sm">
+ *     <Plus className="size-4" />
+ *     New Report
+ *   </Button>
+ * </PageHeader>
+ * ```
  */
 export function PageHeader({
   title,
