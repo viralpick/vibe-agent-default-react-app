@@ -2,7 +2,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 
 /**
- * Chart Container (Title + Layout)
+ * @component ChartCard
+ * @description A container card for wrapping chart components with title, action buttons, and loading state.
+ * Provides consistent styling and layout for chart visualizations.
+ *
+ * @dataStructure
+ * - title: string - Card header title (required)
+ * - children: ReactNode - Chart component to render inside (required)
+ * - isLoading: boolean - Shows skeleton loader when true (required)
+ * - action: ReactNode - Action buttons/elements in header (required)
+ *
+ * @designTokens
+ * - Uses rounded-xlarge (12px) for card border radius
+ * - Uses border-gray-200, bg-gray-0 for card styling
+ * - Uses text-t1 for title typography
+ * - Uses px-24, py-20 for header padding
+ * - Fixed height of 400px
+ *
+ * @useCase
+ * - Wrapping DynamicLineChart, DynamicBarChart, etc.
+ * - Dashboard chart sections with download/filter actions
+ * - Any data visualization requiring a titled container
+ *
+ * @example
+ * ```tsx
+ * <ChartCard
+ *   title="Monthly Revenue"
+ *   isLoading={false}
+ *   action={<Button variant="ghost" size="sm"><Download /></Button>}
+ * >
+ *   <DynamicLineChart data={data} config={config} xAxisKey="month" />
+ * </ChartCard>
+ * ```
  */
 export function ChartCard({
   title,

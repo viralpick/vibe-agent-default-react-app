@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Column cell renderer components for DataTable.
+ * Provides formatted display for various data types including text, numbers,
+ * currency, dates, percentages, and status indicators.
+ *
+ * @module ui/column
+ */
+
 import React from "react";
 import { format as formatDate } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -23,6 +31,17 @@ type ColumnNoneProps = {
   className?: string;
 };
 
+/**
+ * @component ColumnNone
+ * @description Displays a dash placeholder for null/empty values.
+ *
+ * @dataStructure
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - Empty cell placeholder in tables
+ * - Fallback for missing data
+ */
 function ColumnNone({ className }: ColumnNoneProps): React.JSX.Element {
   return <div className={className}>-</div>;
 }
@@ -32,6 +51,20 @@ type ColumnValueProps = {
   value: string | number | null;
 };
 
+/**
+ * @component ColumnValue
+ * @description Displays text/string values with truncation and tooltip on overflow.
+ * Supports Markdown rendering for formatted text.
+ *
+ * @dataStructure
+ * - value: string | number | null - Value to display (required)
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - General text column cells
+ * - Names, descriptions, identifiers
+ * - Markdown-formatted content
+ */
 function ColumnValue({
   className,
   value,
@@ -171,6 +204,22 @@ type ColumnDateProps = {
   className?: string;
 };
 
+/**
+ * @component ColumnDate
+ * @description Formats and displays date/datetime values in KST timezone.
+ *
+ * @dataStructure
+ * - value: string - ISO date string (required)
+ * - format?: string - date-fns format string (default: "yy.MM.dd")
+ * - isTime?: boolean - Include time display
+ * - isMinute?: boolean - Show minutes (HH:mm) vs hours only
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - Created/updated timestamps
+ * - Order dates
+ * - Event times
+ */
 function ColumnDate({
   format = "yy.MM.dd",
   value,
@@ -218,6 +267,20 @@ type ColumnNumberProps = {
   unit?: string;
 };
 
+/**
+ * @component ColumnNumber
+ * @description Displays formatted numbers with locale-aware thousand separators.
+ *
+ * @dataStructure
+ * - value: number - Numeric value (required)
+ * - unit?: string - Unit suffix (e.g., "개", "명")
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - Quantities, counts
+ * - Numeric metrics
+ * - Right-aligned number columns
+ */
 function ColumnNumber({
   value,
   className,
@@ -239,6 +302,20 @@ type ColumnPercentageProps = {
   className?: string;
 };
 
+/**
+ * @component ColumnPercentage
+ * @description Displays percentage values with automatic conversion and formatting.
+ * Values > 1 are treated as already percentage, values <= 1 are multiplied by 100.
+ *
+ * @dataStructure
+ * - value: number - Percentage value (0.5 or 50 both work)
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - Conversion rates
+ * - Growth percentages
+ * - Completion rates
+ */
 function ColumnPercentage({
   value,
   className,
@@ -268,6 +345,21 @@ type ColumnPriceProps = {
   currency?: string | undefined;
 };
 
+/**
+ * @component ColumnPrice
+ * @description Displays currency-formatted values with locale-aware formatting.
+ *
+ * @dataStructure
+ * - value: number | null - Monetary value (required)
+ * - currency?: string - Currency code (default: "KRW")
+ * - style?: "decimal" | "percent" | "currency" - Number format style
+ * - className?: string - Additional CSS classes
+ *
+ * @useCase
+ * - Product prices
+ * - Order totals
+ * - Revenue figures
+ */
 function ColumnPrice({
   value,
   className,
@@ -291,6 +383,19 @@ type ColumnArrowPriceProps = {
   value: number;
 };
 
+/**
+ * @component ColumnArrowPrice
+ * @description Displays price changes with directional arrows and color coding.
+ * Positive values show up arrow, negative show down arrow with red color.
+ *
+ * @dataStructure
+ * - value: number - Change amount (positive or negative)
+ *
+ * @useCase
+ * - Price changes
+ * - Stock movements
+ * - Period-over-period differences
+ */
 function ColumnArrowPrice({ value }: ColumnArrowPriceProps): React.JSX.Element {
   const absValue = Math.abs(value);
   const formattedValue = new Intl.NumberFormat("ko-KR", {
@@ -319,6 +424,22 @@ type ColumnCheckStatusProps = {
   status: boolean | null;
 };
 
+/**
+ * @component ColumnCheckStatus
+ * @description Displays boolean status as check/alert icons.
+ * True shows green checkmark, false shows red alert, null shows skip indicator.
+ *
+ * @dataStructure
+ * - status: boolean | null - Status value
+ *   - true: Green checkmark
+ *   - false: Red alert circle
+ *   - null: Gray "Skip" with tooltip
+ *
+ * @useCase
+ * - Validation status
+ * - Compliance checks
+ * - Feature availability
+ */
 function ColumnCheckStatus({
   status,
 }: ColumnCheckStatusProps): React.JSX.Element {

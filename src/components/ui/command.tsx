@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * @component Command
+ * @description Command palette / search interface. Built on cmdk library.
+ * Composed of Command, CommandDialog, CommandInput, CommandList, CommandEmpty,
+ * CommandGroup, CommandItem, CommandSeparator, CommandShortcut.
+ *
+ * @useCase Search interfaces, command palettes, autocomplete, quick actions
+ */
 import React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { SearchIcon } from "lucide-react";

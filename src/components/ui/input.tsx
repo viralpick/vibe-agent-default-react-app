@@ -1,3 +1,11 @@
+/**
+ * @component Input
+ * @description Single-line text input field with consistent styling.
+ * Supports all native input types (text, email, password, number, etc.).
+ *
+ * @designTokens h-36px, rounded-medium, px-12, text-label-l
+ * @useCase Form fields, search inputs, filters
+ */
 import * as React from "react";
 
 import { cn } from "@/lib/commerce-sdk";

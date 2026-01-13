@@ -1,3 +1,10 @@
+/**
+ * @component DropdownMenu
+ * @description Contextual menu triggered by a button. Built on Radix UI DropdownMenu.
+ * Supports items, checkboxes, radio groups, separators, and sub-menus.
+ *
+ * @useCase Action menus, settings dropdowns, context menus, navigation
+ */
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";

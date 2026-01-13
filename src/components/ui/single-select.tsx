@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * @fileoverview Single-select dropdown component with search functionality.
+ *
+ * @module ui/single-select
+ */
+
 import React from "react";
 import { ChevronDown, Check } from "lucide-react";
 
@@ -19,12 +25,62 @@ import {
   CommandList,
 } from "@/components/ui/command";
 
+/**
+ * Option item for SingleSelect
+ */
 type Option = {
   label: string;
   value: string;
   className?: string;
 };
 
+/**
+ * @component SingleSelect
+ * @description A searchable single-select dropdown built on Command and Popover.
+ * Supports controlled/uncontrolled modes, virtualized scrolling for large lists,
+ * and optional "None" selection.
+ *
+ * @dataStructure
+ * - options: Option[] - Array of selectable options (required)
+ *   - label: string - Display text
+ *   - value: string - Option value
+ *   - className?: string - Custom styling
+ * - value?: string | null - Selected value (controlled mode)
+ * - defaultValue?: string - Initial value (uncontrolled mode)
+ * - onChange?: (value: string | null) => void - Selection change handler
+ * - showNoneItem?: boolean - Show "None" option to clear selection
+ * - showSearch?: boolean - Enable search input (default: true)
+ * - placeholder?: string - Placeholder text
+ * - searchPlaceholder?: string - Search input placeholder
+ * - emptyLabel?: string - Text when no results found
+ * - disabled?: boolean - Disable the select
+ * - readOnly?: boolean - Make read-only
+ *
+ * @designTokens
+ * - Uses min-w-48 for minimum width
+ * - Uses text-xs for option text
+ * - Uses size-4 for icons
+ *
+ * @useCase
+ * - Filter dropdowns
+ * - Form field selections
+ * - Category/status selectors
+ * - Any single-choice selection with search
+ *
+ * @example
+ * ```tsx
+ * <SingleSelect
+ *   options={[
+ *     { label: "Option 1", value: "1" },
+ *     { label: "Option 2", value: "2" },
+ *   ]}
+ *   value={selected}
+ *   onChange={setSelected}
+ *   placeholder="Select an option"
+ *   showSearch
+ * />
+ * ```
+ */
 function SingleSelect({
   options,
   value,

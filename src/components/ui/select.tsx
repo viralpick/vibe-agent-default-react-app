@@ -1,3 +1,12 @@
+/**
+ * @component Select
+ * @description Native-like select dropdown. Built on Radix UI Select.
+ * Composed of Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+ * SelectGroup, SelectLabel, SelectSeparator.
+ * Sizes: default (36px), sm (32px).
+ *
+ * @useCase Form selects, filters, option pickers
+ */
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";

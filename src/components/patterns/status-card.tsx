@@ -6,6 +6,65 @@ import { StarIcon } from "lucide-react";
 
 import { cn } from "@/lib/commerce-sdk";
 
+/**
+ * @component StatusCard
+ * @description A versatile metric card supporting various data display modes including
+ * progress bars, ratings, percentages, and period-over-period metrics (MoM/WoW/DoD).
+ *
+ * @dataStructure
+ * - title: string - Card title/metric name (required)
+ * - icon?: string - Lucide icon name as string, e.g., "TrendingUp" (optional)
+ * - value?: number | string - Primary value to display (optional)
+ * - maxValue?: number | string - Maximum/target value for comparison (optional)
+ * - note?: string - Additional note text below value (optional)
+ * - format?: { type, locale, currency, fractionDigits } - Value formatting options (optional)
+ *   - type: "number" | "currency" | "percent" | "rating"
+ * - percent?: { value: number, color?: string } - Show percentage with progress bar in header (optional)
+ * - progress?: { current: number, max: number, color?: string } - Full progress bar with scale (optional)
+ * - metrics?: { mom?: number, wow?: number, dod?: number } - Period comparison percentages (optional)
+ * - rating?: { value: number, max?: number } - Star rating display (optional)
+ *
+ * @designTokens
+ * - Uses flex-1 for flexible card sizing
+ * - Uses text-2xl for main value display
+ * - Uses text-xs for metric labels
+ * - Green (#2a9d90) for positive metrics, red (#e0654c) for negative
+ * - Yellow (#fbbf24) for active stars in rating
+ *
+ * @useCase
+ * - Goal completion tracking with progress bar
+ * - Customer satisfaction ratings
+ * - Revenue with MoM/WoW/DoD comparison
+ * - Any metric requiring multiple display formats
+ *
+ * @example
+ * ```tsx
+ * // With progress bar
+ * <StatusCard
+ *   title="Monthly Goal"
+ *   value={85}
+ *   maxValue={100}
+ *   format={{ type: "percent" }}
+ *   progress={{ current: 85, max: 100, color: "#22c55e" }}
+ * />
+ *
+ * // With rating
+ * <StatusCard
+ *   title="Customer Rating"
+ *   rating={{ value: 4.5, max: 5 }}
+ *   format={{ type: "rating" }}
+ * />
+ *
+ * // With period metrics
+ * <StatusCard
+ *   title="Revenue"
+ *   value={12500000}
+ *   format={{ type: "currency" }}
+ *   metrics={{ mom: 5.2, wow: -1.3, dod: 2.1 }}
+ *   icon="TrendingUp"
+ * />
+ * ```
+ */
 export type StatusCardProps = {
   title: string;
   icon?: string;

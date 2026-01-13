@@ -1,3 +1,12 @@
+/**
+ * @component Table
+ * @description Basic HTML table with consistent styling.
+ * Composed of Table, TableHeader, TableBody, TableFooter, TableHead,
+ * TableRow, TableCell, TableCaption.
+ * For advanced features (sorting, filtering), use DataTable instead.
+ *
+ * @useCase Simple data display, static tables, comparison tables
+ */
 import * as React from "react";
 
 import { cn } from "@/lib/commerce-sdk";

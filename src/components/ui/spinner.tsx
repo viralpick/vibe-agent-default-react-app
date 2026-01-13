@@ -1,3 +1,10 @@
+/**
+ * @component Spinner
+ * @description Animated loading spinner.
+ * Sizes: default (24px), sm (16px), xs (10px).
+ *
+ * @useCase Loading states, button loading, async operations
+ */
 import type { VariantProps } from "class-variance-authority";
 import React from "react";
 import { cva } from "class-variance-authority";

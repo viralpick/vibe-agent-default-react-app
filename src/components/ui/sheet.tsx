@@ -1,3 +1,12 @@
+/**
+ * @component Sheet
+ * @description Slide-in panel from screen edge. Built on Radix UI Dialog.
+ * Sides: top, right (default), bottom, left.
+ * Composed of Sheet, SheetTrigger, SheetContent, SheetHeader, SheetFooter,
+ * SheetTitle, SheetDescription, SheetClose.
+ *
+ * @useCase Mobile navigation, filters panel, detail views, settings
+ */
 import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
