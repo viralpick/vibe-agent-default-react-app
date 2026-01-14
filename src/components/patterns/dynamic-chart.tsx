@@ -438,15 +438,18 @@ export function DynamicBarChart({
   tickFormatter,
   isLoading = false,
   maxVisibleItems,
-}: DynamicBarChartProps & { isLoading?: boolean; maxVisibleItems?: number }): React.ReactNode {
+}: DynamicBarChartProps & {
+  isLoading?: boolean;
+  maxVisibleItems?: number;
+}): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
-  
+
   // For horizontal layout, calculate height based on data count
   const barHeight = 36; // height per bar item
   const dataCount = Array.isArray(data) ? data.length : 0;
-  
+
   const chartHeight = useMemo(() => {
     if (layout !== "horizontal") return baseHeight;
     // Calculate dynamic height based on data count
@@ -457,15 +460,16 @@ export function DynamicBarChart({
     }
     return Math.max(baseHeight, calculatedHeight);
   }, [layout, dataCount, baseHeight, maxVisibleItems]);
-  
+
   // Actual chart height (for scrollable content)
   const actualChartHeight = useMemo(() => {
     if (layout !== "horizontal") return chartHeight;
     return dataCount * barHeight + 40;
   }, [layout, dataCount, chartHeight]);
-  
+
   // Whether scrolling is needed
-  const needsScroll = layout === "horizontal" && actualChartHeight > chartHeight;
+  const needsScroll =
+    layout === "horizontal" && actualChartHeight > chartHeight;
 
   const charWidth = 7;
   const minWidth = 60;
@@ -549,10 +553,7 @@ export function DynamicBarChart({
       )}
       <CardContent>
         <div
-          className={cn(
-            "w-full",
-            needsScroll && "overflow-y-auto"
-          )}
+          className={cn("w-full", needsScroll && "overflow-y-auto")}
           style={{ height: chartHeight, maxHeight: chartHeight }}
         >
           <ChartContainer
@@ -629,7 +630,9 @@ export function DynamicBarChart({
                     dataKey={key}
                     fill={color}
                     maxBarSize={layout === "horizontal" ? 28 : 32}
-                    radius={layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+                    radius={
+                      layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]
+                    }
                   />
                 );
               })}
