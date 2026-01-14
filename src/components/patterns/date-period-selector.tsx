@@ -339,6 +339,22 @@ export function DatePeriodSelector({
 }
 
 /**
+ * Validates if a value is a valid DatePeriodValue
+ */
+function isValidDatePeriodValue(value: unknown): value is DatePeriodValue {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (v.type === "preset" || v.type === "month" || v.type === "range") &&
+    v.from instanceof Date &&
+    !isNaN(v.from.getTime()) &&
+    v.to instanceof Date &&
+    !isNaN(v.to.getTime()) &&
+    typeof v.label === "string"
+  );
+}
+
+/**
  * @function getDateRangeFromPeriod
  * @description Utility function to extract ISO date strings from a DatePeriodValue.
  * Useful for constructing GraphQL query filters.
@@ -354,11 +370,12 @@ export function DatePeriodSelector({
  *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
  * ```
  */
-export function getDateRangeFromPeriod(period?: DatePeriodValue): {
+export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
   from: string;
   to: string;
 } {
-  if (!period) {
+  // Validate period - if invalid, treat as undefined
+  if (!isValidDatePeriodValue(period)) {
     // Default to last 30 days
     const today = new Date();
     const from = new Date(today);
@@ -395,7 +412,7 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue): {
  */
 export function injectDateFilters(
   queryTemplate: string,
-  period?: DatePeriodValue
+  period?: DatePeriodValue | unknown
 ): string {
   const { from, to } = getDateRangeFromPeriod(period);
   return queryTemplate

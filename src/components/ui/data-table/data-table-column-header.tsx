@@ -63,7 +63,7 @@ function DataTableColumnHeader<TData, TValue>({
             variant="ghost"
             size="sm"
             className={cn(
-              "-ml-3 -mr-3 h-8 data-[state=open]:bg-accent gap-1",
+              "-ml-12 -mr-12 h-32 data-[state=open]:bg-accent gap-4",
               size === "sm" &&
                 "h-6 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5 [&_svg:not([class*='size-'])]:size-3"
             )}

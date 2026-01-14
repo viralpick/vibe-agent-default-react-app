@@ -444,7 +444,7 @@ function DataTable<TData, TValue>({
                           header.column.columnDef.meta?.cellVariant === "dim" &&
                             "bg-state-200",
                           header.column.columnDef.meta?.headerClassName,
-                          size === "xs" && "h-8 py-0.5 px-1.5 text-xs",
+                          size === "xs" && "h-32 py-2 px-6 text-xs",
                           size === "sm" && "h-9 py-1 px-2.5 text-xs",
                           className
                         )}

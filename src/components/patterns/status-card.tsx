@@ -209,7 +209,7 @@ export default function StatusCard({
           </div>
         ) : (
           Icon && (
-            <div className="size-4 text-black/50">
+            <div className="size-16 text-black/50">
               {React.createElement(Icon, { size: 16 })}
             </div>
           )

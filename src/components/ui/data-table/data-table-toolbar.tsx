@@ -78,7 +78,7 @@ function DataTableToolbar<TData>({
               placeholder={placeholder}
               value={globalFilter}
               onChange={handleSearch}
-              className={cn("h-8 w-[150px] lg:w-[250px]", classNames?.search)}
+              className={cn("h-32 w-[150px] lg:w-[250px]", classNames?.search)}
             />
             {isFiltered && (
               <Button
@@ -98,7 +98,7 @@ function DataTableToolbar<TData>({
               <Button
                 variant="outline"
                 onClick={onDownload}
-                className={cn("h-8", !downloadButtonText && "px-2!")}
+                className={cn("h-32", !downloadButtonText && "px-2!")}
                 disabled={downloadDisabled}
               >
                 <Download /> {downloadButtonText}
@@ -117,7 +117,7 @@ function DataTableToolbar<TData>({
           <Button
             variant="outline"
             onClick={onDownload}
-            className={cn("h-8", !downloadButtonText && "px-2!")}
+            className={cn("h-32", !downloadButtonText && "px-2!")}
           >
             <Download /> {downloadButtonText}
           </Button>
@@ -143,7 +143,7 @@ export function DataTableViewOptions<TData>({
         <Button
           variant="outline"
           size="icon-sm"
-          className="ml-auto hidden h-8 lg:flex"
+          className="ml-auto hidden h-32 lg:flex"
         >
           <SettingsIcon />
         </Button>
