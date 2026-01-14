@@ -917,21 +917,22 @@ export function DynamicPieChart({
   normalizeKey,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const safeData = useMemo(() => data ?? [], [data]);
 
   // Build color map with case-insensitive lookup
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    data.forEach((entry, index) => {
-      const key = normalizeKey
-        ? normalizeKey(entry.name)
-        : entry.name.toLowerCase();
+    safeData.forEach((entry, index) => {
+      const name = entry?.name ?? "";
+      const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
       map[key] = colors[index % colors.length];
     });
     return map;
-  }, [data, colors, normalizeKey]);
+  }, [safeData, colors, normalizeKey]);
 
   const getColor = (name: string, index: number): string => {
-    const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
+    const safeName = name ?? "";
+    const key = normalizeKey ? normalizeKey(safeName) : safeName.toLowerCase();
     return colorMap[key] || colors[index % colors.length];
   };
 
@@ -980,7 +981,7 @@ export function DynamicPieChart({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={data}
+                data={safeData}
                 cx="50%"
                 cy="50%"
                 innerRadius={innerRadius}
@@ -990,10 +991,10 @@ export function DynamicPieChart({
                 nameKey="name"
                 label={showLabel}
               >
-                {data.map((entry, index) => (
+                {safeData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={getColor(entry.name, index)}
+                    fill={getColor(entry?.name ?? "", index)}
                   />
                 ))}
               </Pie>
