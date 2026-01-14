@@ -20,7 +20,14 @@ import {
   AreaChart,
   Area,
   ComposedChart,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
 } from "recharts";
+
+import { cn } from "@/lib/commerce-sdk";
 
 import {
   ChartContainer,
@@ -36,6 +43,10 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+
+import { Skeleton } from "@/components/ui/skeleton";
+
+const DEFAULT_CHART_HEIGHT = 300;
 
 type SeriesType = "line" | "bar" | "area";
 type YAxisSide = "left" | "right";
@@ -124,7 +135,7 @@ export type DynamicAreaChartProps = BaseDynamicChartProps & {
 export function DynamicAreaChart({
   title,
   description,
-  height,
+  height = DEFAULT_CHART_HEIGHT,
   xAxisKey,
   yAxisKey,
   data,
@@ -135,6 +146,7 @@ export function DynamicAreaChart({
   tickFormatter,
 }: DynamicAreaChartProps): React.ReactNode {
   const keys = Object.keys(config);
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
     <Card className="gap-6">
@@ -157,7 +169,10 @@ export function DynamicAreaChart({
         </CardHeader>
       )}
       <CardContent>
-        <ChartContainer config={config} className={`w-full h-[${height}px]`}>
+        <ChartContainer
+          config={config}
+          className={cn("w-full", `h-[${chartHeight}px]`)}
+        >
           <AreaChart
             accessibilityLayer
             data={data ?? []}
@@ -259,7 +274,7 @@ export type DynamicLineChartProps = BaseDynamicChartProps & {
 export function DynamicLineChart({
   title,
   description,
-  height,
+  height = DEFAULT_CHART_HEIGHT,
   xAxisKey,
   yAxisKey,
   data,
@@ -270,6 +285,7 @@ export function DynamicLineChart({
   tickFormatter,
 }: DynamicLineChartProps): React.ReactNode {
   const keys = Object.keys(config);
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
     <Card className="gap-6">
@@ -292,7 +308,10 @@ export function DynamicLineChart({
         </CardHeader>
       )}
       <CardContent>
-        <ChartContainer config={config} className={`w-full h-[${height}px]`}>
+        <ChartContainer
+          config={config}
+          className={cn("w-full", `h-[${chartHeight}px]`)}
+        >
           <LineChart
             accessibilityLayer
             data={data ?? []}
@@ -398,7 +417,7 @@ export type DynamicBarChartProps = BaseDynamicChartProps & {
 export function DynamicBarChart({
   title,
   description,
-  height,
+  height = DEFAULT_CHART_HEIGHT,
   xAxisKey,
   yAxisKey,
   data,
@@ -407,8 +426,10 @@ export function DynamicBarChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-}: DynamicBarChartProps): React.ReactNode {
+  isLoading = false,
+}: DynamicBarChartProps & { isLoading?: boolean }): React.ReactNode {
   const keys = Object.keys(config);
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   const charWidth = 7;
   const minWidth = 60;
@@ -450,6 +471,26 @@ export function DynamicBarChart({
     );
   };
 
+  if (isLoading) {
+    return (
+      <Card className="gap-6">
+        {(title || description) && (
+          <CardHeader>
+            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {description ? (
+              <CardDescription>{description}</CardDescription>
+            ) : (
+              <CardDescription hidden />
+            )}
+          </CardHeader>
+        )}
+        <CardContent>
+          <Skeleton className={cn("w-full", `h-[${chartHeight}px]`)} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="gap-6">
       {(title || description) && (
@@ -471,7 +512,10 @@ export function DynamicBarChart({
         </CardHeader>
       )}
       <CardContent>
-        <ChartContainer config={config} className={`w-full h-[${height}px]`}>
+        <ChartContainer
+          config={config}
+          className={cn("w-full", `h-[${chartHeight}px]`)}
+        >
           <BarChart
             accessibilityLayer
             data={data ?? []}
@@ -655,7 +699,7 @@ export function DynamicComposedChart({
       <CardContent>
         <ChartContainer
           config={legendConfig}
-          className={`w-full h-[${height}px]`}
+          className={cn("w-full", `h-[${height}px]`)}
         >
           <ComposedChart
             accessibilityLayer
@@ -752,6 +796,203 @@ export function DynamicComposedChart({
             })}
           </ComposedChart>
         </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Default color palette for pie/donut charts
+ */
+const PIE_CHART_COLORS = [
+  "#3b82f6", // blue-500
+  "#22c55e", // green-500
+  "#f59e0b", // amber-500
+  "#ef4444", // red-500
+  "#8b5cf6", // violet-500
+  "#06b6d4", // cyan-500
+  "#f97316", // orange-500
+  "#84cc16", // lime-500
+  "#ec4899", // pink-500
+  "#6366f1", // indigo-500
+];
+
+/**
+ * Props for DynamicPieChart component
+ */
+export type DynamicPieChartProps = {
+  title?: string;
+  description?: string;
+  data: { name: string; value: number }[];
+  colors?: string[];
+  innerRadius?: number;
+  outerRadius?: number;
+  height?: number;
+  showLegend?: boolean;
+  showLabel?: boolean;
+  isLoading?: boolean;
+  /** Optional key normalization function for color mapping */
+  normalizeKey?: (key: string) => string;
+};
+
+/**
+ * @component DynamicPieChart
+ * @description Renders data as a pie or donut chart. Use innerRadius > 0 for donut style.
+ * Automatically handles color mapping with case-insensitive key normalization.
+ *
+ * @dataStructure
+ * - data: { name: string, value: number }[] - Array of segments (required)
+ *   - name: Segment label (e.g., "POSITIVE", "Negative")
+ *   - value: Numeric value for segment size
+ * - colors?: string[] - Array of hex colors for segments (optional, uses default palette)
+ * - innerRadius?: number - Inner radius for donut effect (optional, 0 = pie, >0 = donut)
+ * - outerRadius?: number - Outer radius of the chart (optional, default: 100)
+ * - height?: number - Chart height in pixels (optional, default: 300)
+ * - showLegend?: boolean - Show/hide legend (optional, default: true)
+ * - showLabel?: boolean - Show labels on segments (optional, default: false)
+ * - isLoading?: boolean - Show skeleton loader (optional, default: false)
+ * - normalizeKey?: (key: string) => string - Key normalization for color lookup (optional)
+ *
+ * @designTokens
+ * - Uses default color palette: blue, green, amber, red, violet, cyan, orange, lime, pink, indigo
+ * - Card container with rounded-xlarge border
+ * - Legend at bottom with horizontal layout
+ *
+ * @useCase
+ * - Sentiment distribution (positive/neutral/negative)
+ * - Market share breakdown
+ * - Category proportions
+ * - Status distribution
+ *
+ * @example
+ * ```tsx
+ * // Basic pie chart
+ * <DynamicPieChart
+ *   title="Sentiment Distribution"
+ *   data={[
+ *     { name: "POSITIVE", value: 2437 },
+ *     { name: "NEUTRAL", value: 156 },
+ *     { name: "NEGATIVE", value: 89 },
+ *   ]}
+ *   colors={["#22c55e", "#94a3b8", "#ef4444"]}
+ * />
+ *
+ * // Donut chart with custom colors
+ * <DynamicPieChart
+ *   title="Category Breakdown"
+ *   data={categoryData}
+ *   innerRadius={60}
+ *   outerRadius={100}
+ * />
+ * ```
+ */
+export function DynamicPieChart({
+  title,
+  description,
+  data,
+  colors = PIE_CHART_COLORS,
+  innerRadius = 0,
+  outerRadius = 100,
+  height = DEFAULT_CHART_HEIGHT,
+  showLegend = true,
+  showLabel = false,
+  isLoading = false,
+  normalizeKey,
+}: DynamicPieChartProps): React.ReactNode {
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+
+  // Build color map with case-insensitive lookup
+  const colorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    data.forEach((entry, index) => {
+      const key = normalizeKey
+        ? normalizeKey(entry.name)
+        : entry.name.toLowerCase();
+      map[key] = colors[index % colors.length];
+    });
+    return map;
+  }, [data, colors, normalizeKey]);
+
+  const getColor = (name: string, index: number): string => {
+    const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
+    return colorMap[key] || colors[index % colors.length];
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="gap-6">
+        {(title || description) && (
+          <CardHeader>
+            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {description ? (
+              <CardDescription>{description}</CardDescription>
+            ) : (
+              <CardDescription hidden />
+            )}
+          </CardHeader>
+        )}
+        <CardContent>
+          <Skeleton className={cn("w-full", `h-[${chartHeight}px]`)} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="gap-6">
+      {(title || description) && (
+        <CardHeader>
+          {title && (
+            <CardTitle
+              className="w-fit"
+              data-editable="title"
+              data-prop="title"
+            >
+              {title}
+            </CardTitle>
+          )}
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : (
+            <CardDescription hidden />
+          )}
+        </CardHeader>
+      )}
+      <CardContent>
+        <div className={cn("w-full", `h-[${chartHeight}px]`)}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={innerRadius}
+                outerRadius={outerRadius}
+                paddingAngle={innerRadius > 0 ? 2 : 0}
+                dataKey="value"
+                nameKey="name"
+                label={showLabel}
+              >
+                {data.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getColor(entry.name, index)}
+                  />
+                ))}
+              </Pie>
+              <RechartsTooltip />
+              {showLegend && (
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  formatter={(value: string) => (
+                    <span className="text-sm text-gray-600">{value}</span>
+                  )}
+                />
+              )}
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );

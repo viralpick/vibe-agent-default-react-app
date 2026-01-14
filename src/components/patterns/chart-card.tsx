@@ -9,8 +9,8 @@ import { Skeleton } from "../ui/skeleton";
  * @dataStructure
  * - title: string - Card header title (required)
  * - children: ReactNode - Chart component to render inside (required)
- * - isLoading: boolean - Shows skeleton loader when true (required)
- * - action: ReactNode - Action buttons/elements in header (required)
+ * - isLoading?: boolean - Shows skeleton loader when true (optional, default: false)
+ * - action?: ReactNode - Action buttons/elements in header (optional)
  *
  * @designTokens
  * - Uses rounded-xlarge (12px) for card border radius
@@ -38,13 +38,13 @@ import { Skeleton } from "../ui/skeleton";
 export function ChartCard({
   title,
   children,
-  isLoading,
+  isLoading = false,
   action,
 }: {
   title: string;
   children: React.ReactNode;
-  isLoading: boolean;
-  action: React.ReactNode;
+  isLoading?: boolean;
+  action?: React.ReactNode;
 }) {
   return (
     <Card className="flex flex-col rounded-xlarge border border-gray-200 bg-gray-0 h-[400px]">
