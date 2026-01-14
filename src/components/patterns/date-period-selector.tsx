@@ -1,0 +1,402 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { CalendarIcon } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+
+import { cn } from "@/lib/commerce-sdk";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+/**
+ * Preset option for quick date selection
+ */
+export type DatePresetOption = {
+  id: string;
+  label: string;
+  days: number;
+};
+
+/**
+ * Selected date period value
+ */
+export type DatePeriodValue = {
+  type: "preset" | "month" | "range";
+  from: Date;
+  to: Date;
+  label: string;
+};
+
+/**
+ * Props for DatePeriodSelector component
+ */
+export type DatePeriodSelectorProps = {
+  value?: DatePeriodValue;
+  onChange: (value: DatePeriodValue) => void;
+  presets?: DatePresetOption[];
+  monthsCount?: number;
+  placeholder?: string;
+  className?: string;
+  size?: "default" | "sm";
+  align?: "start" | "center" | "end";
+};
+
+const DEFAULT_PRESETS: DatePresetOption[] = [
+  { id: "today", label: "오늘", days: 0 },
+  { id: "7days", label: "최근 7일", days: 7 },
+  { id: "30days", label: "최근 30일", days: 30 },
+  { id: "90days", label: "최근 90일", days: 90 },
+];
+
+/**
+ * Generates month options for the past N months
+ */
+function getMonthOptions(
+  count: number
+): { id: string; label: string; from: Date; to: Date }[] {
+  const options: { id: string; label: string; from: Date; to: Date }[] = [];
+  const today = new Date();
+
+  for (let i = 0; i < count; i++) {
+    const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+
+    const from = new Date(year, month, 1);
+    const to = new Date(year, month + 1, 0); // Last day of month
+
+    const id = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const label = `${year}년 ${month + 1}월`;
+
+    options.push({ id, label, from, to });
+  }
+
+  return options;
+}
+
+/**
+ * Formats a date range for display
+ */
+function formatDateRange(from: Date, to: Date): string {
+  const formatDate = (d: Date) =>
+    `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  return `${formatDate(from)} - ${formatDate(to)}`;
+}
+
+/**
+ * @component DatePeriodSelector
+ * @description A comprehensive date period selector supporting presets, monthly selection,
+ * and custom date range picking via calendar. Used for filtering dashboard data by time period.
+ *
+ * @dataStructure
+ * - value?: DatePeriodValue - Currently selected period (optional)
+ *   - type: "preset" | "month" | "range" - Selection type
+ *   - from: Date - Start date
+ *   - to: Date - End date
+ *   - label: string - Display label
+ * - onChange: (value: DatePeriodValue) => void - Callback when period changes (required)
+ * - presets?: DatePresetOption[] - Quick selection presets (optional, default: 오늘, 최근 7일, 30일, 90일)
+ *   - id: string - Unique identifier
+ *   - label: string - Display text
+ *   - days: number - Number of days from today (0 = today only)
+ * - monthsCount?: number - Number of months to show in monthly selector (optional, default: 12)
+ * - placeholder?: string - Placeholder text (optional, default: "기간 선택")
+ * - size?: "default" | "sm" - Trigger button size (optional, default: "default")
+ * - align?: "start" | "center" | "end" - Popover alignment (optional, default: "end")
+ *
+ * @designTokens
+ * - Uses Select for preset/month selection
+ * - Uses Calendar with range mode for custom selection
+ * - Uses Popover for calendar dropdown
+ * - Uses text-label-l (14px) for trigger text
+ * - Uses gap-8 between trigger icon and text
+ *
+ * @useCase
+ * - Dashboard date filtering
+ * - Report period selection
+ * - Analytics time range picker
+ * - Any data visualization requiring date filtering
+ *
+ * @example
+ * ```tsx
+ * // Basic usage with presets and monthly selection
+ * const [period, setPeriod] = useState<DatePeriodValue>();
+ *
+ * <DatePeriodSelector
+ *   value={period}
+ *   onChange={setPeriod}
+ * />
+ *
+ * // Custom presets and 24 months
+ * <DatePeriodSelector
+ *   value={period}
+ *   onChange={setPeriod}
+ *   presets={[
+ *     { id: "7days", label: "최근 7일", days: 7 },
+ *     { id: "30days", label: "최근 30일", days: 30 },
+ *   ]}
+ *   monthsCount={24}
+ * />
+ *
+ * // Using the selected dates for GraphQL queries
+ * const startDate = period?.from.toISOString();
+ * const endDate = period?.to.toISOString();
+ * ```
+ */
+export function DatePeriodSelector({
+  value,
+  onChange,
+  presets = DEFAULT_PRESETS,
+  monthsCount = 12,
+  placeholder = "기간 선택",
+  className,
+  size = "default",
+  align = "end",
+}: DatePeriodSelectorProps): React.JSX.Element {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calendarRange, setCalendarRange] = useState<DateRange | undefined>();
+
+  const monthOptions = useMemo(
+    () => getMonthOptions(monthsCount),
+    [monthsCount]
+  );
+
+  // Compute current select value
+  const selectValue = useMemo(() => {
+    if (!value) return undefined;
+    if (value.type === "preset") {
+      return `preset:${presets.find((p) => p.label === value.label)?.id || ""}`;
+    }
+    if (value.type === "month") {
+      const monthId = `${value.from.getFullYear()}-${String(
+        value.from.getMonth() + 1
+      ).padStart(2, "0")}`;
+      return `month:${monthId}`;
+    }
+    return undefined;
+  }, [value, presets]);
+
+  const handleSelectChange = (val: string) => {
+    if (val === "custom") {
+      setIsCalendarOpen(true);
+      return;
+    }
+
+    const [type, id] = val.split(":");
+
+    if (type === "preset") {
+      const preset = presets.find((p) => p.id === id);
+      if (preset) {
+        const today = new Date();
+        const to = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate(),
+          23,
+          59,
+          59
+        );
+        const from = new Date(today);
+        from.setDate(today.getDate() - preset.days);
+        from.setHours(0, 0, 0, 0);
+
+        onChange({
+          type: "preset",
+          from,
+          to,
+          label: preset.label,
+        });
+      }
+    } else if (type === "month") {
+      const monthOpt = monthOptions.find((m) => m.id === id);
+      if (monthOpt) {
+        onChange({
+          type: "month",
+          from: monthOpt.from,
+          to: monthOpt.to,
+          label: monthOpt.label,
+        });
+      }
+    }
+  };
+
+  const handleCalendarSelect = (range: DateRange | undefined) => {
+    setCalendarRange(range);
+  };
+
+  const handleCalendarApply = () => {
+    if (calendarRange?.from && calendarRange?.to) {
+      const from = new Date(calendarRange.from);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(calendarRange.to);
+      to.setHours(23, 59, 59, 999);
+
+      onChange({
+        type: "range",
+        from,
+        to,
+        label: formatDateRange(from, to),
+      });
+      setIsCalendarOpen(false);
+      setCalendarRange(undefined);
+    }
+  };
+
+  const handleCalendarCancel = () => {
+    setIsCalendarOpen(false);
+    setCalendarRange(undefined);
+  };
+
+  const displayValue = value?.label || placeholder;
+
+  return (
+    <div className={cn("flex items-center gap-8", className)}>
+      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+        <Select value={selectValue} onValueChange={handleSelectChange}>
+          <SelectTrigger size={size} className="min-w-[160px]">
+            <CalendarIcon className="size-16 text-icon-secondary" />
+            <SelectValue placeholder={placeholder}>{displayValue}</SelectValue>
+          </SelectTrigger>
+          <SelectContent align={align}>
+            <SelectGroup>
+              <SelectLabel>빠른 선택</SelectLabel>
+              {presets.map((preset) => (
+                <SelectItem key={preset.id} value={`preset:${preset.id}`}>
+                  {preset.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>월별 선택</SelectLabel>
+              {monthOptions.map((month) => (
+                <SelectItem key={month.id} value={`month:${month.id}`}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            <SelectSeparator />
+            <SelectGroup>
+              <SelectLabel>직접 선택</SelectLabel>
+              <PopoverTrigger asChild>
+                <SelectItem value="custom">날짜 범위 선택...</SelectItem>
+              </PopoverTrigger>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        <PopoverContent className="w-auto p-0" align={align}>
+          <div className="p-16">
+            <Calendar
+              mode="range"
+              selected={calendarRange}
+              onSelect={handleCalendarSelect}
+              numberOfMonths={2}
+              defaultMonth={
+                new Date(new Date().getFullYear(), new Date().getMonth() - 1)
+              }
+            />
+            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCalendarCancel}
+              >
+                취소
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCalendarApply}
+                disabled={!calendarRange?.from || !calendarRange?.to}
+              >
+                적용
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+/**
+ * @function getDateRangeFromPeriod
+ * @description Utility function to extract ISO date strings from a DatePeriodValue.
+ * Useful for constructing GraphQL query filters.
+ *
+ * @param period - The selected date period value
+ * @returns Object with from and to ISO strings, or undefined dates if no period
+ *
+ * @example
+ * ```tsx
+ * const { from, to } = getDateRangeFromPeriod(selectedPeriod);
+ * const query = aggregationQuery
+ *   .replace(/"{{DATE_FROM}}"/g, `"${from}"`)
+ *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
+ * ```
+ */
+export function getDateRangeFromPeriod(period?: DatePeriodValue): {
+  from: string;
+  to: string;
+} {
+  if (!period) {
+    // Default to last 30 days
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - 30);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(today);
+    to.setHours(23, 59, 59, 999);
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+    };
+  }
+
+  return {
+    from: period.from.toISOString(),
+    to: period.to.toISOString(),
+  };
+}
+
+/**
+ * @function injectDateFilters
+ * @description Replaces date placeholder tokens in GraphQL query strings with actual dates.
+ *
+ * @param queryTemplate - GraphQL query string with {{DATE_FROM}} and {{DATE_TO}} placeholders
+ * @param period - The selected date period value (optional, defaults to last 30 days)
+ * @returns Query string with dates injected
+ *
+ * @example
+ * ```tsx
+ * const query = injectDateFilters(graphqlQueries.aggregation_query, selectedPeriod);
+ * const response = await apiClient.post(ENDPOINT, { query, variables: {} });
+ * ```
+ */
+export function injectDateFilters(
+  queryTemplate: string,
+  period?: DatePeriodValue
+): string {
+  const { from, to } = getDateRangeFromPeriod(period);
+  return queryTemplate
+    .replace(/"{{DATE_FROM}}"/g, `"${from}"`)
+    .replace(/"{{DATE_TO}}"/g, `"${to}"`);
+}

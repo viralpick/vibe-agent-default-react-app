@@ -26,6 +26,9 @@
  * - PageHeader: Page title + description + actions
  * - Grid: Responsive column grid layout
  * - ViewTabs: Tab-based content switching
+ *
+ * ### Date & Time
+ * - DatePeriodSelector: Date period picker with presets, monthly, and range selection
  */
 
 /** CommentCard - Status-based feedback message with icons */
@@ -57,3 +60,6 @@ export * from "./status-card";
 
 /** ViewTabs - Tab-based view switching */
 export * from "./view-tabs";
+
+/** DatePeriodSelector - Date period picker with presets, monthly, and range selection */
+export * from "./date-period-selector";
