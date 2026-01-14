@@ -8,10 +8,11 @@ import { cn } from "@/lib/commerce-sdk";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -268,42 +269,43 @@ export function DatePeriodSelector({
 
   return (
     <div className={cn("flex items-center gap-8", className)}>
-      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <Select value={selectValue} onValueChange={handleSelectChange}>
-          <SelectTrigger size={size} className="min-w-[160px]">
-            <CalendarIcon className="size-16 text-icon-secondary" />
-            <SelectValue placeholder={placeholder}>{displayValue}</SelectValue>
-          </SelectTrigger>
-          <SelectContent align={align}>
-            <SelectGroup>
-              <SelectLabel>빠른 선택</SelectLabel>
-              {presets.map((preset) => (
-                <SelectItem key={preset.id} value={`preset:${preset.id}`}>
-                  {preset.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel>월별 선택</SelectLabel>
-              {monthOptions.map((month) => (
-                <SelectItem key={month.id} value={`month:${month.id}`}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-            <SelectSeparator />
-            <SelectGroup>
-              <SelectLabel>직접 선택</SelectLabel>
-              <PopoverTrigger asChild>
-                <SelectItem value="custom">날짜 범위 선택...</SelectItem>
-              </PopoverTrigger>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <Select value={selectValue} onValueChange={handleSelectChange}>
+        <SelectTrigger size={size} className="min-w-[160px]">
+          <CalendarIcon className="size-16 text-icon-secondary" />
+          <SelectValue placeholder={placeholder}>{displayValue}</SelectValue>
+        </SelectTrigger>
+        <SelectContent align={align}>
+          <SelectGroup>
+            <SelectLabel>빠른 선택</SelectLabel>
+            {presets.map((preset) => (
+              <SelectItem key={preset.id} value={`preset:${preset.id}`}>
+                {preset.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel>월별 선택</SelectLabel>
+            {monthOptions.map((month) => (
+              <SelectItem key={month.id} value={`month:${month.id}`}>
+                {month.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel>직접 선택</SelectLabel>
+            <SelectItem value="custom">날짜 범위 선택...</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
 
-        <PopoverContent className="w-auto p-0" align={align}>
-          <div className="p-16">
+      <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+        <DialogContent className="w-auto max-w-fit p-24">
+          <DialogHeader>
+            <DialogTitle>날짜 범위 선택</DialogTitle>
+          </DialogHeader>
+          <div className="mt-16">
             <Calendar
               mode="range"
               selected={calendarRange}
@@ -330,8 +332,8 @@ export function DatePeriodSelector({
               </Button>
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

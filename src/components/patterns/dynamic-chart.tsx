@@ -437,10 +437,35 @@ export function DynamicBarChart({
   showLegend = true,
   tickFormatter,
   isLoading = false,
-}: DynamicBarChartProps & { isLoading?: boolean }): React.ReactNode {
+  maxVisibleItems,
+}: DynamicBarChartProps & { isLoading?: boolean; maxVisibleItems?: number }): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
-  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  
+  // For horizontal layout, calculate height based on data count
+  const barHeight = 36; // height per bar item
+  const dataCount = Array.isArray(data) ? data.length : 0;
+  
+  const chartHeight = useMemo(() => {
+    if (layout !== "horizontal") return baseHeight;
+    // Calculate dynamic height based on data count
+    const calculatedHeight = dataCount * barHeight + 40; // 40px for padding
+    // Use maxVisibleItems to limit visible area, rest will scroll
+    if (maxVisibleItems && dataCount > maxVisibleItems) {
+      return maxVisibleItems * barHeight + 40;
+    }
+    return Math.max(baseHeight, calculatedHeight);
+  }, [layout, dataCount, baseHeight, maxVisibleItems]);
+  
+  // Actual chart height (for scrollable content)
+  const actualChartHeight = useMemo(() => {
+    if (layout !== "horizontal") return chartHeight;
+    return dataCount * barHeight + 40;
+  }, [layout, dataCount, chartHeight]);
+  
+  // Whether scrolling is needed
+  const needsScroll = layout === "horizontal" && actualChartHeight > chartHeight;
 
   const charWidth = 7;
   const minWidth = 60;
@@ -523,85 +548,94 @@ export function DynamicBarChart({
         </CardHeader>
       )}
       <CardContent>
-        <ChartContainer
-          config={effectiveConfig}
-          className={cn("w-full", `h-[${chartHeight}px]`)}
+        <div
+          className={cn(
+            "w-full",
+            needsScroll && "overflow-y-auto"
+          )}
+          style={{ height: chartHeight, maxHeight: chartHeight }}
         >
-          <BarChart
-            accessibilityLayer
-            data={data ?? []}
-            layout={layout === "horizontal" ? "vertical" : undefined}
-            height={height}
-            margin={
-              layout === "horizontal"
-                ? { top: 0, right: 15, bottom: 0, left: 40 }
-                : {
-                    top: 0,
-                    right: 25,
-                    bottom: 0,
-                    left: 15,
-                  }
-            }
+          <ChartContainer
+            config={effectiveConfig}
+            className="w-full"
+            style={{ height: actualChartHeight, minHeight: actualChartHeight }}
           >
-            <CartesianGrid
-              stroke="#ebebeb"
-              strokeDasharray="3 3"
-              horizontal={layout === "vertical"}
-              vertical={layout === "horizontal"}
-            />
-            {layout === "vertical" ? (
-              <XAxis
-                type="category"
-                dataKey={xAxisKey}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={10}
-                tickFormatter={tickFormatter}
+            <BarChart
+              accessibilityLayer
+              data={data ?? []}
+              layout={layout === "horizontal" ? "vertical" : undefined}
+              height={actualChartHeight}
+              margin={
+                layout === "horizontal"
+                  ? { top: 0, right: 15, bottom: 0, left: 40 }
+                  : {
+                      top: 0,
+                      right: 25,
+                      bottom: 0,
+                      left: 15,
+                    }
+              }
+            >
+              <CartesianGrid
+                stroke="#ebebeb"
+                strokeDasharray="3 3"
+                horizontal={layout === "vertical"}
+                vertical={layout === "horizontal"}
               />
-            ) : (
-              <XAxis type="number" dataKey={xAxisKey} hide />
-            )}
-            {layout === "horizontal" ? (
-              <YAxis
-                type="category"
-                dataKey={yAxisKey}
-                width={autoYAxisWidth ?? maxWidth}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={10}
-                // tickFormatter={tickFormatter}
-                tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
-              />
-            ) : (
-              <YAxis
-                dataKey={yAxisKey}
-                fontSize={12}
-                tickLine={false}
-                tickMargin={8}
-                axisLine={false}
-              />
-            )}
-            {tooltipIndicator !== false && (
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
-              />
-            )}
-            {showLegend && <Legend content={<ChartLegendContent />} />}
-            {keys.map((key) => {
-              const color = effectiveConfig[key]?.color || "#000000";
-              return (
-                <Bar
-                  key={key}
-                  dataKey={key}
-                  fill={color}
-                  maxBarSize={layout === "horizontal" ? 28 : 32}
-                  radius={layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+              {layout === "vertical" ? (
+                <XAxis
+                  type="category"
+                  dataKey={xAxisKey}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={10}
+                  tickFormatter={tickFormatter}
                 />
-              );
-            })}
-          </BarChart>
-        </ChartContainer>
+              ) : (
+                <XAxis type="number" dataKey={xAxisKey} hide />
+              )}
+              {layout === "horizontal" ? (
+                <YAxis
+                  type="category"
+                  dataKey={yAxisKey}
+                  width={autoYAxisWidth ?? maxWidth}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={10}
+                  // tickFormatter={tickFormatter}
+                  tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
+                />
+              ) : (
+                <YAxis
+                  dataKey={yAxisKey}
+                  fontSize={12}
+                  tickLine={false}
+                  tickMargin={8}
+                  axisLine={false}
+                />
+              )}
+              {tooltipIndicator !== false && (
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                />
+              )}
+              {showLegend && <Legend content={<ChartLegendContent />} />}
+              {keys.map((key) => {
+                const color = effectiveConfig[key]?.color || "#000000";
+                return (
+                  <Bar
+                    key={key}
+                    dataKey={key}
+                    fill={color}
+                    maxBarSize={layout === "horizontal" ? 28 : 32}
+                    radius={layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+                  />
+                );
+              })}
+            </BarChart>
+          </ChartContainer>
+        </div>
       </CardContent>
     </Card>
   );
