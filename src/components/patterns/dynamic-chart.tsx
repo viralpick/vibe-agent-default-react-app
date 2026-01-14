@@ -70,6 +70,14 @@ type ComposedSeriesConfig = {
 /**
  * Base props shared by all dynamic chart components
  */
+type ChartSeriesConfig = Record<
+  string,
+  {
+    label: string;
+    color: string;
+  }
+>;
+
 export type BaseDynamicChartProps = {
   title?: string;
   description?: string;
@@ -78,13 +86,10 @@ export type BaseDynamicChartProps = {
   xAxisKey: string;
   yAxisKey?: string;
   data: Record<string, unknown>[];
-  config: Record<
-    string,
-    {
-      label: string;
-      color: string;
-    }
-  >;
+  /** Series configuration - defines data keys and their labels/colors */
+  config?: ChartSeriesConfig;
+  /** Alias for config - use either config or series */
+  series?: ChartSeriesConfig;
   tooltipIndicator?: "dot" | "line" | "dashed" | false;
   showLegend?: boolean;
   tickFormatter?: (value: string) => string;
@@ -140,12 +145,14 @@ export function DynamicAreaChart({
   yAxisKey,
   data,
   config,
+  series,
   variant = "monotone",
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
 }: DynamicAreaChartProps): React.ReactNode {
-  const keys = Object.keys(config);
+  const effectiveConfig = series ?? config ?? {};
+  const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
@@ -170,7 +177,7 @@ export function DynamicAreaChart({
       )}
       <CardContent>
         <ChartContainer
-          config={config}
+          config={effectiveConfig}
           className={cn("w-full", `h-[${chartHeight}px]`)}
         >
           <AreaChart
@@ -206,7 +213,7 @@ export function DynamicAreaChart({
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
             {keys.map((key) => {
-              const color = config[key]?.color || "#000000";
+              const color = effectiveConfig[key]?.color || "#000000";
               return (
                 <Area
                   key={key}
@@ -279,12 +286,14 @@ export function DynamicLineChart({
   yAxisKey,
   data,
   config,
+  series,
   variant = "monotone",
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
 }: DynamicLineChartProps): React.ReactNode {
-  const keys = Object.keys(config);
+  const effectiveConfig = series ?? config ?? {};
+  const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
@@ -309,7 +318,7 @@ export function DynamicLineChart({
       )}
       <CardContent>
         <ChartContainer
-          config={config}
+          config={effectiveConfig}
           className={cn("w-full", `h-[${chartHeight}px]`)}
         >
           <LineChart
@@ -345,7 +354,7 @@ export function DynamicLineChart({
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
             {keys.map((key) => {
-              const color = config[key]?.color || "#000000";
+              const color = effectiveConfig[key]?.color || "#000000";
               return (
                 <Line
                   key={key}
@@ -422,13 +431,15 @@ export function DynamicBarChart({
   yAxisKey,
   data,
   config,
+  series,
   layout = "vertical",
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
   isLoading = false,
 }: DynamicBarChartProps & { isLoading?: boolean }): React.ReactNode {
-  const keys = Object.keys(config);
+  const effectiveConfig = series ?? config ?? {};
+  const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   const charWidth = 7;
@@ -513,7 +524,7 @@ export function DynamicBarChart({
       )}
       <CardContent>
         <ChartContainer
-          config={config}
+          config={effectiveConfig}
           className={cn("w-full", `h-[${chartHeight}px]`)}
         >
           <BarChart
@@ -578,7 +589,7 @@ export function DynamicBarChart({
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
             {keys.map((key) => {
-              const color = config[key]?.color || "#000000";
+              const color = effectiveConfig[key]?.color || "#000000";
               return (
                 <Bar
                   key={key}
@@ -598,9 +609,11 @@ export function DynamicBarChart({
 
 export type DynamicComposedChartProps = Omit<
   BaseDynamicChartProps,
-  "config"
+  "config" | "series"
 > & {
-  config: Record<string, ComposedSeriesConfig>;
+  config?: Record<string, ComposedSeriesConfig>;
+  /** Alias for config */
+  series?: Record<string, ComposedSeriesConfig>;
   yAxisRightKey?: string;
   variant?: "monotone" | "linear" | "natural" | "step";
   barMaxBarSize?: number;
@@ -659,6 +672,7 @@ export function DynamicComposedChart({
   yAxisRightKey,
   data,
   config,
+  series,
   variant = "monotone",
   tooltipIndicator = "dot",
   showLegend = true,
@@ -667,10 +681,13 @@ export function DynamicComposedChart({
   areaFillOpacity = 0.4,
   order,
 }: DynamicComposedChartProps): React.ReactNode {
-  const keys = order && order.length ? order : Object.keys(config);
-  const hasRight = keys.some((k) => (config[k]?.yAxisId ?? "left") === "right");
+  const effectiveConfig = series ?? config ?? {};
+  const keys = order && order.length ? order : Object.keys(effectiveConfig);
+  const hasRight = keys.some(
+    (k) => (effectiveConfig[k]?.yAxisId ?? "left") === "right"
+  );
   const legendConfig = Object.fromEntries(
-    Object.entries(config).map(([k, v]) => [
+    Object.entries(effectiveConfig).map(([k, v]) => [
       k,
       { label: v.label, color: v.color },
     ])
@@ -746,7 +763,7 @@ export function DynamicComposedChart({
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
             {keys.map((key) => {
-              const c = config[key];
+              const c = effectiveConfig[key];
               if (!c) return null;
               const type: SeriesType = c.type ?? "line";
               const yAxisId: YAxisSide = c.yAxisId ?? "left";
