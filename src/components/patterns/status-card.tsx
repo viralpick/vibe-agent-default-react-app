@@ -142,7 +142,7 @@ const renderMainValue = (
 
   if (value !== undefined && maxValue !== undefined) {
     return (
-      <div className="flex text-2xl font-bold gap-1">
+      <div className="flex text-h3 font-bold gap-1">
         <span>{formatValue(value, format)}</span>
         <span className="text-state-400">/</span>
         <span>{formatValue(maxValue, format)}</span>
@@ -152,13 +152,13 @@ const renderMainValue = (
 
   if (value !== undefined) {
     return (
-      <div className="text-2xl font-bold">{formatValue(value, format)}</div>
+      <div className="text-h3 font-bold">{formatValue(value, format)}</div>
     );
   }
 
   if (maxValue !== undefined) {
     return (
-      <div className="text-2xl font-bold">{formatValue(maxValue, format)}</div>
+      <div className="text-h3 font-bold">{formatValue(maxValue, format)}</div>
     );
   }
 
@@ -185,7 +185,7 @@ export default function StatusCard({
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle
-          className="text-sm font-medium"
+          className="text-body-s font-medium"
           data-editable="title"
           data-prop="title"
         >
@@ -199,7 +199,7 @@ export default function StatusCard({
               indicatorColor={percent.color || "#2a9d90"}
             />
             <span
-              className="text-sm"
+              className="text-body-s"
               style={{
                 color: percent.color || "#2a9d90",
               }}
@@ -216,7 +216,7 @@ export default function StatusCard({
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-8">
           {renderMainValue(value, maxValue, format)}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {progress && (
@@ -232,12 +232,12 @@ export default function StatusCard({
             </div>
           )}
           {rating && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-6">
               {[...Array(rating.max || 5)].map((_, i) => (
                 <StarIcon
                   key={i}
                   className={cn(
-                    "size-[22px] text-[#d9d9d9]",
+                    "size-22 text-[#d9d9d9]",
                     i < Math.round(rating.value) && "text-[#fbbf24]"
                   )}
                 />
@@ -245,9 +245,9 @@ export default function StatusCard({
             </div>
           )}
           {metrics && (
-            <div className="text-xs text-muted-foreground flex gap-1 flex-wrap">
+            <div className="text-xs text-muted-foreground flex gap-4 flex-wrap">
               {metrics.mom !== undefined && (
-                <span className="flex gap-0.5">
+                <span className="flex gap-2">
                   MoM
                   <span
                     className={
@@ -260,7 +260,7 @@ export default function StatusCard({
                 </span>
               )}
               {metrics.wow !== undefined && (
-                <span className="flex gap-0.5">
+                <span className="flex gap-2">
                   WoW
                   <span
                     className={
@@ -273,7 +273,7 @@ export default function StatusCard({
                 </span>
               )}
               {metrics.dod !== undefined && (
-                <span className="flex gap-0.5">
+                <span className="flex gap-22">
                   DoD
                   <span
                     className={

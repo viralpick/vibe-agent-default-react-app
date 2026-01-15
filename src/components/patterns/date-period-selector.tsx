@@ -301,11 +301,11 @@ export function DatePeriodSelector({
       </Select>
 
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <DialogContent className="w-auto max-w-fit p-24">
+        <DialogContent className="w-auto max-w-fit p-24 bg-white">
           <DialogHeader>
             <DialogTitle>날짜 범위 선택</DialogTitle>
           </DialogHeader>
-          <div className="mt-16">
+          <div className="mt-16 bg-white rounded-lg">
             <Calendar
               mode="range"
               selected={calendarRange}
@@ -314,8 +314,9 @@ export function DatePeriodSelector({
               defaultMonth={
                 new Date(new Date().getFullYear(), new Date().getMonth() - 1)
               }
+              className="bg-white"
             />
-            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
+            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-200">
               <Button
                 variant="outline"
                 size="sm"

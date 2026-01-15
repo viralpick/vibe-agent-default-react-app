@@ -272,12 +272,12 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "border-border/50 bg-white grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+        "bg-[#ffffff] grid min-w-[8rem] items-start gap-6 rounded-xlarge border border-gray-200 px-12 py-8 text-xs shadow-lg",
         className
       )}
     >
       {!nestLabel ? tooltipLabel : null}
-      <div className="grid gap-1.5">
+      <div className="grid gap-6">
         {payload
           .filter((item) => item.type !== "none")
           .map((item, index) => {
@@ -290,7 +290,7 @@ function ChartTooltipContent({
               <div
                 key={item.dataKey}
                 className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
+                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-8 [&>svg]:h-10 [&>svg]:w-10",
                   indicator === "dot" && "items-center"
                 )}
               >
@@ -303,50 +303,42 @@ function ChartTooltipContent({
                     item.payload ?? {}
                   )
                 ) : (
-                  <>
-                    {itemConfig?.icon ? (
-                      <itemConfig.icon />
-                    ) : (
-                      !hideIndicator && (
-                        <div
-                          className={cn(
-                            "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
-                            {
-                              "h-2.5 w-2.5": indicator === "dot",
-                              "w-1": indicator === "line",
-                              "w-0 border-[1.5px] border-dashed bg-transparent":
+                  <div className="flex items-center justify-between gap-12 w-full min-w-[140px]">
+                    <div className="flex items-center gap-2">
+                      {itemConfig?.icon ? (
+                        <itemConfig.icon />
+                      ) : (
+                        !hideIndicator && (
+                          <div
+                            className={cn("shrink-0 rounded-[3px]", {
+                              "h-8 w-8": indicator === "dot",
+                              "w-1 h-3": indicator === "line",
+                              "w-0 h-3 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
-                              "my-0.5": nestLabel && indicator === "dashed",
-                            }
-                          )}
-                          style={
-                            {
-                              "--color-bg": indicatorColor,
-                              "--color-border": indicatorColor,
-                            } as React.CSSProperties
-                          }
-                        />
-                      )
-                    )}
-                    <div
-                      className={cn(
-                        "flex flex-1 justify-between leading-none",
-                        nestLabel ? "items-end" : "items-center"
+                            })}
+                            style={{
+                              backgroundColor:
+                                indicator !== "dashed"
+                                  ? indicatorColor
+                                  : undefined,
+                              borderColor:
+                                indicator === "dashed"
+                                  ? indicatorColor
+                                  : undefined,
+                            }}
+                          />
+                        )
                       )}
-                    >
-                      <div className="grid gap-1.5">
-                        {nestLabel ? tooltipLabel : null}
-                        <span className="text-muted-foreground">
-                          {itemConfig?.label || item.name}
-                        </span>
-                      </div>
-                      {item.value && (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
-                          {item.value.toLocaleString()}
-                        </span>
-                      )}
+                      <span className="text-muted-foreground">
+                        {itemConfig?.label || item.name}
+                      </span>
                     </div>
-                  </>
+                    {item.value !== undefined && (
+                      <span className="text-foreground font-mono font-medium tabular-nums">
+                        {item.value.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -399,8 +391,8 @@ function ChartLegendContent({
   return (
     <div
       className={cn(
-        "flex items-center justify-center gap-4",
-        verticalAlign === "top" ? "pb-3" : "pt-3",
+        "flex items-center justify-center gap-12",
+        verticalAlign === "top" ? "pb-12" : "pt-12",
         className
       )}
     >
@@ -414,14 +406,14 @@ function ChartLegendContent({
             <div
               key={item.value}
               className={cn(
-                "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
+                "[&>svg]:text-muted-foreground flex items-center gap-6 [&>svg]:h-12 [&>svg]:w-12"
               )}
             >
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
                 <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  className="h-8 w-8 shrink-0 rounded-[2px]"
                   style={{
                     backgroundColor: item.color,
                   }}

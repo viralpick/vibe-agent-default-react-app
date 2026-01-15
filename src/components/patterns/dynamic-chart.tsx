@@ -178,7 +178,8 @@ export function DynamicAreaChart({
       <CardContent>
         <ChartContainer
           config={effectiveConfig}
-          className={cn("w-full", `h-[${chartHeight}px]`)}
+          className="w-full"
+          style={{ height: chartHeight }}
         >
           <AreaChart
             accessibilityLayer
@@ -297,7 +298,7 @@ export function DynamicLineChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
-    <Card className="gap-6">
+    <Card className="">
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -319,7 +320,8 @@ export function DynamicLineChart({
       <CardContent>
         <ChartContainer
           config={effectiveConfig}
-          className={cn("w-full", `h-[${chartHeight}px]`)}
+          className="w-full"
+          style={{ height: chartHeight }}
         >
           <LineChart
             accessibilityLayer
@@ -525,7 +527,7 @@ export function DynamicBarChart({
           </CardHeader>
         )}
         <CardContent>
-          <Skeleton className={cn("w-full", `h-[${chartHeight}px]`)} />
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
     );
@@ -753,7 +755,8 @@ export function DynamicComposedChart({
       <CardContent>
         <ChartContainer
           config={legendConfig}
-          className={cn("w-full", `h-[${height}px]`)}
+          className="w-full"
+          style={{ height }}
         >
           <ComposedChart
             accessibilityLayer
@@ -987,7 +990,7 @@ export function DynamicPieChart({
           </CardHeader>
         )}
         <CardContent>
-          <Skeleton className={cn("w-full", `h-[${chartHeight}px]`)} />
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
     );
@@ -1014,7 +1017,7 @@ export function DynamicPieChart({
         </CardHeader>
       )}
       <CardContent>
-        <div className={cn("w-full", `h-[${chartHeight}px]`)}>
+        <div className="w-full" style={{ height: chartHeight }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

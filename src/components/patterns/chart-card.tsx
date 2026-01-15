@@ -54,7 +54,7 @@ export function ChartCard({
         </CardTitle>
         {action}
       </CardHeader>
-      <CardContent className="p-24 flex-1 min-h-0 relative">
+      <CardContent className="flex-1 min-h-0 relative">
         {isLoading ? <Skeleton className="w-full h-full" /> : children}
       </CardContent>
     </Card>

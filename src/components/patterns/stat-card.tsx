@@ -65,13 +65,13 @@ export function StatCard({
 
   return (
     <Card className="rounded-large border-border-200 bg-gray-0 h-full">
-      <CardHeader className="flex flex-row items-center justify-between px-20 py-16 pb-8 space-y-0">
+      <CardHeader className="flex flex-row items-center justify-between px-20 pb-8 space-y-0">
         <CardTitle className="text-label-l font-medium text-text-secondary">
           {title}
         </CardTitle>
         {Icon && <Icon className="size-16 text-icon-secondary" />}
       </CardHeader>
-      <CardContent className="px-20 py-16 pt-0 flex flex-col gap-4">
+      <CardContent className="px-20 pt-0 flex flex-col gap-4">
         <div className="text-h3 font-bold text-text-primary">{value}</div>
         {(trend || trendValue) && (
           <p
