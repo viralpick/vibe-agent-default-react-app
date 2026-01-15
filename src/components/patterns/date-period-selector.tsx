@@ -301,11 +301,11 @@ export function DatePeriodSelector({
       </Select>
 
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <DialogContent className="w-auto max-w-fit p-24 bg-white">
+        <DialogContent className="w-auto max-w-fit p-24">
           <DialogHeader>
             <DialogTitle>날짜 범위 선택</DialogTitle>
           </DialogHeader>
-          <div className="mt-16 bg-white rounded-lg">
+          <div className="mt-16">
             <Calendar
               mode="range"
               selected={calendarRange}
@@ -314,9 +314,8 @@ export function DatePeriodSelector({
               defaultMonth={
                 new Date(new Date().getFullYear(), new Date().getMonth() - 1)
               }
-              className="bg-white"
             />
-            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-200">
+            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
               <Button
                 variant="outline"
                 size="sm"
@@ -371,16 +370,6 @@ function isValidDatePeriodValue(value: unknown): value is DatePeriodValue {
  *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
  * ```
  */
-/**
- * Formats a Date to YYYY-MM-DD string
- */
-function formatDateToYMD(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
   from: string;
   to: string;
@@ -396,14 +385,14 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
     to.setHours(23, 59, 59, 999);
 
     return {
-      from: formatDateToYMD(from),
-      to: formatDateToYMD(to),
+      from: from.toISOString(),
+      to: to.toISOString(),
     };
   }
 
   return {
-    from: formatDateToYMD(period.from),
-    to: formatDateToYMD(period.to),
+    from: period.from.toISOString(),
+    to: period.to.toISOString(),
   };
 }
 
