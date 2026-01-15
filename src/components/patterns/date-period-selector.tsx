@@ -371,6 +371,16 @@ function isValidDatePeriodValue(value: unknown): value is DatePeriodValue {
  *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
  * ```
  */
+/**
+ * Formats a Date to YYYY-MM-DD string
+ */
+function formatDateToYMD(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
   from: string;
   to: string;
@@ -386,14 +396,14 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
     to.setHours(23, 59, 59, 999);
 
     return {
-      from: from.toISOString(),
-      to: to.toISOString(),
+      from: formatDateToYMD(from),
+      to: formatDateToYMD(to),
     };
   }
 
   return {
-    from: period.from.toISOString(),
-    to: period.to.toISOString(),
+    from: formatDateToYMD(period.from),
+    to: formatDateToYMD(period.to),
   };
 }
 
