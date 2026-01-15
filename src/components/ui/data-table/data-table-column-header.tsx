@@ -89,11 +89,11 @@ function DataTableColumnHeader<TData, TValue>({
             )}
             {!disableSort &&
               (column.getIsSorted() === "desc" ? (
-                <ArrowDown />
+                <ArrowDown className="size-16" />
               ) : column.getIsSorted() === "asc" ? (
-                <ArrowUp />
+                <ArrowUp className="size-16" />
               ) : (
-                <ChevronsUpDown />
+                <ChevronsUpDown className="size-16" />
               ))}
           </Button>
         </DropdownMenuTrigger>
