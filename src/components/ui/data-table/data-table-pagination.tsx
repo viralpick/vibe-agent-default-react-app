@@ -71,7 +71,7 @@ function DataTablePagination<TData>({
               disabled={!table.getCanPreviousPage()}
             >
               <span className="sr-only">첫 페이지로 이동</span>
-              <ChevronsLeft />
+              <ChevronsLeft className="size-16" />
             </Button>
             <Button
               variant="outline"
@@ -80,7 +80,7 @@ function DataTablePagination<TData>({
               disabled={!table.getCanPreviousPage()}
             >
               <span className="sr-only">이전 페이지로 이동</span>
-              <ChevronLeft />
+              <ChevronLeft className="size-16" />
             </Button>
             <Button
               variant="outline"
@@ -89,7 +89,7 @@ function DataTablePagination<TData>({
               disabled={!table.getCanNextPage()}
             >
               <span className="sr-only">다음 페이지로 이동</span>
-              <ChevronRight />
+              <ChevronRight className="size-16" />
             </Button>
             <Button
               variant="outline"
@@ -99,7 +99,7 @@ function DataTablePagination<TData>({
               disabled={!table.getCanNextPage()}
             >
               <span className="sr-only">마지막 페이지로 이동</span>
-              <ChevronsRight />
+              <ChevronsRight className="size-16" />
             </Button>
           </div>
         </div>

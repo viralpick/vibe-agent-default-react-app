@@ -97,7 +97,7 @@ function DataTableColumnHeader<TData, TValue>({
               ))}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
+        <DropdownMenuContent align="start" className="bg-white">
           <DropdownMenuItem
             onClick={() => {
               if (column.getIsSorted() === "asc") {
