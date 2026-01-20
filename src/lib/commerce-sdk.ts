@@ -1,9 +1,27 @@
 import type { AxiosInstance } from "axios";
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+const customTwMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [
+        {
+          text: [
+            (value: string) =>
+              value.startsWith("label-") ||
+              value.startsWith("caption-") ||
+              value.startsWith("syntax-") ||
+              value.startsWith("body-"),
+          ],
+        },
+      ],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return customTwMerge(clsx(inputs));
 }
 
 export const Format = {
