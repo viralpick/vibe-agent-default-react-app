@@ -2,12 +2,15 @@
  * @component PageHeader
  * @description Standard page header with title, description, icon, and action buttons.
  * Provides consistent top-of-page navigation and context.
+ * Supports edit mode with data-editable attributes for in-place text editing.
  *
  * @dataStructure
  * - title: string - Page title text (required)
  * - description: string - Subtitle/description text (required)
  * - icon: React.ElementType - Lucide icon component (required)
  * - children: ReactNode - Action buttons/elements on the right side (required)
+ * - editableId?: string - Unique identifier for edit mode (optional, default: "page-title")
+ * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
  *
  * @designTokens
  * - Uses text-h3 (24px) for title with font-bold
@@ -29,6 +32,7 @@
  *   title="Sales Dashboard"
  *   description="Monitor your sales performance"
  *   icon={BarChart3}
+ *   editableId="main-dashboard-title"
  * >
  *   <Button variant="outline" size="sm">
  *     <Settings className="size-4" />
@@ -46,11 +50,15 @@ export function PageHeader({
   description,
   icon: Icon,
   children,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: {
   title: string;
   description: string;
   icon: React.ElementType;
   children: React.ReactNode;
+  editableId?: string;
+  editableFilePath?: string;
 }) {
   return (
     <div className="w-full flex items-center justify-between mb-24">
@@ -60,7 +68,9 @@ export function PageHeader({
           <h1
             className="text-h3 font-bold text-text-primary"
             data-editable="true"
-            data-element-id="page-title"
+            data-element-id={editableId || "page-title"}
+            data-file-path={editableFilePath}
+            data-prop="title"
           >
             {title}
           </h1>

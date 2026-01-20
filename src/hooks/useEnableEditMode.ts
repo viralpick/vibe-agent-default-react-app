@@ -6,6 +6,8 @@ type EditTextMetaData = {
   filePath: string | null;
   lineNumber: string | null;
   position: { x: number; y: number };
+  /** The prop name being edited (e.g., "title", "description") */
+  propName: string | null;
 };
 
 
@@ -51,12 +53,24 @@ export const useEnableEditMode = () => {
         e.stopPropagation();
         e.preventDefault();
 
+        // Extract prop name from data-prop attribute
+        const propName = target.getAttribute("data-prop");
+        
+        // Fallback: use data-prop as element-id if data-element-id is not set
+        const elementId =
+          target.getAttribute("data-element-id") || propName || null;
+        
+        // Default file path to src/App.tsx if not specified
+        const filePath =
+          target.getAttribute("data-file-path") || "src/App.tsx";
+
         const metadata: EditTextMetaData = {
-          elementId: target.getAttribute("data-element-id"),
-          currentText: target.textContent,
-          filePath: target.getAttribute("data-file-path"),
+          elementId,
+          currentText: target.textContent ?? "",
+          filePath,
           lineNumber: target.getAttribute("data-line-number"),
           position: { x: e.clientX, y: e.clientY },
+          propName,
         };
 
         window.parent.postMessage(

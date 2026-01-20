@@ -82,6 +82,10 @@ export type DynamicDataTableProps = {
   showOptions?: boolean;
   searchKeys?: string[];
   searchPlaceholder?: string;
+  /** Unique identifier for edit mode (optional) */
+  editableId?: string;
+  /** File path for edit mode (optional, default: "src/App.tsx") */
+  editableFilePath?: string;
 };
 
 /**
@@ -144,8 +148,12 @@ export const DynamicDataTable = ({
   showOptions,
   searchKeys,
   searchPlaceholder,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: DynamicDataTableProps): JSX.Element => {
   const safeData = Array.isArray(data) ? data : [];
+  const elementId =
+    editableId || `table-${title.toLowerCase().replace(/\s+/g, "-")}`;
 
   const percentFormatter = useMemo(
     () =>
@@ -313,6 +321,8 @@ export const DynamicDataTable = ({
       searchKeys={searchKeys}
       searchPlaceholder={searchPlaceholder}
       showOptions={showOptions}
+      editableId={elementId}
+      editableFilePath={editableFilePath}
     />
   );
 };
