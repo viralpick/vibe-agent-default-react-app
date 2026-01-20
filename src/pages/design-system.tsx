@@ -7,7 +7,11 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { Settings, Info } from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+} from "@/components/ui/breadcrumb";
+import { Settings, Info, Folder } from "lucide-react";
 
 const themes = [
   "gray",
@@ -57,8 +61,14 @@ function OptionButton({
 
 const accordionSizes = ["lg", "md"] as const;
 const accordionTypes = ["single", "multiple"] as const;
+const dividerTypes = ["chevron", "slash"] as const;
 
 export function DesignSystemPage() {
+  // Breadcrumb Playground state
+  const [breadcrumbDivider, setBreadcrumbDivider] =
+    useState<(typeof dividerTypes)[number]>("chevron");
+  const [showBreadcrumbIcon, setShowBreadcrumbIcon] = useState(true);
+
   // Accordion Playground state
   const [accordionSize, setAccordionSize] =
     useState<(typeof accordionSizes)[number]>("lg");
@@ -84,6 +94,80 @@ export function DesignSystemPage() {
 
   return (
     <main className="w-full min-h-screen p-24">
+      {/* Breadcrumb Playground */}
+      <section className="mb-40">
+        <h2 className="text-h3 font-semibold mb-16">Breadcrumb Playground</h2>
+        <div className="p-24 bg-gray-50 rounded-medium">
+          {/* Controls */}
+          <div className="space-y-16 mb-24">
+            {/* Divider */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Divider
+              </span>
+              <div className="flex gap-8">
+                {dividerTypes.map((type) => (
+                  <OptionButton
+                    key={type}
+                    label={type}
+                    selected={breadcrumbDivider === type}
+                    onClick={() => setBreadcrumbDivider(type)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Icon */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Icon
+              </span>
+              <div className="flex gap-8">
+                <OptionButton
+                  label="Show"
+                  selected={showBreadcrumbIcon}
+                  onClick={() => setShowBreadcrumbIcon(true)}
+                />
+                <OptionButton
+                  label="Hide"
+                  selected={!showBreadcrumbIcon}
+                  onClick={() => setShowBreadcrumbIcon(false)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="flex items-center justify-center p-32 bg-white rounded-small border border-gray-200">
+            <Breadcrumb divider={breadcrumbDivider}>
+              <BreadcrumbItem
+                icon={showBreadcrumbIcon ? <Folder /> : undefined}
+                href="#"
+              >
+                Label
+              </BreadcrumbItem>
+              <BreadcrumbItem
+                icon={showBreadcrumbIcon ? <Folder /> : undefined}
+                href="#"
+              >
+                Label
+              </BreadcrumbItem>
+              <BreadcrumbItem
+                icon={showBreadcrumbIcon ? <Folder /> : undefined}
+                href="#"
+              >
+                Label
+              </BreadcrumbItem>
+              <BreadcrumbItem
+                icon={showBreadcrumbIcon ? <Folder /> : undefined}
+              >
+                Label
+              </BreadcrumbItem>
+            </Breadcrumb>
+          </div>
+        </div>
+      </section>
+
       {/* Accordion Playground */}
       <section className="mb-40">
         <h2 className="text-h3 font-semibold mb-16">Accordion Playground</h2>

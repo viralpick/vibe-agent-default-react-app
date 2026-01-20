@@ -355,7 +355,7 @@
   --text-caption-s--letter-spacing: 0em;
 
   /* Syntax - 코드 스니펫, 토큰 네임 등 코딩 텍스트 */
-  --text-syntax-l: 16px;
+  --text-syntax-l: 14px;
   --text-syntax-l--line-height: 1.5;
   --text-syntax-l--letter-spacing: 0em;
 
@@ -369,75 +369,75 @@
 }
 
 /* Typography utilities */
-@utility text-label-xl {
+@utility text-label-1 {
   font-size: var(--text-label-xl);
   line-height: var(--text-label-xl--line-height);
   letter-spacing: var(--text-label-xl--letter-spacing);
 }
-@utility text-label-l {
+@utility text-label-2 {
   font-size: var(--text-label-l);
   line-height: var(--text-label-l--line-height);
   letter-spacing: var(--text-label-l--letter-spacing);
 }
-@utility text-label-m {
+@utility text-label-3 {
   font-size: var(--text-label-m);
   line-height: var(--text-label-m--line-height);
   letter-spacing: var(--text-label-m--letter-spacing);
 }
-@utility text-label-s {
+@utility text-label-4 {
   font-size: var(--text-label-s);
   line-height: var(--text-label-s--line-height);
   letter-spacing: var(--text-label-s--letter-spacing);
 }
 
-@utility text-caption-l {
+@utility text-caption-1 {
   font-size: var(--text-caption-l);
   line-height: var(--text-caption-l--line-height);
   letter-spacing: var(--text-caption-l--letter-spacing);
 }
-@utility text-caption-m {
+@utility text-caption-2 {
   font-size: var(--text-caption-m);
   line-height: var(--text-caption-m--line-height);
   letter-spacing: var(--text-caption-m--letter-spacing);
 }
-@utility text-caption-s {
+@utility text-caption-3 {
   font-size: var(--text-caption-s);
   line-height: var(--text-caption-s--line-height);
   letter-spacing: var(--text-caption-s--letter-spacing);
 }
 
-@utility text-syntax-l {
+@utility text-syntax-1 {
   font-size: var(--text-syntax-l);
   line-height: var(--text-syntax-l--line-height);
   letter-spacing: var(--text-syntax-l--letter-spacing);
 }
-@utility text-syntax-m {
+@utility text-syntax-2 {
   font-size: var(--text-syntax-m);
   line-height: var(--text-syntax-m--line-height);
   letter-spacing: var(--text-syntax-m--letter-spacing);
 }
-@utility text-syntax-s {
+@utility text-syntax-3 {
   font-size: var(--text-syntax-s);
   line-height: var(--text-syntax-s--line-height);
   letter-spacing: var(--text-syntax-s--letter-spacing);
 }
 
-@utility text-body-l {
+@utility text-body-1 {
   font-size: var(--text-body-l);
   line-height: var(--text-body-l--line-height);
   letter-spacing: var(--text-body-l--letter-spacing);
 }
-@utility text-body-m {
+@utility text-body-2 {
   font-size: var(--text-body-m);
   line-height: var(--text-body-m--line-height);
   letter-spacing: var(--text-body-m--letter-spacing);
 }
-@utility text-body-s {
+@utility text-body-3 {
   font-size: var(--text-body-s);
   line-height: var(--text-body-s--line-height);
   letter-spacing: var(--text-body-s--letter-spacing);
 }
-@utility text-body-xs {
+@utility text-body-4 {
   font-size: var(--text-body-xs);
   line-height: var(--text-body-xs--line-height);
   letter-spacing: var(--text-body-xs--letter-spacing);
