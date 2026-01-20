@@ -71,7 +71,7 @@ export type ColumnMeta = {
  * Props for DynamicDataTable component
  */
 export type DynamicDataTableProps = {
-  title: string;
+  title: string | React.ReactNode;
   overline?: string;
   size?: "default" | "sm";
   columns: ColumnMeta[];
@@ -82,12 +82,6 @@ export type DynamicDataTableProps = {
   showOptions?: boolean;
   searchKeys?: string[];
   searchPlaceholder?: string;
-  /** Unique identifier for edit mode (optional) */
-  editableId?: string;
-  /** File path for edit mode (optional, default: "src/App.tsx") */
-  editableFilePath?: string;
-  /** Line number in source file for edit mode (optional) */
-  editableLineNumber?: string;
 };
 
 /**
@@ -150,13 +144,8 @@ export const DynamicDataTable = ({
   showOptions,
   searchKeys,
   searchPlaceholder,
-  editableId,
-  editableFilePath = "src/App.tsx",
-  editableLineNumber,
 }: DynamicDataTableProps): JSX.Element => {
   const safeData = Array.isArray(data) ? data : [];
-  const elementId =
-    editableId || `table-${title.toLowerCase().replace(/\s+/g, "-")}`;
 
   const percentFormatter = useMemo(
     () =>
@@ -324,9 +313,6 @@ export const DynamicDataTable = ({
       searchKeys={searchKeys}
       searchPlaceholder={searchPlaceholder}
       showOptions={showOptions}
-      editableId={elementId}
-      editableFilePath={editableFilePath}
-      editableLineNumber={editableLineNumber}
     />
   );
 };

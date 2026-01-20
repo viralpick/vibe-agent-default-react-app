@@ -47,7 +47,7 @@ import { DataTablePagination } from "@/components/ui/data-table/data-table-pagin
  * Props for DataTable component
  */
 type DataTableProps<TData, TValue> = {
-  title?: React.JSX.Element | string;
+  title?: React.ReactNode;
   overline?: string;
   loading?: boolean;
   size?: "default" | "sm" | "xs";
@@ -378,14 +378,7 @@ function DataTable<TData, TValue>({
         <div className="w-full flex items-center justify-between">
           {title && (
             <div className="flex gap-2 items-center">
-              <h2
-                className="text-xl font-bold"
-                data-editable="true"
-                data-element-id={editableId}
-                data-file-path={editableFilePath}
-                data-line-number={editableLineNumber}
-                data-prop="title"
-              >
+              <h2 className="text-xl font-bold">
                 {title}
               </h2>
             </div>
