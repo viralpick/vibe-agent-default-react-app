@@ -20,6 +20,7 @@ import { Skeleton } from "../ui/skeleton";
  * - icon: React.ElementType - Lucide icon component for the metric (required)
  * - editableId?: string - Unique identifier for edit mode (optional)
  * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
+ * - editableLineNumber?: string - Line number in source file for edit mode (optional)
  *
  * @designTokens
  * - Uses rounded-large (8px) for card border radius
@@ -46,6 +47,7 @@ import { Skeleton } from "../ui/skeleton";
  *   isLoading={false}
  *   icon={BarChart3}
  *   editableId="revenue-stat"
+ *   editableLineNumber="52"
  * />
  * ```
  */
@@ -58,6 +60,7 @@ export function StatCard({
   icon: Icon,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: {
   title: string;
   value: string;
@@ -67,6 +70,7 @@ export function StatCard({
   icon: React.ElementType;
   editableId?: string;
   editableFilePath?: string;
+  editableLineNumber?: string;
 }) {
   if (isLoading)
     return <Skeleton className="h-[120px] w-full rounded-xlarge" />;
@@ -82,6 +86,7 @@ export function StatCard({
           data-editable="true"
           data-element-id={elementId}
           data-file-path={editableFilePath}
+          data-line-number={editableLineNumber}
           data-prop="title"
         >
           {title}

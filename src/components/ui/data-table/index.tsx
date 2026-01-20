@@ -88,6 +88,12 @@ type DataTableProps<TData, TValue> = {
   classNames?: {
     search?: string;
   };
+  /** Unique identifier for edit mode (optional) */
+  editableId?: string;
+  /** File path for edit mode (optional, default: "src/App.tsx") */
+  editableFilePath?: string;
+  /** Line number in source file for edit mode (optional) */
+  editableLineNumber?: string;
 };
 
 /**
@@ -189,6 +195,9 @@ function DataTable<TData, TValue>({
   enableRowSelection = false,
   customLeftContainer,
   customRightContainer,
+  editableId,
+  editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DataTableProps<TData, TValue>): React.JSX.Element {
   const [rowSelection, setRowSelection] = React.useState({});
   const [internalPagination, setInternalPagination] =
@@ -371,7 +380,10 @@ function DataTable<TData, TValue>({
             <div className="flex gap-2 items-center">
               <h2
                 className="text-xl font-bold"
-                data-editable="title"
+                data-editable="true"
+                data-element-id={editableId}
+                data-file-path={editableFilePath}
+                data-line-number={editableLineNumber}
                 data-prop="title"
               >
                 {title}

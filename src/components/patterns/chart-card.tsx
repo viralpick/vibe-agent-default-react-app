@@ -14,6 +14,7 @@ import { Skeleton } from "../ui/skeleton";
  * - action?: ReactNode - Action buttons/elements in header (optional)
  * - editableId?: string - Unique identifier for edit mode (optional)
  * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
+ * - editableLineNumber?: string - Line number in source file for edit mode (optional)
  *
  * @designTokens
  * - Uses rounded-xlarge (12px) for card border radius
@@ -34,6 +35,7 @@ import { Skeleton } from "../ui/skeleton";
  *   isLoading={false}
  *   action={<Button variant="ghost" size="sm"><Download /></Button>}
  *   editableId="monthly-revenue-chart"
+ *   editableLineNumber="75"
  * >
  *   <DynamicLineChart data={data} config={config} xAxisKey="month" />
  * </ChartCard>
@@ -46,6 +48,7 @@ export function ChartCard({
   action,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: {
   title: string;
   children: React.ReactNode;
@@ -53,6 +56,7 @@ export function ChartCard({
   action?: React.ReactNode;
   editableId?: string;
   editableFilePath?: string;
+  editableLineNumber?: string;
 }) {
   const elementId =
     editableId || `chart-${title.toLowerCase().replace(/\s+/g, "-")}`;
@@ -65,6 +69,7 @@ export function ChartCard({
           data-editable="true"
           data-element-id={elementId}
           data-file-path={editableFilePath}
+          data-line-number={editableLineNumber}
           data-prop="title"
         >
           {title}

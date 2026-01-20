@@ -11,6 +11,7 @@
  * - children: ReactNode - Action buttons/elements on the right side (required)
  * - editableId?: string - Unique identifier for edit mode (optional, default: "page-title")
  * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
+ * - editableLineNumber?: string - Line number in source file for edit mode (optional)
  *
  * @designTokens
  * - Uses text-h3 (24px) for title with font-bold
@@ -33,6 +34,7 @@
  *   description="Monitor your sales performance"
  *   icon={BarChart3}
  *   editableId="main-dashboard-title"
+ *   editableLineNumber="45"
  * >
  *   <Button variant="outline" size="sm">
  *     <Settings className="size-4" />
@@ -52,6 +54,7 @@ export function PageHeader({
   children,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: {
   title: string;
   description: string;
@@ -59,6 +62,7 @@ export function PageHeader({
   children: React.ReactNode;
   editableId?: string;
   editableFilePath?: string;
+  editableLineNumber?: string;
 }) {
   return (
     <div className="w-full flex items-center justify-between mb-24">
@@ -70,6 +74,7 @@ export function PageHeader({
             data-editable="true"
             data-element-id={editableId || "page-title"}
             data-file-path={editableFilePath}
+            data-line-number={editableLineNumber}
             data-prop="title"
           >
             {title}
