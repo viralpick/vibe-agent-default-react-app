@@ -6,10 +6,10 @@ import { Skeleton } from "../ui/skeleton";
  * @component StatCard
  * @description Displays a single KPI metric with trend indicator. Used for dashboard
  * summary statistics showing current values and period-over-period changes.
- * Supports edit mode with data-editable attributes for in-place text editing.
+ * Supports edit mode when title is wrapped with EditableText component.
  *
  * @dataStructure
- * - title: string - Metric label (required)
+ * - title: string | React.ReactNode - Metric label or EditableText component (required)
  * - value: string - Formatted display value, e.g., "₩125,430,000" or "1,234명" (required)
  * - trend: number - Trend direction and magnitude (required)
  *   - Positive: green color, shows "+"
@@ -18,9 +18,6 @@ import { Skeleton } from "../ui/skeleton";
  * - trendValue: string - Formatted trend display, e.g., "12.5%" or "-3.1%" (required)
  * - isLoading: boolean - Shows skeleton when true (required)
  * - icon: React.ElementType - Lucide icon component for the metric (required)
- * - editableId?: string - Unique identifier for edit mode (optional)
- * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
- * - editableLineNumber?: string - Line number in source file for edit mode (optional)
  *
  * @designTokens
  * - Uses rounded-large (8px) for card border radius
@@ -40,14 +37,16 @@ import { Skeleton } from "../ui/skeleton";
  * @example
  * ```tsx
  * <StatCard
- *   title="Total Revenue"
+ *   title={
+ *     <EditableText data-editable="true" data-line-number="52">
+ *       Total Revenue
+ *     </EditableText>
+ *   }
  *   value="₩125,430,000"
  *   trend={12.5}
  *   trendValue="12.5%"
  *   isLoading={false}
  *   icon={BarChart3}
- *   editableId="revenue-stat"
- *   editableLineNumber="52"
  * />
  * ```
  */
@@ -58,37 +57,21 @@ export function StatCard({
   trendValue,
   isLoading,
   icon: Icon,
-  editableId,
-  editableFilePath = "src/App.tsx",
-  editableLineNumber,
 }: {
-  title: string;
+  title: string | React.ReactNode;
   value: string;
   trend: number;
   trendValue: string;
   isLoading: boolean;
   icon: React.ElementType;
-  editableId?: string;
-  editableFilePath?: string;
-  editableLineNumber?: string;
 }) {
   if (isLoading)
     return <Skeleton className="h-[120px] w-full rounded-xlarge" />;
 
-  const elementId =
-    editableId || `stat-${title.toLowerCase().replace(/\s+/g, "-")}`;
-
   return (
     <Card className="rounded-large border-border-200 bg-gray-0 h-full">
       <CardHeader className="flex flex-row items-center justify-between px-20 pb-8 space-y-0">
-        <CardTitle
-          className="text-label-l font-medium text-text-secondary"
-          data-editable="true"
-          data-element-id={elementId}
-          data-file-path={editableFilePath}
-          data-line-number={editableLineNumber}
-          data-prop="title"
-        >
+        <CardTitle className="text-label-l font-medium text-text-secondary">
           {title}
         </CardTitle>
         {Icon && <Icon className="size-16 text-icon-secondary" />}

@@ -38,6 +38,9 @@ export * from "./comment-card";
 /** ChartCard - Container for chart components with title and actions */
 export * from "./chart-card";
 
+/** EditableText - Wrapper for editable text content */
+export * from "./editable-text";
+
 /** DynamicCharts - Line, Area, Bar, Pie, Composed chart components */
 export * from "./dynamic-chart";
 

@@ -2,16 +2,13 @@
  * @component PageHeader
  * @description Standard page header with title, description, icon, and action buttons.
  * Provides consistent top-of-page navigation and context.
- * Supports edit mode with data-editable attributes for in-place text editing.
+ * Supports edit mode when title is wrapped with EditableText component.
  *
  * @dataStructure
- * - title: string - Page title text (required)
+ * - title: string | React.ReactNode - Page title text or EditableText component (required)
  * - description: string - Subtitle/description text (required)
  * - icon: React.ElementType - Lucide icon component (required)
  * - children: ReactNode - Action buttons/elements on the right side (required)
- * - editableId?: string - Unique identifier for edit mode (optional, default: "page-title")
- * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
- * - editableLineNumber?: string - Line number in source file for edit mode (optional)
  *
  * @designTokens
  * - Uses text-h3 (24px) for title with font-bold
@@ -30,11 +27,13 @@
  * @example
  * ```tsx
  * <PageHeader
- *   title="Sales Dashboard"
+ *   title={
+ *     <EditableText data-editable="true" data-line-number="45">
+ *       Sales Dashboard
+ *     </EditableText>
+ *   }
  *   description="Monitor your sales performance"
  *   icon={BarChart3}
- *   editableId="main-dashboard-title"
- *   editableLineNumber="45"
  * >
  *   <Button variant="outline" size="sm">
  *     <Settings className="size-4" />
@@ -52,31 +51,18 @@ export function PageHeader({
   description,
   icon: Icon,
   children,
-  editableId,
-  editableFilePath = "src/App.tsx",
-  editableLineNumber,
 }: {
-  title: string;
+  title: string | React.ReactNode;
   description: string;
   icon: React.ElementType;
   children: React.ReactNode;
-  editableId?: string;
-  editableFilePath?: string;
-  editableLineNumber?: string;
 }) {
   return (
     <div className="w-full flex items-center justify-between mb-24">
       <div className="flex flex-col gap-6">
         <div className="flex gap-8 items-center">
           {Icon && <Icon className="size-24 text-icon-primary" />}
-          <h1
-            className="text-h3 font-bold text-text-primary"
-            data-editable="true"
-            data-element-id={editableId || "page-title"}
-            data-file-path={editableFilePath}
-            data-line-number={editableLineNumber}
-            data-prop="title"
-          >
+          <h1 className="text-h3 font-bold text-text-primary">
             {title}
           </h1>
         </div>

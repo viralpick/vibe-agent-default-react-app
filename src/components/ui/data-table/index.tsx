@@ -47,7 +47,7 @@ import { DataTablePagination } from "@/components/ui/data-table/data-table-pagin
  * Props for DataTable component
  */
 type DataTableProps<TData, TValue> = {
-  title?: React.JSX.Element | string;
+  title?: React.ReactNode;
   overline?: string;
   loading?: boolean;
   size?: "default" | "sm" | "xs";
@@ -88,12 +88,6 @@ type DataTableProps<TData, TValue> = {
   classNames?: {
     search?: string;
   };
-  /** Unique identifier for edit mode (optional) */
-  editableId?: string;
-  /** File path for edit mode (optional, default: "src/App.tsx") */
-  editableFilePath?: string;
-  /** Line number in source file for edit mode (optional) */
-  editableLineNumber?: string;
 };
 
 /**
@@ -195,9 +189,6 @@ function DataTable<TData, TValue>({
   enableRowSelection = false,
   customLeftContainer,
   customRightContainer,
-  editableId,
-  editableFilePath = "src/App.tsx",
-  editableLineNumber,
 }: DataTableProps<TData, TValue>): React.JSX.Element {
   const [rowSelection, setRowSelection] = React.useState({});
   const [internalPagination, setInternalPagination] =
@@ -378,14 +369,7 @@ function DataTable<TData, TValue>({
         <div className="w-full flex items-center justify-between">
           {title && (
             <div className="flex gap-2 items-center">
-              <h2
-                className="text-xl font-bold"
-                data-editable="true"
-                data-element-id={editableId}
-                data-file-path={editableFilePath}
-                data-line-number={editableLineNumber}
-                data-prop="title"
-              >
+              <h2 className="text-xl font-bold">
                 {title}
               </h2>
             </div>
