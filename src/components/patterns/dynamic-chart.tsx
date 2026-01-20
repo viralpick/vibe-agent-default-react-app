@@ -97,6 +97,8 @@ export type BaseDynamicChartProps = {
   editableId?: string;
   /** File path for edit mode (optional, default: "src/App.tsx") */
   editableFilePath?: string;
+  /** Line number in source file for edit mode (optional) */
+  editableLineNumber?: string;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
@@ -156,6 +158,7 @@ export function DynamicAreaChart({
   tickFormatter,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicAreaChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
@@ -174,6 +177,7 @@ export function DynamicAreaChart({
               data-editable="true"
               data-element-id={elementId}
               data-file-path={editableFilePath}
+              data-line-number={editableLineNumber}
               data-prop="title"
             >
               {title}
@@ -305,6 +309,7 @@ export function DynamicLineChart({
   tickFormatter,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicLineChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
@@ -323,6 +328,7 @@ export function DynamicLineChart({
               data-editable="true"
               data-element-id={elementId}
               data-file-path={editableFilePath}
+              data-line-number={editableLineNumber}
               data-prop="title"
             >
               {title}
@@ -460,6 +466,7 @@ export function DynamicBarChart({
   maxVisibleItems,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicBarChartProps & {
   isLoading?: boolean;
   maxVisibleItems?: number;
@@ -547,6 +554,7 @@ export function DynamicBarChart({
                 data-editable="true"
                 data-element-id={elementId}
                 data-file-path={editableFilePath}
+                data-line-number={editableLineNumber}
                 data-prop="title"
               >
                 {title}
@@ -576,6 +584,7 @@ export function DynamicBarChart({
               data-editable="true"
               data-element-id={elementId}
               data-file-path={editableFilePath}
+              data-line-number={editableLineNumber}
               data-prop="title"
             >
               {title}
@@ -756,9 +765,11 @@ export function DynamicComposedChart({
   order,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicComposedChartProps & {
   editableId?: string;
   editableFilePath?: string;
+  editableLineNumber?: string;
 }): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = order && order.length ? order : Object.keys(effectiveConfig);
@@ -785,6 +796,7 @@ export function DynamicComposedChart({
               data-editable="true"
               data-element-id={elementId}
               data-file-path={editableFilePath}
+              data-line-number={editableLineNumber}
               data-prop="title"
             >
               {title}
@@ -939,6 +951,8 @@ export type DynamicPieChartProps = {
   editableId?: string;
   /** File path for edit mode (optional, default: "src/App.tsx") */
   editableFilePath?: string;
+  /** Line number in source file for edit mode (optional) */
+  editableLineNumber?: string;
 };
 
 /**
@@ -1006,6 +1020,7 @@ export function DynamicPieChart({
   normalizeKey,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const safeData = useMemo(() => data ?? [], [data]);
@@ -1041,6 +1056,7 @@ export function DynamicPieChart({
                 data-editable="true"
                 data-element-id={elementId}
                 data-file-path={editableFilePath}
+                data-line-number={editableLineNumber}
                 data-prop="title"
               >
                 {title}
@@ -1070,6 +1086,7 @@ export function DynamicPieChart({
               data-editable="true"
               data-element-id={elementId}
               data-file-path={editableFilePath}
+              data-line-number={editableLineNumber}
               data-prop="title"
             >
               {title}

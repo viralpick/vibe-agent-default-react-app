@@ -86,6 +86,8 @@ export type DynamicDataTableProps = {
   editableId?: string;
   /** File path for edit mode (optional, default: "src/App.tsx") */
   editableFilePath?: string;
+  /** Line number in source file for edit mode (optional) */
+  editableLineNumber?: string;
 };
 
 /**
@@ -150,6 +152,7 @@ export const DynamicDataTable = ({
   searchPlaceholder,
   editableId,
   editableFilePath = "src/App.tsx",
+  editableLineNumber,
 }: DynamicDataTableProps): JSX.Element => {
   const safeData = Array.isArray(data) ? data : [];
   const elementId =
@@ -323,6 +326,7 @@ export const DynamicDataTable = ({
       showOptions={showOptions}
       editableId={elementId}
       editableFilePath={editableFilePath}
+      editableLineNumber={editableLineNumber}
     />
   );
 };
