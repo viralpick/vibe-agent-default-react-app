@@ -27,3 +27,4 @@ dist-ssr
 TestPage.tsx
 prompt.py
 .dom
+.llm

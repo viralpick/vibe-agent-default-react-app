@@ -6,6 +6,7 @@ import { Skeleton } from "../ui/skeleton";
  * @component StatCard
  * @description Displays a single KPI metric with trend indicator. Used for dashboard
  * summary statistics showing current values and period-over-period changes.
+ * Supports edit mode with data-editable attributes for in-place text editing.
  *
  * @dataStructure
  * - title: string - Metric label (required)
@@ -17,6 +18,8 @@ import { Skeleton } from "../ui/skeleton";
  * - trendValue: string - Formatted trend display, e.g., "12.5%" or "-3.1%" (required)
  * - isLoading: boolean - Shows skeleton when true (required)
  * - icon: React.ElementType - Lucide icon component for the metric (required)
+ * - editableId?: string - Unique identifier for edit mode (optional)
+ * - editableFilePath?: string - File path for edit mode (optional, default: "src/App.tsx")
  *
  * @designTokens
  * - Uses rounded-large (8px) for card border radius
@@ -42,6 +45,7 @@ import { Skeleton } from "../ui/skeleton";
  *   trendValue="12.5%"
  *   isLoading={false}
  *   icon={BarChart3}
+ *   editableId="revenue-stat"
  * />
  * ```
  */
@@ -52,6 +56,8 @@ export function StatCard({
   trendValue,
   isLoading,
   icon: Icon,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: {
   title: string;
   value: string;
@@ -59,14 +65,25 @@ export function StatCard({
   trendValue: string;
   isLoading: boolean;
   icon: React.ElementType;
+  editableId?: string;
+  editableFilePath?: string;
 }) {
   if (isLoading)
     return <Skeleton className="h-[120px] w-full rounded-xlarge" />;
 
+  const elementId =
+    editableId || `stat-${title.toLowerCase().replace(/\s+/g, "-")}`;
+
   return (
     <Card className="rounded-large border-border-200 bg-gray-0 h-full">
       <CardHeader className="flex flex-row items-center justify-between px-20 pb-8 space-y-0">
-        <CardTitle className="text-label-l font-medium text-text-secondary">
+        <CardTitle
+          className="text-label-l font-medium text-text-secondary"
+          data-editable="true"
+          data-element-id={elementId}
+          data-file-path={editableFilePath}
+          data-prop="title"
+        >
           {title}
         </CardTitle>
         {Icon && <Icon className="size-16 text-icon-secondary" />}

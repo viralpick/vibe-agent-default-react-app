@@ -93,6 +93,10 @@ export type BaseDynamicChartProps = {
   tooltipIndicator?: "dot" | "line" | "dashed" | false;
   showLegend?: boolean;
   tickFormatter?: (value: string) => string;
+  /** Unique identifier for edit mode (optional) */
+  editableId?: string;
+  /** File path for edit mode (optional, default: "src/App.tsx") */
+  editableFilePath?: string;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
@@ -150,10 +154,15 @@ export function DynamicAreaChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: DynamicAreaChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const elementId =
+    editableId ||
+    (title ? `area-chart-${title.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   return (
     <Card className="gap-6">
@@ -162,7 +171,9 @@ export function DynamicAreaChart({
           {title && (
             <CardTitle
               className="w-fit"
-              data-editable="title"
+              data-editable="true"
+              data-element-id={elementId}
+              data-file-path={editableFilePath}
               data-prop="title"
             >
               {title}
@@ -292,10 +303,15 @@ export function DynamicLineChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: DynamicLineChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const elementId =
+    editableId ||
+    (title ? `line-chart-${title.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   return (
     <Card className="">
@@ -304,7 +320,9 @@ export function DynamicLineChart({
           {title && (
             <CardTitle
               className="w-fit"
-              data-editable="title"
+              data-editable="true"
+              data-element-id={elementId}
+              data-file-path={editableFilePath}
               data-prop="title"
             >
               {title}
@@ -440,6 +458,8 @@ export function DynamicBarChart({
   tickFormatter,
   isLoading = false,
   maxVisibleItems,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: DynamicBarChartProps & {
   isLoading?: boolean;
   maxVisibleItems?: number;
@@ -447,6 +467,9 @@ export function DynamicBarChart({
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const elementId =
+    editableId ||
+    (title ? `bar-chart-${title.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   // For horizontal layout, calculate height based on data count
   const barHeight = 36; // height per bar item
@@ -518,7 +541,17 @@ export function DynamicBarChart({
       <Card className="gap-6">
         {(title || description) && (
           <CardHeader>
-            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {title && (
+              <CardTitle
+                className="w-fit"
+                data-editable="true"
+                data-element-id={elementId}
+                data-file-path={editableFilePath}
+                data-prop="title"
+              >
+                {title}
+              </CardTitle>
+            )}
             {description ? (
               <CardDescription>{description}</CardDescription>
             ) : (
@@ -540,7 +573,9 @@ export function DynamicBarChart({
           {title && (
             <CardTitle
               className="w-fit"
-              data-editable="title"
+              data-editable="true"
+              data-element-id={elementId}
+              data-file-path={editableFilePath}
               data-prop="title"
             >
               {title}
@@ -719,7 +754,12 @@ export function DynamicComposedChart({
   barMaxBarSize = 28,
   areaFillOpacity = 0.4,
   order,
-}: DynamicComposedChartProps): React.ReactNode {
+  editableId,
+  editableFilePath = "src/App.tsx",
+}: DynamicComposedChartProps & {
+  editableId?: string;
+  editableFilePath?: string;
+}): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = order && order.length ? order : Object.keys(effectiveConfig);
   const hasRight = keys.some(
@@ -731,6 +771,9 @@ export function DynamicComposedChart({
       { label: v.label, color: v.color },
     ])
   );
+  const elementId =
+    editableId ||
+    (title ? `composed-chart-${title.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   return (
     <Card className="gap-6">
@@ -739,7 +782,9 @@ export function DynamicComposedChart({
           {title && (
             <CardTitle
               className="w-fit"
-              data-editable="title"
+              data-editable="true"
+              data-element-id={elementId}
+              data-file-path={editableFilePath}
               data-prop="title"
             >
               {title}
@@ -890,6 +935,10 @@ export type DynamicPieChartProps = {
   isLoading?: boolean;
   /** Optional key normalization function for color mapping */
   normalizeKey?: (key: string) => string;
+  /** Unique identifier for edit mode (optional) */
+  editableId?: string;
+  /** File path for edit mode (optional, default: "src/App.tsx") */
+  editableFilePath?: string;
 };
 
 /**
@@ -955,9 +1004,14 @@ export function DynamicPieChart({
   showLabel = false,
   isLoading = false,
   normalizeKey,
+  editableId,
+  editableFilePath = "src/App.tsx",
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const safeData = useMemo(() => data ?? [], [data]);
+  const elementId =
+    editableId ||
+    (title ? `pie-chart-${title.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
   // Build color map with case-insensitive lookup
   const colorMap = useMemo(() => {
@@ -981,7 +1035,17 @@ export function DynamicPieChart({
       <Card className="gap-6">
         {(title || description) && (
           <CardHeader>
-            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {title && (
+              <CardTitle
+                className="w-fit"
+                data-editable="true"
+                data-element-id={elementId}
+                data-file-path={editableFilePath}
+                data-prop="title"
+              >
+                {title}
+              </CardTitle>
+            )}
             {description ? (
               <CardDescription>{description}</CardDescription>
             ) : (
@@ -1003,7 +1067,9 @@ export function DynamicPieChart({
           {title && (
             <CardTitle
               className="w-fit"
-              data-editable="title"
+              data-editable="true"
+              data-element-id={elementId}
+              data-file-path={editableFilePath}
               data-prop="title"
             >
               {title}
