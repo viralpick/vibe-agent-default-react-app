@@ -156,22 +156,22 @@ const buttonVariants = cva(
       {
         buttonType: "icon",
         size: "lg",
-        className: "size-48 [&_svg]:!size-20",
+        className: "size-48 [&_svg]:size-20",
       },
       {
         buttonType: "icon",
         size: "md",
-        className: "size-40 [&_svg]:!size-20",
+        className: "size-40 [&_svg]:size-20",
       },
       {
         buttonType: "icon",
         size: "sm",
-        className: "size-32 [&_svg]:!size-16",
+        className: "size-32 [&_svg]:size-16",
       },
       {
         buttonType: "icon",
         size: "xs",
-        className: "size-24 [&_svg]:!size-16",
+        className: "size-24 [&_svg]:size-16",
       },
     ],
     defaultVariants: {
