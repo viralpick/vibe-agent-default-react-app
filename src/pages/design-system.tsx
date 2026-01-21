@@ -13,7 +13,9 @@ import {
   Breadcrumb,
   BreadcrumbItem,
 } from "@/components/ui/breadcrumb";
-import { Settings, Info, Folder, Circle, ChevronRight } from "lucide-react";
+import { Settings, Info, Folder, Circle, ChevronRight, Search, Mail } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const themes = [
   "gray",
@@ -76,6 +78,10 @@ const buttonIconOptions = ["none", "lead", "tail", "both"] as const;
 const checkboxSizes = ["sm", "md"] as const;
 const checkboxStates = ["unchecked", "checked", "indeterminate"] as const;
 
+// Input constants
+const inputSizes = ["sm", "md"] as const;
+const inputIconOptions = ["none", "lead", "tail", "both"] as const;
+
 export function DesignSystemPage() {
   // Breadcrumb Playground state
   const [breadcrumbDivider, setBreadcrumbDivider] =
@@ -126,6 +132,22 @@ export function DesignSystemPage() {
     boolean | "indeterminate"
   >(false);
   const [checkboxDisabled, setCheckboxDisabled] = useState(false);
+
+  // Input Playground state
+  const [inputSize, setInputSize] =
+    useState<(typeof inputSizes)[number]>("md");
+  const [inputIcon, setInputIcon] =
+    useState<(typeof inputIconOptions)[number]>("both");
+  const [inputShowBadge, setInputShowBadge] = useState(true);
+  const [inputValue, setInputValue] = useState("");
+  const [inputDisabled, setInputDisabled] = useState(false);
+
+  // Textarea Playground state
+  const [textareaDisabled, setTextareaDisabled] = useState(false);
+  const [textareaShowActions, setTextareaShowActions] = useState(true);
+  const [textareaShowPrimaryBtn, setTextareaShowPrimaryBtn] = useState(true);
+  const [textareaShowSecondaryBtn, setTextareaShowSecondaryBtn] = useState(true);
+  const [textareaShowControl, setTextareaShowControl] = useState(true);
 
   return (
     <main className="w-full min-h-screen p-24">
@@ -1230,6 +1252,402 @@ export function DesignSystemPage() {
             <Badge size="lg" shape="pill" badgeStyle="light" theme="purple">
               No Icon
             </Badge>
+          </div>
+        </div>
+      </section>
+
+      {/* Input Playground */}
+      <section className="mb-40">
+        <h2 className="text-h3 font-semibold mb-16">Input Playground</h2>
+        <div className="p-24 bg-gray-50 rounded-medium">
+          {/* Controls */}
+          <div className="space-y-16 mb-24">
+            {/* Size */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Size
+              </span>
+              <div className="flex gap-8">
+                {inputSizes.map((size) => (
+                  <OptionButton
+                    key={size}
+                    label={size}
+                    selected={inputSize === size}
+                    onClick={() => setInputSize(size)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Icon */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Icon
+              </span>
+              <div className="flex gap-8">
+                {inputIconOptions.map((icon) => (
+                  <OptionButton
+                    key={icon}
+                    label={icon}
+                    selected={inputIcon === icon}
+                    onClick={() => setInputIcon(icon)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Badge */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Badge
+              </span>
+              <div className="flex gap-8">
+                <OptionButton
+                  label="Show"
+                  selected={inputShowBadge}
+                  onClick={() => setInputShowBadge(true)}
+                />
+                <OptionButton
+                  label="Hide"
+                  selected={!inputShowBadge}
+                  onClick={() => setInputShowBadge(false)}
+                />
+              </div>
+            </div>
+
+            {/* Value */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Value
+              </span>
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Enter value..."
+                className="px-12 py-6 border border-gray-300 rounded-small text-label-m"
+              />
+            </div>
+
+            {/* Disabled */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Disabled
+              </span>
+              <div className="flex gap-8">
+                <OptionButton
+                  label="Yes"
+                  selected={inputDisabled}
+                  onClick={() => setInputDisabled(true)}
+                />
+                <OptionButton
+                  label="No"
+                  selected={!inputDisabled}
+                  onClick={() => setInputDisabled(false)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="flex items-center justify-center p-32 bg-white rounded-small border border-gray-200">
+            <Input
+              size={inputSize}
+              placeholder="Input"
+              value={inputValue}
+              disabled={inputDisabled}
+              leadIcon={
+                inputIcon === "lead" || inputIcon === "both" ? (
+                  <Search />
+                ) : undefined
+              }
+              tailIcon={
+                inputIcon === "tail" || inputIcon === "both" ? (
+                  <Info />
+                ) : undefined
+              }
+              badge={
+                inputShowBadge ? (
+                  <Badge size="sm" theme="gray" badgeStyle="light">
+                    ⌘E
+                  </Badge>
+                ) : undefined
+              }
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Input - All Variants */}
+      <section className="mb-40">
+        <h2 className="text-h3 font-semibold mb-16">Input - All Variants</h2>
+        <div className="p-24 bg-gray-50 rounded-medium space-y-16">
+          {inputSizes.map((size) => (
+            <div key={size} className="space-y-8">
+              <h3 className="text-t2 font-semibold capitalize">{size}</h3>
+              <div className="grid grid-cols-3 gap-16">
+                {/* Default */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    Default
+                  </p>
+                  <Input
+                    size={size}
+                    placeholder="Input"
+                    leadIcon={<Search />}
+                    badge={
+                      <Badge size="sm" theme="gray" badgeStyle="light">
+                        ⌘E
+                      </Badge>
+                    }
+                    tailIcon={<Info />}
+                  />
+                </div>
+
+                {/* Filled */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    Filled
+                  </p>
+                  <Input
+                    size={size}
+                    placeholder="Input"
+                    value="Filled value"
+                    leadIcon={<Search />}
+                    badge={
+                      <Badge size="sm" theme="gray" badgeStyle="light">
+                        ⌘E
+                      </Badge>
+                    }
+                    tailIcon={<Info />}
+                  />
+                </div>
+
+                {/* Disabled */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    Disabled
+                  </p>
+                  <Input
+                    size={size}
+                    placeholder="Input"
+                    disabled
+                    leadIcon={<Search />}
+                    badge={
+                      <Badge size="sm" theme="gray" badgeStyle="light">
+                        ⌘E
+                      </Badge>
+                    }
+                    tailIcon={<Info />}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Textarea Playground */}
+      <section className="mb-40">
+        <h2 className="text-h3 font-semibold mb-16">Textarea Playground</h2>
+        <div className="p-24 bg-gray-50 rounded-medium">
+          {/* Controls */}
+          <div className="space-y-16 mb-24">
+            {/* Disabled */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Disabled
+              </span>
+              <div className="flex gap-8">
+                <OptionButton
+                  label="Yes"
+                  selected={textareaDisabled}
+                  onClick={() => setTextareaDisabled(true)}
+                />
+                <OptionButton
+                  label="No"
+                  selected={!textareaDisabled}
+                  onClick={() => setTextareaDisabled(false)}
+                />
+              </div>
+            </div>
+
+            {/* Show Actions */}
+            <div className="flex items-center gap-12">
+              <span className="text-t3 font-medium text-text-secondary w-100">
+                Show Actions
+              </span>
+              <div className="flex gap-8">
+                <OptionButton
+                  label="Yes"
+                  selected={textareaShowActions}
+                  onClick={() => setTextareaShowActions(true)}
+                />
+                <OptionButton
+                  label="No"
+                  selected={!textareaShowActions}
+                  onClick={() => setTextareaShowActions(false)}
+                />
+              </div>
+            </div>
+
+            {textareaShowActions && (
+              <>
+                {/* Primary Button */}
+                <div className="flex items-center gap-12">
+                  <span className="text-t3 font-medium text-text-secondary w-100">
+                    Primary Btn
+                  </span>
+                  <div className="flex gap-8">
+                    <OptionButton
+                      label="Show"
+                      selected={textareaShowPrimaryBtn}
+                      onClick={() => setTextareaShowPrimaryBtn(true)}
+                    />
+                    <OptionButton
+                      label="Hide"
+                      selected={!textareaShowPrimaryBtn}
+                      onClick={() => setTextareaShowPrimaryBtn(false)}
+                    />
+                  </div>
+                </div>
+
+                {/* Secondary Button */}
+                <div className="flex items-center gap-12">
+                  <span className="text-t3 font-medium text-text-secondary w-100">
+                    Secondary Btn
+                  </span>
+                  <div className="flex gap-8">
+                    <OptionButton
+                      label="Show"
+                      selected={textareaShowSecondaryBtn}
+                      onClick={() => setTextareaShowSecondaryBtn(true)}
+                    />
+                    <OptionButton
+                      label="Hide"
+                      selected={!textareaShowSecondaryBtn}
+                      onClick={() => setTextareaShowSecondaryBtn(false)}
+                    />
+                  </div>
+                </div>
+
+                {/* Control */}
+                <div className="flex items-center gap-12">
+                  <span className="text-t3 font-medium text-text-secondary w-100">
+                    Control
+                  </span>
+                  <div className="flex gap-8">
+                    <OptionButton
+                      label="Show"
+                      selected={textareaShowControl}
+                      onClick={() => setTextareaShowControl(true)}
+                    />
+                    <OptionButton
+                      label="Hide"
+                      selected={!textareaShowControl}
+                      onClick={() => setTextareaShowControl(false)}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Preview */}
+          <div className="flex flex-col items-center justify-center p-32 bg-white rounded-small border border-gray-200">
+            <div className="w-full max-w-[600px]">
+              <Textarea
+                placeholder="Placeholder..."
+                rows={5}
+                disabled={textareaDisabled}
+              >
+                {textareaShowActions && (
+                  <Textarea.Actions>
+                    {textareaShowSecondaryBtn && (
+                      <Button buttonStyle="secondary" disabled={textareaDisabled}>
+                        Button
+                      </Button>
+                    )}
+                    {textareaShowPrimaryBtn && (
+                      <Button disabled={textareaDisabled}>Button</Button>
+                    )}
+                    {textareaShowControl && (
+                      <span className="text-text-secondary text-label-m">0/500</span>
+                    )}
+                  </Textarea.Actions>
+                )}
+              </Textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Textarea - All States */}
+      <section className="mb-40">
+        <h2 className="text-h3 font-semibold mb-16">Textarea - All States</h2>
+        <div className="p-24 bg-gray-50 rounded-medium">
+          <div className="grid grid-cols-2 gap-16">
+            {/* Default */}
+            <div>
+              <p className="text-label-m text-text-secondary mb-8">
+                1-1. Default
+              </p>
+              <Textarea placeholder="Placeholder..." rows={5}>
+                <Textarea.Actions>
+                  <Button buttonStyle="secondary">Button</Button>
+                  <Button>Button</Button>
+                  <span className="text-text-secondary text-label-m">0/500</span>
+                </Textarea.Actions>
+              </Textarea>
+            </div>
+
+            {/* Hover - CSS로 자동 처리되므로 설명만 */}
+            <div>
+              <p className="text-label-m text-text-secondary mb-8">
+                1-2. Hover (자동)
+              </p>
+              <Textarea
+                placeholder="Hover over me..."
+                rows={5}
+                className="hover:border-border-200-hover"
+              >
+                <Textarea.Actions>
+                  <Button buttonStyle="secondary">Button</Button>
+                  <Button>Button</Button>
+                  <span className="text-text-secondary text-label-m">0/500</span>
+                </Textarea.Actions>
+              </Textarea>
+            </div>
+
+            {/* Focused - CSS로 자동 처리되므로 설명만 */}
+            <div>
+              <p className="text-label-m text-text-secondary mb-8">
+                1-3. Focused (클릭 시)
+              </p>
+              <Textarea placeholder="Click to focus..." rows={5}>
+                <Textarea.Actions>
+                  <Button buttonStyle="secondary">Button</Button>
+                  <Button>Button</Button>
+                  <span className="text-text-secondary text-label-m">0/500</span>
+                </Textarea.Actions>
+              </Textarea>
+            </div>
+
+            {/* Disabled */}
+            <div>
+              <p className="text-label-m text-text-secondary mb-8">
+                1-4. Disabled
+              </p>
+              <Textarea placeholder="Placeholder..." rows={5} disabled>
+                <Textarea.Actions>
+                  <Button buttonStyle="secondary" disabled>
+                    Button
+                  </Button>
+                  <Button disabled>Button</Button>
+                  <span className="text-text-secondary text-label-m">0/500</span>
+                </Textarea.Actions>
+              </Textarea>
+            </div>
           </div>
         </div>
       </section>
