@@ -25,4 +25,4 @@ dist-ssr
 
 # for tests
 .dom
-# .llm
+.llm copy
