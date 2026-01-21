@@ -118,6 +118,45 @@ const accordionContentVariants = cva(
 // Accordion Root
 // ============================================================================
 
+/**
+ * Accordion 컴포넌트 Props
+ *
+ * @property {"single" | "multiple"} type - 아코디언 타입
+ *   - `"single"`: 한 번에 하나의 아이템만 열림 (기본값)
+ *   - `"multiple"`: 여러 아이템을 동시에 열 수 있음
+ *
+ * @property {"md" | "lg"} size - 아코디언 크기
+ *   - `"lg"`: 큰 크기 (padding: 16px, 기본값)
+ *   - `"md"`: 중간 크기 (padding: 12px)
+ *
+ * @property {string | string[]} defaultValue - 초기에 열릴 아이템 (비제어 컴포넌트)
+ * @property {string | string[]} value - 현재 열린 아이템 (제어 컴포넌트)
+ * @property {function} onValueChange - 열린 아이템이 변경될 때 호출되는 콜백
+ *
+ * @example
+ * ```tsx
+ * // 단일 선택 아코디언 (비제어)
+ * <Accordion type="single" defaultValue="item-1">
+ *   <AccordionItem value="item-1">
+ *     <AccordionTrigger title="제목 1" />
+ *     <AccordionContent>내용 1</AccordionContent>
+ *   </AccordionItem>
+ *   <AccordionItem value="item-2">
+ *     <AccordionTrigger title="제목 2" description="설명" />
+ *     <AccordionContent>내용 2</AccordionContent>
+ *   </AccordionItem>
+ * </Accordion>
+ *
+ * // 다중 선택 아코디언 (제어)
+ * const [openItems, setOpenItems] = useState(["item-1"]);
+ * <Accordion type="multiple" value={openItems} onValueChange={setOpenItems}>
+ *   <AccordionItem value="item-1">
+ *     <AccordionTrigger leadIcon={<Icon />} title="제목 1" />
+ *     <AccordionContent>내용 1</AccordionContent>
+ *   </AccordionItem>
+ * </Accordion>
+ * ```
+ */
 export interface AccordionProps extends React.HTMLAttributes<HTMLDivElement> {
   type?: AccordionType;
   size?: AccordionSize;
@@ -126,6 +165,16 @@ export interface AccordionProps extends React.HTMLAttributes<HTMLDivElement> {
   onValueChange?: (value: string | string[]) => void;
 }
 
+/**
+ * 접고 펼칠 수 있는 콘텐츠를 그룹으로 관리하는 Accordion 컴포넌트
+ *
+ * 단일 선택 모드와 다중 선택 모드를 지원
+ *
+ * **하위 컴포넌트:**
+ * - `AccordionItem`: 개별 아코디언 아이템
+ * - `AccordionTrigger`: 클릭하여 열고 닫는 트리거 영역
+ * - `AccordionContent`: 접히고 펼쳐지는 콘텐츠 영역
+ */
 function Accordion({
   type = "single",
   size = "lg",
@@ -198,6 +247,12 @@ function Accordion({
 // AccordionItem
 // ============================================================================
 
+/**
+ * AccordionItem 컴포넌트 Props
+ *
+ * @property {string} value - 아이템의 고유 식별자 (필수)
+ * @property {boolean} disabled - 비활성화 여부
+ */
 export interface AccordionItemProps
   extends React.HTMLAttributes<HTMLDivElement>,
     Omit<VariantProps<typeof accordionItemVariants>, "size"> {
@@ -205,6 +260,11 @@ export interface AccordionItemProps
   disabled?: boolean;
 }
 
+/**
+ * Accordion의 개별 아이템 컴포넌트
+ *
+ * 각 아이템은 고유한 value를 가지며, 이를 통해 열림/닫힘 상태가 관리됩니다.
+ */
 function AccordionItem({
   value,
   disabled = false,
@@ -245,6 +305,14 @@ function AccordionItem({
 // AccordionTrigger
 // ============================================================================
 
+/**
+ * AccordionTrigger 컴포넌트 Props
+ *
+ * @property {ReactNode} leadIcon - 제목 앞에 표시되는 아이콘 (선택)
+ * @property {string} title - 아코디언 제목 (필수)
+ * @property {string} description - 제목 아래에 표시되는 설명 (선택)
+ * @property {ReactNode} icon - 설명 앞에 표시되는 작은 아이콘 (선택)
+ */
 export interface AccordionTriggerProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "disabled"> {
   leadIcon?: React.ReactNode;
@@ -253,6 +321,12 @@ export interface AccordionTriggerProps
   icon?: React.ReactNode;
 }
 
+/**
+ * 아코디언을 열고 닫는 트리거 버튼 컴포넌트
+ *
+ * 제목과 선택적으로 설명, 아이콘을 표시하며,
+ * 오른쪽에 자동으로 ChevronDown 아이콘이 추가됩니다.
+ */
 function AccordionTrigger({
   leadIcon,
   title,
@@ -324,10 +398,21 @@ function AccordionTrigger({
 // AccordionContent
 // ============================================================================
 
+/**
+ * AccordionContent 컴포넌트 Props
+ *
+ * 추가 속성 없이 기본 HTMLDivElement 속성을 지원합니다.
+ */
 export interface AccordionContentProps
   extends React.HTMLAttributes<HTMLDivElement>,
     Omit<VariantProps<typeof accordionContentVariants>, "size"> {}
 
+/**
+ * 아코디언이 열렸을 때 표시되는 콘텐츠 영역 컴포넌트
+ *
+ * leadIcon 존재 여부에 따라 자동으로 padding이 조정되어
+ * 트리거와 콘텐츠가 시각적으로 정렬됩니다.
+ */
 function AccordionContent({
   className,
   children,

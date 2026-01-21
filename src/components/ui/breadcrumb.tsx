@@ -46,12 +46,46 @@ const breadcrumbDividerVariants = cva(
   }
 );
 
-// Breadcrumb Container Props
+/**
+ * Breadcrumb 컴포넌트 Props
+ *
+ * @property {"chevron" | "slash"} divider - 구분자 타입
+ *   - `"chevron"`: ChevronRight 아이콘 (기본값)
+ *   - `"slash"`: "/" 문자
+ *
+ * @example
+ * ```tsx
+ * // 기본 Breadcrumb (chevron 구분자)
+ * <Breadcrumb>
+ *   <BreadcrumbItem href="/">Home</BreadcrumbItem>
+ *   <BreadcrumbItem href="/products">Products</BreadcrumbItem>
+ *   <BreadcrumbItem>Detail</BreadcrumbItem>
+ * </Breadcrumb>
+ *
+ * // 슬래시 구분자 사용
+ * <Breadcrumb divider="slash">
+ *   <BreadcrumbItem icon={<HomeIcon />} href="/">Home</BreadcrumbItem>
+ *   <BreadcrumbItem>Current</BreadcrumbItem>
+ * </Breadcrumb>
+ *
+ * // 클릭 이벤트 처리
+ * <Breadcrumb>
+ *   <BreadcrumbItem onClick={() => navigate('/')}>Home</BreadcrumbItem>
+ *   <BreadcrumbItem>Current</BreadcrumbItem>
+ * </Breadcrumb>
+ * ```
+ */
 export interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
   divider?: DividerType;
 }
 
-// Breadcrumb Item Props
+/**
+ * BreadcrumbItem 컴포넌트 Props
+ *
+ * @property {ReactNode} icon - 텍스트 앞에 표시되는 아이콘
+ * @property {string} href - 링크 URL (제공시 <a> 태그로 렌더링)
+ * @property {boolean} isLast - 마지막 아이템 여부 (자동 설정됨)
+ */
 export interface BreadcrumbItemProps
   extends React.HTMLAttributes<HTMLElement>,
     VariantProps<typeof breadcrumbItemVariants> {
@@ -60,12 +94,25 @@ export interface BreadcrumbItemProps
   isLast?: boolean;
 }
 
-// Breadcrumb Divider Props
+/**
+ * BreadcrumbDivider 컴포넌트 Props
+ *
+ * 일반적으로 직접 사용하지 않고 Breadcrumb이 자동으로 추가합니다.
+ */
 export interface BreadcrumbDividerProps
   extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof breadcrumbDividerVariants> {}
 
-// Breadcrumb Container Component
+/**
+ * 페이지 계층 구조를 표시하는 Breadcrumb 컴포넌트
+ *
+ * 사용자의 현재 위치를 보여주고 상위 페이지로 쉽게 이동할 수 있게 합니다.
+ * 마지막 아이템은 자동으로 비활성 상태로 표시되며, 구분자는 자동으로 추가됩니다.
+ *
+ * **하위 컴포넌트:**
+ * - `BreadcrumbItem`: 개별 breadcrumb 아이템
+ * - `BreadcrumbDivider`: 아이템 간 구분자 (자동 추가)
+ */
 function Breadcrumb({
   className,
   divider = "chevron",
@@ -102,7 +149,12 @@ function Breadcrumb({
   );
 }
 
-// Breadcrumb Item Component
+/**
+ * Breadcrumb의 개별 아이템 컴포넌트
+ *
+ * href 제공 시 링크로, onClick 제공 시 버튼으로,
+ * 마지막 아이템이거나 둘 다 없으면 span으로 렌더링됩니다.
+ */
 function BreadcrumbItem({
   className,
   icon,
@@ -147,7 +199,11 @@ function BreadcrumbItem({
   return <span {...commonProps}>{content}</span>;
 }
 
-// Breadcrumb Divider Component
+/**
+ * Breadcrumb 아이템 간 구분자 컴포넌트
+ *
+ * Breadcrumb 컴포넌트가 자동으로 추가하므로 직접 사용할 필요가 없습니다.
+ */
 function BreadcrumbDivider({ className, ...props }: BreadcrumbDividerProps) {
   const { divider } = React.useContext(BreadcrumbContext);
 

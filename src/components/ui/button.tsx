@@ -183,6 +183,65 @@ const buttonVariants = cva(
   }
 );
 
+/**
+ * Button 컴포넌트 Props
+ *
+ * @property {"primary" | "secondary" | "tertiary" | "ghost"} buttonStyle - 버튼 스타일
+ *   - `"primary"`: 기본 배경색 버튼 (기본값)
+ *   - `"secondary"`: 테두리가 있는 버튼
+ *   - `"tertiary"`: 배경색이 연한 버튼
+ *   - `"ghost"`: 투명 배경 버튼
+ *
+ * @property {"lg" | "md" | "sm" | "xs"} size - 버튼 크기
+ *   - `"lg"`: 큰 크기 (height: 48px)
+ *   - `"md"`: 중간 크기 (height: 40px, 기본값)
+ *   - `"sm"`: 작은 크기 (height: 32px)
+ *   - `"xs"`: 최소 크기 (height: 24px)
+ *
+ * @property {"default" | "destructive" | "brand"} target - 버튼 용도/색상
+ *   - `"default"`: 일반 회색 계열 (기본값)
+ *   - `"destructive"`: 삭제/경고용 빨간색 계열
+ *   - `"brand"`: 브랜드 파란색 계열
+ *
+ * @property {"default" | "icon"} buttonType - 버튼 타입
+ *   - `"default"`: 텍스트 버튼 (기본값)
+ *   - `"icon"`: 아이콘 전용 정사각형 버튼
+ *
+ * @property {ReactNode} leadIcon - 텍스트 앞에 표시되는 아이콘
+ * @property {ReactNode} tailIcon - 텍스트 뒤에 표시되는 아이콘
+ * @property {ReactNode} badge - 텍스트와 tailIcon 사이에 표시되는 배지
+ * @property {boolean} asChild - Radix UI Slot 사용 여부 (자식을 버튼으로 변환)
+ *
+ * @example
+ * ```tsx
+ * // 기본 버튼
+ * <Button>Click me</Button>
+ *
+ * // 스타일과 크기 변형
+ * <Button buttonStyle="secondary" size="lg">Large Secondary</Button>
+ * <Button buttonStyle="ghost" target="brand">Brand Ghost</Button>
+ *
+ * // 아이콘 포함
+ * <Button leadIcon={<PlusIcon />}>Add Item</Button>
+ * <Button tailIcon={<ArrowRightIcon />}>Next</Button>
+ *
+ * // 아이콘 전용 버튼
+ * <Button buttonType="icon" size="sm">
+ *   <SearchIcon />
+ * </Button>
+ *
+ * // 삭제/경고 버튼
+ * <Button target="destructive">Delete</Button>
+ *
+ * // 배지 포함
+ * <Button badge={<Badge>New</Badge>}>Features</Button>
+ *
+ * // asChild로 링크를 버튼 스타일로 렌더링
+ * <Button asChild>
+ *   <a href="/login">Login</a>
+ * </Button>
+ * ```
+ */
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -192,6 +251,13 @@ export interface ButtonProps
   asChild?: boolean;
 }
 
+/**
+ * 다양한 스타일과 크기를 지원하는 Button 컴포넌트
+ *
+ * 3가지 색상 테마(default, destructive, brand)와
+ * 4가지 스타일(primary, secondary, tertiary, ghost)을 조합하여 사용할 수 있습니다.
+ * 텍스트 버튼과 아이콘 전용 버튼 모드를 지원합니다.
+ */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
