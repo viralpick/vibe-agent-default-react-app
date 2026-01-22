@@ -10,10 +10,17 @@ import * as React from "react";
 
 import { cn } from "@/lib/commerce-sdk";
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+type CardProps = React.ComponentProps<"div"> & {
+  queryId?: string;
+  queryContent?: string;
+};
+
+function Card({ className, queryId, queryContent, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
+      data-query-id={queryId}
+      data-query-content={queryContent}
       className={cn(
         "bg-card text-card-foreground flex flex-col gap-6 py-24 rounded-xlarge border shadow-sm",
         className

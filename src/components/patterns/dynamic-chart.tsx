@@ -93,6 +93,10 @@ export type BaseDynamicChartProps = {
   tooltipIndicator?: "dot" | "line" | "dashed" | false;
   showLegend?: boolean;
   tickFormatter?: (value: string) => string;
+  /** Query ID for query edit mode (optional) */
+  queryId?: string;
+  /** Query content for query edit mode (optional) */
+  queryContent?: string;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
@@ -150,13 +154,15 @@ export function DynamicAreaChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  queryId,
+  queryContent,
 }: DynamicAreaChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
-    <Card className="gap-6">
+    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -288,13 +294,15 @@ export function DynamicLineChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  queryId,
+  queryContent,
 }: DynamicLineChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
 
   return (
-    <Card className="">
+    <Card className="" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -432,6 +440,8 @@ export function DynamicBarChart({
   tickFormatter,
   isLoading = false,
   maxVisibleItems,
+  queryId,
+  queryContent,
 }: DynamicBarChartProps & {
   isLoading?: boolean;
   maxVisibleItems?: number;
@@ -507,7 +517,7 @@ export function DynamicBarChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6">
+      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -530,7 +540,7 @@ export function DynamicBarChart({
   }
 
   return (
-    <Card className="gap-6">
+    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -711,6 +721,8 @@ export function DynamicComposedChart({
   barMaxBarSize = 28,
   areaFillOpacity = 0.4,
   order,
+  queryId,
+  queryContent,
 }: DynamicComposedChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = order && order.length ? order : Object.keys(effectiveConfig);
@@ -725,7 +737,7 @@ export function DynamicComposedChart({
   );
 
   return (
-    <Card className="gap-6">
+    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -878,6 +890,10 @@ export type DynamicPieChartProps = {
   isLoading?: boolean;
   /** Optional key normalization function for color mapping */
   normalizeKey?: (key: string) => string;
+  /** Query ID for query edit mode (optional) */
+  queryId?: string;
+  /** Query content for query edit mode (optional) */
+  queryContent?: string;
 };
 
 /**
@@ -943,6 +959,8 @@ export function DynamicPieChart({
   showLabel = false,
   isLoading = false,
   normalizeKey,
+  queryId,
+  queryContent,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const safeData = useMemo(() => data ?? [], [data]);
@@ -966,7 +984,7 @@ export function DynamicPieChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6">
+      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -989,7 +1007,7 @@ export function DynamicPieChart({
   }
 
   return (
-    <Card className="gap-6">
+    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
