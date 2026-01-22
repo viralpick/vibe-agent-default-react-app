@@ -112,12 +112,9 @@ export const useEnableEditMode = () => {
       e.preventDefault();
       e.stopPropagation();
 
-      console.log('[useEnableEditMode] Chart/Table clicked, fetching source code...');
-
       try {
         // 클릭한 차트/테이블의 title 추출
         const cardTitle = chartElement.querySelector('[data-slot="card-title"]')?.textContent?.trim();
-        console.log('[useEnableEditMode] Clicked chart title:', cardTitle);
 
         // src/App.tsx 파일 내용 가져오기
         const response = await fetch('/src/App.tsx?raw');
@@ -126,19 +123,9 @@ export const useEnableEditMode = () => {
         }
 
         const rawContent = await response.text();
-        console.log('[useEnableEditMode] Raw content fetched, length:', rawContent.length);
 
         // Vite ?raw 응답에서 실제 코드 추출
         const sourceCode = extractCodeFromViteRaw(rawContent);
-        console.log('[useEnableEditMode] Source code extracted, length:', sourceCode.length);
-
-        // 디버깅: 소스 코드에 주석이 있는지 확인
-        const hasComments = sourceCode.includes('data-query-id');
-        console.log('[useEnableEditMode] Source code contains data-query-id comments:', hasComments);
-        if (hasComments) {
-          const commentCount = (sourceCode.match(/data-query-id/g) || []).length;
-          console.log('[useEnableEditMode] Found', commentCount, 'data-query-id occurrences');
-        }
 
         // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
         // 1. 주석에서 query ID와 쿼리 추출
@@ -155,8 +142,6 @@ export const useEnableEditMode = () => {
           const queryId = commentMatch[1];
           const commentIndex = commentMatch.index;
 
-          console.log('[useEnableEditMode] Found comment:', queryId, 'at index', commentIndex);
-
           // 주석 다음 위치부터 쿼리 찾기 (최대 500자 이내)
           const searchStart = commentIndex + commentMatch[0].length;
           const searchEnd = Math.min(searchStart + 500, sourceCode.length);
@@ -168,18 +153,11 @@ export const useEnableEditMode = () => {
           if (queryMatch) {
             const varName = queryMatch[1];
             const queryContent = queryMatch[2];
-
             queries.push({ varName, queryId, content: queryContent });
-            console.log('[useEnableEditMode] Found query:', { varName, queryId, contentLength: queryContent.length });
-          } else {
-            console.warn('[useEnableEditMode] Query not found after comment:', queryId);
           }
         }
 
-        console.log('[useEnableEditMode] Found queries:', queries.map(q => ({ varName: q.varName, queryId: q.queryId })));
-
         if (queries.length === 0) {
-          console.warn('[useEnableEditMode] No queries found in source code');
           return;
         }
 
@@ -192,16 +170,12 @@ export const useEnableEditMode = () => {
         let componentMatch;
 
         while ((componentMatch = componentRegex.exec(sourceCode)) !== null) {
-          const componentType = componentMatch[1];
           const componentQueryId = componentMatch[2];
           const componentIndex = componentMatch.index;
-
-          console.log('[useEnableEditMode] Found component:', componentType, 'with query ID:', componentQueryId);
 
           // 해당 query ID와 일치하는 쿼리 찾기
           const query = queries.find(q => q.queryId === componentQueryId);
           if (!query) {
-            console.warn('[useEnableEditMode] Query not found for component query ID:', componentQueryId);
             continue;
           }
 
@@ -213,12 +187,10 @@ export const useEnableEditMode = () => {
 
           if (titleMatch) {
             const componentTitle = titleMatch[1].trim();
-            console.log('[useEnableEditMode] Component title:', componentTitle, 'for query:', componentQueryId);
 
             // title이 클릭한 카드의 title과 일치하는지 확인
             if (cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
               matchedQuery = query;
-              console.log('[useEnableEditMode] ✅ Matched query:', query.queryId, 'with clicked title:', cardTitle);
               break;
             }
           }
@@ -226,17 +198,6 @@ export const useEnableEditMode = () => {
 
         // 매칭된 쿼리가 없으면 첫 번째 쿼리 사용
         const selectedQuery = matchedQuery || queries[0];
-
-        if (!matchedQuery) {
-          console.warn('[useEnableEditMode] ❌ No matching query found for title:', cardTitle, '- using first query');
-        }
-
-        console.log('[useEnableEditMode] QUERY_CLICK detected:', {
-          queryId: selectedQuery.queryId,
-          queryContent: selectedQuery.content.substring(0, 50) + '...',
-          filePath: 'src/App.tsx',
-          position: { x: e.clientX, y: e.clientY },
-        });
 
         window.parent.postMessage(
           {
@@ -250,8 +211,6 @@ export const useEnableEditMode = () => {
           },
           '*'
         );
-
-        console.log('[useEnableEditMode] QUERY_CLICK message sent to parent');
       } catch (error) {
         console.error('[useEnableEditMode] Error fetching or parsing source code:', error);
       }
