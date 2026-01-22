@@ -138,31 +138,36 @@ export const useEnableEditMode = () => {
 
         // 1. 주석에서 query ID와 쿼리 추출
         // 패턴: // data-query-id="some-query-id"
+        //       (다른 주석들...)
         //       const xxxQuery = `query Source { ... }`
         const queries: Array<{ varName: string; queryId: string; content: string }> = [];
 
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
+        // 전역 regex로 모든 주석 위치 찾기
+        const commentRegex = /\/\/\s*data-query-id=["']([^"']+)["']/g;
+        let commentMatch;
 
-          // 주석에서 data-query-id 찾기
-          const commentMatch = line.match(/\/\/\s*data-query-id=["']([^"']+)["']/);
-          if (!commentMatch) continue;
-
+        while ((commentMatch = commentRegex.exec(sourceCode)) !== null) {
           const queryId = commentMatch[1];
+          const commentIndex = commentMatch.index;
 
-          // 다음 줄에서 쿼리 변수 찾기 (최대 3줄 확인)
-          for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
-            const queryLine = lines[j];
-            const queryMatch = queryLine.match(/const\s+(\w+(?:Query|query))\s*=\s*`(query[\s\S]*?)`/);
+          console.log('[useEnableEditMode] Found comment:', queryId, 'at index', commentIndex);
 
-            if (queryMatch) {
-              const varName = queryMatch[1];
-              const queryContent = queryMatch[2];
+          // 주석 다음 위치부터 쿼리 찾기 (최대 500자 이내)
+          const searchStart = commentIndex + commentMatch[0].length;
+          const searchEnd = Math.min(searchStart + 500, sourceCode.length);
+          const searchArea = sourceCode.substring(searchStart, searchEnd);
 
-              queries.push({ varName, queryId, content: queryContent });
-              console.log('[useEnableEditMode] Found query:', { varName, queryId });
-              break;
-            }
+          // 쿼리 변수 찾기 - 변수명이 Query 또는 query로 끝나거나 포함하는 경우
+          const queryMatch = searchArea.match(/const\s+(\w*[Qq]uery\w*)\s*=\s*`(query[\s\S]*?)`/);
+
+          if (queryMatch) {
+            const varName = queryMatch[1];
+            const queryContent = queryMatch[2];
+
+            queries.push({ varName, queryId, content: queryContent });
+            console.log('[useEnableEditMode] Found query:', { varName, queryId, contentLength: queryContent.length });
+          } else {
+            console.warn('[useEnableEditMode] Query not found after comment:', queryId);
           }
         }
 
