@@ -87,6 +87,42 @@ export const useEnableEditMode = () => {
     return () => document.removeEventListener("click", handleClick);
   }, [isE2B]);
 
+  // 쿼리 편집 모드에서 클릭 처리
+  React.useEffect(() => {
+    if (!isE2B) return;
+
+    const handleChartClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const chartElement = target.closest('[data-query-id]') as HTMLElement;
+
+      if (!chartElement) return;
+
+      const queryId = chartElement.dataset.queryId;
+      const queryContent = chartElement.dataset.queryContent;
+
+      if (!queryId || !queryContent) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      window.parent.postMessage(
+        {
+          type: 'QUERY_CLICK',
+          payload: {
+            queryId,
+            queryContent,
+            filePath: 'src/App.tsx',
+            position: { x: e.clientX, y: e.clientY },
+          },
+        },
+        '*'
+      );
+    };
+
+    document.addEventListener('click', handleChartClick, true);
+    return () => document.removeEventListener('click', handleChartClick, true);
+  }, [isE2B]);
+
   // 파일 업데이트 응답 리스너
   React.useEffect(() => {
     if (!isE2B) return;

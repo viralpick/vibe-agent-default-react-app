@@ -20,6 +20,8 @@ export enum PostMessageType {
   FILE_CONTENT = "FILE_CONTENT",
   /** 샌드박스 -> 호스트 FE: 파일 내용 에러 응답 */
   FILE_CONTENT_ERROR = "FILE_CONTENT_ERROR",
+  /** 샌드박스 -> 호스트 FE: 쿼리 클릭 이벤트 */
+  QUERY_CLICK = "QUERY_CLICK",
 }
 
 /**

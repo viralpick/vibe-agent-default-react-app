@@ -94,6 +94,10 @@ type DataTableProps<TData, TValue> = {
   editableFilePath?: string;
   /** Line number in source file for edit mode (optional) */
   editableLineNumber?: string;
+  /** Query ID for query edit mode (optional) */
+  queryId?: string;
+  /** Query content for query edit mode (optional) */
+  queryContent?: string;
 };
 
 /**
@@ -198,6 +202,8 @@ function DataTable<TData, TValue>({
   editableId,
   editableFilePath = "src/App.tsx",
   editableLineNumber,
+  queryId,
+  queryContent,
 }: DataTableProps<TData, TValue>): React.JSX.Element {
   const [rowSelection, setRowSelection] = React.useState({});
   const [internalPagination, setInternalPagination] =
@@ -409,7 +415,11 @@ function DataTable<TData, TValue>({
             {overline}
           </p>
         )}
-        <div className={cn("overflow-auto", tableClassName)}>
+        <div
+          className={cn("overflow-auto", tableClassName)}
+          data-query-id={queryId}
+          data-query-content={queryContent}
+        >
           <Table>
             <TableHeader
               className={cn(
