@@ -157,55 +157,70 @@ export const useEnableEditMode = () => {
           return;
         }
 
-        // 2. 각 쿼리에 대해 어떤 차트/테이블에 사용되는지 분석
+        // 2. 주석에서 data-query-id를 찾아서 컴포넌트와 매칭
+        // 패턴: // data-query-id="review-summary-aggregation-query"
+        // 바로 다음에 <StatCard 또는 <DynamicXxxChart 또는 <DynamicDataTable
         let matchedQuery = null;
 
-        for (const query of queries) {
-          // 쿼리 변수 이름으로 데이터 변수 찾기
-          // 예: orderStatusQuery -> orderStatusData 또는 orderStatus
-          const dataVarPatterns = [
-            query.varName.replace(/Query$/, 'Data'),
-            query.varName.replace(/Query$/, ''),
-          ];
+        // 소스 코드를 줄 단위로 분리
+        const lines = sourceCode.split('\n');
 
-          for (const dataVar of dataVarPatterns) {
-            // 데이터 변수가 사용되는 컴포넌트 찾기
-            // 패턴: <DynamicXxxChart title="..." data={dataVar}
-            const componentRegex = new RegExp(
-              `<Dynamic(?:Bar|Line|Area|Composed|Pie)Chart[^>]*\\s+title=["']([^"']+)["'][^>]*\\s+data=\\{${dataVar}(?:\\.data)?(?:\\?\\.[^}]+)?\\}`,
-              'gs'
-            );
+        // 각 쿼리에 대해 주석을 찾고, 주석 아래 컴포넌트의 title 추출
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
 
-            const componentMatch = componentRegex.exec(sourceCode);
-            if (componentMatch) {
-              const componentTitle = componentMatch[1];
-              console.log('[useEnableEditMode] Found component using', query.varName, ':', componentTitle);
+          // 주석에서 data-query-id 찾기
+          const commentMatch = line.match(/\/\/\s*data-query-id=["']([^"']+)["']/);
+          if (!commentMatch) continue;
 
-              // title이 일치하면 해당 쿼리 사용
-              if (cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
-                matchedQuery = query;
-                console.log('[useEnableEditMode] Matched query by title:', query.queryId);
+          const commentQueryId = commentMatch[1];
+          console.log('[useEnableEditMode] Found comment with query ID:', commentQueryId, 'at line', i);
+
+          // 해당 query ID와 일치하는 쿼리 찾기
+          const query = queries.find(q => q.queryId === commentQueryId);
+          if (!query) {
+            console.warn('[useEnableEditMode] Query not found for comment:', commentQueryId);
+            continue;
+          }
+
+          // 주석 다음 줄부터 컴포넌트 시작 찾기 (최대 5줄)
+          for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+            const componentLine = lines[j];
+
+            // 컴포넌트 시작 확인
+            const componentMatch = componentLine.match(/<(StatCard|Dynamic(?:Bar|Line|Area|Composed|Pie)Chart|DynamicDataTable)/);
+            if (!componentMatch) continue;
+
+            const componentType = componentMatch[1];
+            console.log('[useEnableEditMode] Found component:', componentType, 'at line', j);
+
+            // 컴포넌트 내부에서 title 찾기 (다음 10줄 정도)
+            let componentTitle = null;
+            for (let k = j; k < Math.min(j + 15, lines.length); k++) {
+              const titleLine = lines[k];
+
+              // title prop의 EditableText에서 텍스트 추출
+              const titleMatch = titleLine.match(/title=\{[^}]*<EditableText[^>]*>\s*([^<]+)\s*<\/EditableText>/);
+              if (titleMatch) {
+                componentTitle = titleMatch[1].trim();
+                console.log('[useEnableEditMode] Extracted title:', componentTitle, 'at line', k);
+                break;
+              }
+
+              // 컴포넌트가 끝나면 중단 (닫는 태그나 다음 컴포넌트 시작)
+              if (titleLine.includes('/>') || titleLine.match(/<\/(?:StatCard|Dynamic)/)) {
                 break;
               }
             }
 
-            // 테이블도 확인 (DynamicDataTable)
-            const tableRegex = new RegExp(
-              `<DynamicDataTable[^>]*\\s+title=["']([^"']+)["'][^>]*\\s+data=\\{${dataVar}(?:\\.data)?(?:\\?\\.[^}]+)?\\}`,
-              'gs'
-            );
-
-            const tableMatch = tableRegex.exec(sourceCode);
-            if (tableMatch) {
-              const tableTitle = tableMatch[1];
-              console.log('[useEnableEditMode] Found table using', query.varName, ':', tableTitle);
-
-              if (cardTitle && tableTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
-                matchedQuery = query;
-                console.log('[useEnableEditMode] Matched query by title:', query.queryId);
-                break;
-              }
+            // title이 클릭한 카드의 title과 일치하는지 확인
+            if (componentTitle && cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
+              matchedQuery = query;
+              console.log('[useEnableEditMode] Matched query by comment:', query.queryId, 'with title:', componentTitle);
+              break;
             }
+
+            break; // 컴포넌트를 찾았으면 더 이상 찾지 않음
           }
 
           if (matchedQuery) break;
