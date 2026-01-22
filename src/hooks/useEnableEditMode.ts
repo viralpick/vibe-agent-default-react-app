@@ -153,7 +153,7 @@ export const useEnableEditMode = () => {
           // 다음 줄에서 쿼리 변수 찾기 (최대 3줄 확인)
           for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
             const queryLine = lines[j];
-            const queryMatch = queryLine.match(/const\s+(\w+(?:Query|query))\s*=\s*`(query\s+[^`]+)`/);
+            const queryMatch = queryLine.match(/const\s+(\w+(?:Query|query))\s*=\s*`(query[\s\S]*?)`/);
 
             if (queryMatch) {
               const varName = queryMatch[1];
