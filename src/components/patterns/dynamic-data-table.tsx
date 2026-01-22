@@ -82,6 +82,10 @@ export type DynamicDataTableProps = {
   showOptions?: boolean;
   searchKeys?: string[];
   searchPlaceholder?: string;
+  /** Query ID for query edit mode (optional) */
+  queryId?: string;
+  /** Query content for query edit mode (optional) */
+  queryContent?: string;
 };
 
 /**
@@ -144,6 +148,8 @@ export const DynamicDataTable = ({
   showOptions,
   searchKeys,
   searchPlaceholder,
+  queryId,
+  queryContent,
 }: DynamicDataTableProps): JSX.Element => {
   const safeData = Array.isArray(data) ? data : [];
 
@@ -313,6 +319,8 @@ export const DynamicDataTable = ({
       searchKeys={searchKeys}
       searchPlaceholder={searchPlaceholder}
       showOptions={showOptions}
+      queryId={queryId}
+      queryContent={queryContent}
     />
   );
 };

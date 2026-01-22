@@ -105,6 +105,13 @@ export const useEnableEditMode = () => {
       e.preventDefault();
       e.stopPropagation();
 
+      console.log('[useEnableEditMode] QUERY_CLICK detected:', {
+        queryId,
+        queryContent: queryContent.substring(0, 50) + '...',
+        filePath: 'src/App.tsx',
+        position: { x: e.clientX, y: e.clientY },
+      });
+
       window.parent.postMessage(
         {
           type: 'QUERY_CLICK',
@@ -117,6 +124,8 @@ export const useEnableEditMode = () => {
         },
         '*'
       );
+
+      console.log('[useEnableEditMode] QUERY_CLICK message sent to parent');
     };
 
     document.addEventListener('click', handleChartClick, true);
