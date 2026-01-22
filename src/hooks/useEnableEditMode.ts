@@ -133,9 +133,6 @@ export const useEnableEditMode = () => {
         console.log('[useEnableEditMode] Source code extracted, length:', sourceCode.length);
 
         // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
-        // 소스 코드를 줄 단위로 분리 (한 번만)
-        const lines = sourceCode.split('\n');
-
         // 1. 주석에서 query ID와 쿼리 추출
         // 패턴: // data-query-id="some-query-id"
         //       (다른 주석들...)
@@ -178,77 +175,52 @@ export const useEnableEditMode = () => {
           return;
         }
 
-        // 2. 주석에서 data-query-id를 찾아서 컴포넌트와 매칭
-        // 패턴: // data-query-id="review-summary-aggregation-query"
-        // 바로 다음에 <StatCard 또는 <DynamicXxxChart 또는 <DynamicDataTable
+        // 2. 컴포넌트의 data-query-id prop으로 매칭
+        // 패턴: <StatCard data-query-id="sentiment-analysis-query" title={...긍정 리뷰 비율...}>
         let matchedQuery = null;
 
-        // 각 쿼리에 대해 주석을 찾고, 주석 아래 컴포넌트의 title 추출
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
+        // 전역 regex로 모든 컴포넌트에서 data-query-id prop 찾기
+        const componentRegex = /<(StatCard|Dynamic(?:Bar|Line|Area|Composed|Pie)Chart|DynamicDataTable)[^>]*data-query-id=["']([^"']+)["'][^>]*>/g;
+        let componentMatch;
 
-          // 주석에서 data-query-id 찾기
-          const commentMatch = line.match(/\/\/\s*data-query-id=["']([^"']+)["']/);
-          if (!commentMatch) continue;
+        while ((componentMatch = componentRegex.exec(sourceCode)) !== null) {
+          const componentType = componentMatch[1];
+          const componentQueryId = componentMatch[2];
+          const componentIndex = componentMatch.index;
 
-          const commentQueryId = commentMatch[1];
-          console.log('[useEnableEditMode] Found comment with query ID:', commentQueryId, 'at line', i);
+          console.log('[useEnableEditMode] Found component:', componentType, 'with query ID:', componentQueryId);
 
           // 해당 query ID와 일치하는 쿼리 찾기
-          const query = queries.find(q => q.queryId === commentQueryId);
+          const query = queries.find(q => q.queryId === componentQueryId);
           if (!query) {
-            console.warn('[useEnableEditMode] Query not found for comment:', commentQueryId);
+            console.warn('[useEnableEditMode] Query not found for component query ID:', componentQueryId);
             continue;
           }
 
-          // 주석 다음 줄부터 컴포넌트 시작 찾기 (최대 5줄)
-          for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
-            const componentLine = lines[j];
+          // 컴포넌트 다음 500자 이내에서 title 찾기
+          const searchArea = sourceCode.substring(componentIndex, componentIndex + 500);
 
-            // 컴포넌트 시작 확인
-            const componentMatch = componentLine.match(/<(StatCard|Dynamic(?:Bar|Line|Area|Composed|Pie)Chart|DynamicDataTable)/);
-            if (!componentMatch) continue;
+          // title prop의 EditableText에서 텍스트 추출
+          const titleMatch = searchArea.match(/title=\{[^}]*<EditableText[^>]*>\s*([^<]+)\s*<\/EditableText>/);
 
-            const componentType = componentMatch[1];
-            console.log('[useEnableEditMode] Found component:', componentType, 'at line', j);
-
-            // 컴포넌트 내부에서 title 찾기 (다음 10줄 정도)
-            let componentTitle = null;
-            for (let k = j; k < Math.min(j + 15, lines.length); k++) {
-              const titleLine = lines[k];
-
-              // title prop의 EditableText에서 텍스트 추출
-              const titleMatch = titleLine.match(/title=\{[^}]*<EditableText[^>]*>\s*([^<]+)\s*<\/EditableText>/);
-              if (titleMatch) {
-                componentTitle = titleMatch[1].trim();
-                console.log('[useEnableEditMode] Extracted title:', componentTitle, 'at line', k);
-                break;
-              }
-
-              // 컴포넌트가 끝나면 중단 (닫는 태그나 다음 컴포넌트 시작)
-              if (titleLine.includes('/>') || titleLine.match(/<\/(?:StatCard|Dynamic)/)) {
-                break;
-              }
-            }
+          if (titleMatch) {
+            const componentTitle = titleMatch[1].trim();
+            console.log('[useEnableEditMode] Component title:', componentTitle, 'for query:', componentQueryId);
 
             // title이 클릭한 카드의 title과 일치하는지 확인
-            if (componentTitle && cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
+            if (cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
               matchedQuery = query;
-              console.log('[useEnableEditMode] Matched query by comment:', query.queryId, 'with title:', componentTitle);
+              console.log('[useEnableEditMode] ✅ Matched query:', query.queryId, 'with clicked title:', cardTitle);
               break;
             }
-
-            break; // 컴포넌트를 찾았으면 더 이상 찾지 않음
           }
-
-          if (matchedQuery) break;
         }
 
         // 매칭된 쿼리가 없으면 첫 번째 쿼리 사용
         const selectedQuery = matchedQuery || queries[0];
 
         if (!matchedQuery) {
-          console.warn('[useEnableEditMode] No matching query found for title:', cardTitle, '- using first query');
+          console.warn('[useEnableEditMode] ❌ No matching query found for title:', cardTitle, '- using first query');
         }
 
         console.log('[useEnableEditMode] QUERY_CLICK detected:', {
