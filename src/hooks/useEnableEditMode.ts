@@ -1,4 +1,5 @@
 import React from "react";
+import { extractCodeFromViteRaw } from "../utils/extract-code-from-vite-raw";
 
 type EditTextMetaData = {
   elementId: string | null;
@@ -124,8 +125,12 @@ export const useEnableEditMode = () => {
           throw new Error(`Failed to fetch file: ${response.status}`);
         }
 
-        const sourceCode = await response.text();
-        console.log('[useEnableEditMode] Source code fetched, length:', sourceCode.length);
+        const rawContent = await response.text();
+        console.log('[useEnableEditMode] Raw content fetched, length:', rawContent.length);
+
+        // Vite ?raw 응답에서 실제 코드 추출
+        const sourceCode = extractCodeFromViteRaw(rawContent);
+        console.log('[useEnableEditMode] Source code extracted, length:', sourceCode.length);
 
         // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
         // 1. 모든 쿼리 추출
