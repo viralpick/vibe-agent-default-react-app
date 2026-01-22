@@ -132,6 +132,14 @@ export const useEnableEditMode = () => {
         const sourceCode = extractCodeFromViteRaw(rawContent);
         console.log('[useEnableEditMode] Source code extracted, length:', sourceCode.length);
 
+        // 디버깅: 소스 코드에 주석이 있는지 확인
+        const hasComments = sourceCode.includes('data-query-id');
+        console.log('[useEnableEditMode] Source code contains data-query-id comments:', hasComments);
+        if (hasComments) {
+          const commentCount = (sourceCode.match(/data-query-id/g) || []).length;
+          console.log('[useEnableEditMode] Found', commentCount, 'data-query-id occurrences');
+        }
+
         // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
         // 1. 주석에서 query ID와 쿼리 추출
         // 패턴: // data-query-id="some-query-id"
