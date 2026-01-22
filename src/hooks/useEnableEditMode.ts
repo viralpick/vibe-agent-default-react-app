@@ -133,26 +133,37 @@ export const useEnableEditMode = () => {
         console.log('[useEnableEditMode] Source code extracted, length:', sourceCode.length);
 
         // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
-        // 1. 모든 쿼리 추출
-        const queryRegex = /const\s+(\w+Query)\s*=\s*`(query\s+[^`]+)`/gs;
+        // 소스 코드를 줄 단위로 분리 (한 번만)
+        const lines = sourceCode.split('\n');
+
+        // 1. 주석에서 query ID와 쿼리 추출
+        // 패턴: // data-query-id="some-query-id"
+        //       const xxxQuery = `query Source { ... }`
         const queries: Array<{ varName: string; queryId: string; content: string }> = [];
 
-        let match;
-        while ((match = queryRegex.exec(sourceCode)) !== null) {
-          const varName = match[1];
-          const queryContent = match[2];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
 
-          const queryId = varName
-            .replace(/Agg/g, 'Aggregation')
-            .replace(/agg/g, 'aggregation')
-            .replace(/Query$/, '')
-            .replace(/([A-Z])/g, '-$1')
-            .toLowerCase()
-            .replace(/^-/, '')
-            .replace(/-query$/, '')
-            + '-query';
+          // 주석에서 data-query-id 찾기
+          const commentMatch = line.match(/\/\/\s*data-query-id=["']([^"']+)["']/);
+          if (!commentMatch) continue;
 
-          queries.push({ varName, queryId, content: queryContent });
+          const queryId = commentMatch[1];
+
+          // 다음 줄에서 쿼리 변수 찾기 (최대 3줄 확인)
+          for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+            const queryLine = lines[j];
+            const queryMatch = queryLine.match(/const\s+(\w+(?:Query|query))\s*=\s*`(query\s+[^`]+)`/);
+
+            if (queryMatch) {
+              const varName = queryMatch[1];
+              const queryContent = queryMatch[2];
+
+              queries.push({ varName, queryId, content: queryContent });
+              console.log('[useEnableEditMode] Found query:', { varName, queryId });
+              break;
+            }
+          }
         }
 
         console.log('[useEnableEditMode] Found queries:', queries.map(q => ({ varName: q.varName, queryId: q.queryId })));
@@ -166,9 +177,6 @@ export const useEnableEditMode = () => {
         // 패턴: // data-query-id="review-summary-aggregation-query"
         // 바로 다음에 <StatCard 또는 <DynamicXxxChart 또는 <DynamicDataTable
         let matchedQuery = null;
-
-        // 소스 코드를 줄 단위로 분리
-        const lines = sourceCode.split('\n');
 
         // 각 쿼리에 대해 주석을 찾고, 주석 아래 컴포넌트의 title 추출
         for (let i = 0; i < lines.length; i++) {
