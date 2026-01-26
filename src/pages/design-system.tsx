@@ -13,9 +13,11 @@ import {
   Breadcrumb,
   BreadcrumbItem,
 } from "@/components/ui/breadcrumb";
-import { Settings, Info, Folder, Circle, ChevronRight, Search, Mail } from "lucide-react";
+import { Settings, Info, Folder, Circle, ChevronRight, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker, type DateRange } from "@/components/ui/date-picker";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const themes = [
   "gray",
@@ -148,6 +150,22 @@ export function DesignSystemPage() {
   const [textareaShowPrimaryBtn, setTextareaShowPrimaryBtn] = useState(true);
   const [textareaShowSecondaryBtn, setTextareaShowSecondaryBtn] = useState(true);
   const [textareaShowControl, setTextareaShowControl] = useState(true);
+
+  // DatePicker Playground state
+  const [datePickerType, setDatePickerType] = useState<"single" | "range">("single");
+  const [datePickerHeaderVariant, setDatePickerHeaderVariant] = useState<
+    "variant-a" | "variant-b" | "variant-c" | "variant-d"
+  >("variant-a");
+  const [datePickerSize, setDatePickerSize] = useState<"sm" | "md">("md");
+  const [datePickerShowTime, setDatePickerShowTime] = useState(false);
+  const [datePickerShowPresets, setDatePickerShowPresets] = useState(false);
+  const [datePickerError, setDatePickerError] = useState(false);
+  const [datePickerDisabled, setDatePickerDisabled] = useState(false);
+  const [datePickerFormatType, setDatePickerFormatType] = useState<"date" | "iso" | "custom">("date");
+  const [datePickerCustomFormat, setDatePickerCustomFormat] = useState("yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedRange, setSelectedRange] = useState<DateRange | null>(null);
+  const [datePickerShowIndicator, setDatePickerShowIndicator] = useState(true);
 
   return (
     <main className="w-full min-h-screen p-24">
@@ -1647,6 +1665,409 @@ export function DesignSystemPage() {
                   <span className="text-text-secondary text-label-m">0/500</span>
                 </Textarea.Actions>
               </Textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DatePicker Playground */}
+      <section className="space-y-32 p-32 bg-background-0">
+        <div>
+          <h2 className="text-h2 mb-16">DatePicker</h2>
+
+          {/* Playground Controls */}
+          <div className="space-y-16 mb-32 p-24 bg-background-50 rounded-large">
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Configuration</h3>
+              <div className="flex flex-wrap gap-8">
+                <OptionButton
+                  label="Single"
+                  selected={datePickerType === "single"}
+                  onClick={() => setDatePickerType("single")}
+                />
+                <OptionButton
+                  label="Range"
+                  selected={datePickerType === "range"}
+                  onClick={() => setDatePickerType("range")}
+                />
+                <OptionButton
+                  label="Time Picker"
+                  selected={datePickerShowTime}
+                  onClick={() => setDatePickerShowTime(!datePickerShowTime)}
+                />
+                <OptionButton
+                  label="Presets"
+                  selected={datePickerShowPresets}
+                  onClick={() => setDatePickerShowPresets(!datePickerShowPresets)}
+                />
+                <OptionButton
+                  label="Error State"
+                  selected={datePickerError}
+                  onClick={() => setDatePickerError(!datePickerError)}
+                />
+                <OptionButton
+                  label="Disabled"
+                  selected={datePickerDisabled}
+                  onClick={() => setDatePickerDisabled(!datePickerDisabled)}
+                />
+                <OptionButton
+                  label="Indicator"
+                  selected={datePickerShowIndicator}
+                  onClick={() => setDatePickerShowIndicator(!datePickerShowIndicator)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Header Variant</h3>
+              <div className="flex flex-wrap gap-8">
+                <OptionButton
+                  label="Variant A"
+                  selected={datePickerHeaderVariant === "variant-a"}
+                  onClick={() => setDatePickerHeaderVariant("variant-a")}
+                />
+                <OptionButton
+                  label="Variant B"
+                  selected={datePickerHeaderVariant === "variant-b"}
+                  onClick={() => setDatePickerHeaderVariant("variant-b")}
+                />
+                <OptionButton
+                  label="Variant C"
+                  selected={datePickerHeaderVariant === "variant-c"}
+                  onClick={() => setDatePickerHeaderVariant("variant-c")}
+                />
+                <OptionButton
+                  label="Variant D"
+                  selected={datePickerHeaderVariant === "variant-d"}
+                  onClick={() => setDatePickerHeaderVariant("variant-d")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Size</h3>
+              <div className="flex flex-wrap gap-8">
+                <OptionButton
+                  label="Small"
+                  selected={datePickerSize === "sm"}
+                  onClick={() => setDatePickerSize("sm")}
+                />
+                <OptionButton
+                  label="Medium"
+                  selected={datePickerSize === "md"}
+                  onClick={() => setDatePickerSize("md")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Format Type</h3>
+              <div className="flex flex-wrap gap-8">
+                <OptionButton
+                  label="Date Object"
+                  selected={datePickerFormatType === "date"}
+                  onClick={() => setDatePickerFormatType("date")}
+                />
+                <OptionButton
+                  label="ISO String"
+                  selected={datePickerFormatType === "iso"}
+                  onClick={() => setDatePickerFormatType("iso")}
+                />
+                <OptionButton
+                  label="Custom Format"
+                  selected={datePickerFormatType === "custom"}
+                  onClick={() => setDatePickerFormatType("custom")}
+                />
+              </div>
+              {datePickerFormatType === "custom" && (
+                <div className="mt-12">
+                  <Input
+                    value={datePickerCustomFormat}
+                    onChange={(e) => setDatePickerCustomFormat(e.target.value)}
+                    placeholder="yyyy년 M월 d일"
+                    size="sm"
+                    leadIcon={<Info size={14} />}
+                  />
+                  <p className="text-label-3 text-text-secondary mt-4">
+                    date-fns format pattern (예: yyyy/MM/dd, yyyy년 M월 d일)
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Live Preview */}
+          <div className="space-y-24">
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Live Preview</h3>
+              <div className="p-32 bg-background-100 rounded-large">
+                <div className="max-w-md">
+                  <DatePicker
+                    type={datePickerType}
+                    headerVariant={datePickerHeaderVariant}
+                    size={datePickerSize}
+                    timePicker={datePickerShowTime}
+                    showPresets={datePickerShowPresets}
+                    formatType={datePickerFormatType}
+                    customFormat={datePickerFormatType === "custom" ? datePickerCustomFormat : undefined}
+                    label={datePickerType === "single" ? "날짜 선택" : "기간 선택"}
+                    placeholder={
+                      datePickerType === "single"
+                        ? "날짜를 선택하세요"
+                        : "시작 날짜 - 종료 날짜"
+                    }
+                    error={datePickerError}
+                    helperText={
+                      datePickerError
+                        ? "올바른 날짜를 선택해주세요"
+                        : "날짜를 직접 입력하거나 달력에서 선택하세요"
+                    }
+                    disabled={datePickerDisabled}
+                    indicator={
+                      datePickerShowIndicator
+                        ? () => <Dot size="small" />
+                        : undefined
+                    }
+                    value={datePickerType === "single" ? selectedDate : undefined}
+                    onValueChange={
+                      datePickerType === "single" ? setSelectedDate : undefined
+                    }
+                    rangeValue={datePickerType === "range" ? selectedRange : undefined}
+                    onRangeValueChange={
+                      datePickerType === "range"
+                        ? (range) => {
+                            console.log("[Playground] onRangeValueChange called with:", range);
+                            setSelectedRange(range);
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Value Display */}
+            <div>
+              <h3 className="text-label-1 font-semibold mb-12">Selected Value</h3>
+              <div className="p-24 bg-background-0 rounded-large border border-border-100">
+                <pre className="text-syntax-1 text-text-primary overflow-auto">
+                  {JSON.stringify(
+                    datePickerType === "single" ? selectedDate : selectedRange
+                  )}
+                </pre>
+              </div>
+            </div>
+
+            {/* Examples */}
+            <div>
+              <h3 className="text-label-1 font-semibold mb-16">Usage Examples</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                {/* Example 1: Simple Single Date */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    1. Simple Single Date
+                  </p>
+                  <DatePicker type="single" label="출발 날짜" />
+                </div>
+
+                {/* Example 2: Range with Presets */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    2. Range with Presets
+                  </p>
+                  <DatePicker type="range" showPresets label="기간 선택" />
+                </div>
+
+                {/* Example 3: Single with Time */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    3. Date + Time
+                  </p>
+                  <DatePicker type="single" timePicker label="예약 시간" />
+                </div>
+
+                {/* Example 4: Range with Time and Presets */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    4. Range + Time + Presets
+                  </p>
+                  <DatePicker
+                    type="range"
+                    timePicker
+                    showPresets
+                    label="예약 기간"
+                  />
+                </div>
+
+                {/* Example 5: Small Size */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">5. Small Size</p>
+                  <DatePicker type="single" size="sm" label="소형 날짜 선택" />
+                </div>
+
+                {/* Example 6: Error State */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">6. Error State</p>
+                  <DatePicker
+                    type="single"
+                    label="날짜 입력"
+                    error
+                    helperText="필수 입력 항목입니다"
+                  />
+                </div>
+
+                {/* Example 7: Disabled */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">7. Disabled</p>
+                  <DatePicker
+                    type="single"
+                    label="비활성화"
+                    disabled
+                    defaultValue={new Date()}
+                  />
+                </div>
+
+                {/* Example 8: Different Header Variants */}
+                <div>
+                  <p className="text-label-m text-text-secondary mb-8">
+                    8. Header Variant B
+                  </p>
+                  <DatePicker
+                    type="single"
+                    headerVariant="variant-b"
+                    label="헤더 변형 B"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Tabs Playground */}
+      <section className="space-y-32 p-32 bg-background-0">
+        <div>
+          <h2 className="text-h2 mb-16">Tabs</h2>
+
+          {/* Examples */}
+          <div>
+            <h3 className="text-label-1 font-semibold mb-16">Variants</h3>
+            <div className="space-y-24">
+              {/* Segmented Variant */}
+              <div>
+                <p className="text-label-m text-text-secondary mb-12">
+                  1. Segmented (Default)
+                </p>
+                <Tabs defaultValue="tab1" variant="segmented">
+                  <TabsList>
+                    <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+                    <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+                    <TabsTrigger value="tab3">Tab 3</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="tab1">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 1
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab2">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 2
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab3">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 3
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Fill Variant */}
+              <div>
+                <p className="text-label-m text-text-secondary mb-12">
+                  2. Fill
+                </p>
+                <Tabs defaultValue="tab1" variant="fill">
+                  <TabsList>
+                    <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+                    <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+                    <TabsTrigger value="tab3">Tab 3</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="tab1">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 1
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab2">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 2
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab3">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 3
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Line Variant */}
+              <div>
+                <p className="text-label-m text-text-secondary mb-12">
+                  3. Line
+                </p>
+                <Tabs defaultValue="tab1" variant="line">
+                  <TabsList>
+                    <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+                    <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+                    <TabsTrigger value="tab3">Tab 3</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="tab1">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 1
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab2">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 2
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab3">
+                    <div className="p-16 bg-background-50 rounded-medium">
+                      Content for Tab 3
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+
+              {/* Small Size */}
+              <div>
+                <p className="text-label-m text-text-secondary mb-12">
+                  4. Small Size
+                </p>
+                <Tabs defaultValue="tab1" variant="segmented" size="sm">
+                  <TabsList>
+                    <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+                    <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+                    <TabsTrigger value="tab3">Tab 3</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="tab1">
+                    <div className="p-16 bg-background-50 rounded-medium text-label-3">
+                      Content for Tab 1
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab2">
+                    <div className="p-16 bg-background-50 rounded-medium text-label-3">
+                      Content for Tab 2
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="tab3">
+                    <div className="p-16 bg-background-50 rounded-medium text-label-3">
+                      Content for Tab 3
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </div>
           </div>
         </div>
