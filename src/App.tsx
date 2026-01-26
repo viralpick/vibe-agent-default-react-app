@@ -8,6 +8,7 @@ import { InputPage } from "./pages/ui/input-page";
 import { TextareaPage } from "./pages/ui/textarea-page";
 import { DatePickerPage } from "./pages/ui/date-picker-page";
 import { TabsPage } from "./pages/ui/tabs-page";
+import { DropdownPage } from "./pages/ui/dropdown-page";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function UILayout({ children }: { children?: React.ReactNode }) {
@@ -38,6 +39,7 @@ function UILayout({ children }: { children?: React.ReactNode }) {
               <TabsTrigger value="textarea">Textarea</TabsTrigger>
               <TabsTrigger value="date-picker">DatePicker</TabsTrigger>
               <TabsTrigger value="tabs">Tabs</TabsTrigger>
+              <TabsTrigger value="dropdown">Dropdown</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -65,6 +67,7 @@ function App() {
         <Route path="/ui/textarea" element={<UILayout><TextareaPage /></UILayout>} />
         <Route path="/ui/date-picker" element={<UILayout><DatePickerPage /></UILayout>} />
         <Route path="/ui/tabs" element={<UILayout><TabsPage /></UILayout>} />
+        <Route path="/ui/dropdown" element={<UILayout><DropdownPage /></UILayout>} />
       </Routes>
     </BrowserRouter>
   );
