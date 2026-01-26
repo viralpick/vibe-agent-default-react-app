@@ -19,7 +19,9 @@ import {
   getPresetRanges,
   getMonthOptions,
   getYearOptions,
+  getMonthYearOptions,
 } from "./date-picker-utils";
+import { Select } from "@/components/ui/dropdown";
 
 // ============================================================================
 // CVA Variants
@@ -375,8 +377,15 @@ function DatePickerHeader({
   const currentMonth = displayMonth.getMonth();
   const currentYear = displayMonth.getFullYear();
 
-  const monthOptions = getMonthOptions(locale);
-  const yearOptions = getYearOptions(currentYear);
+  const monthOptions = getMonthOptions(locale).map((opt) => ({
+    value: String(opt.value),
+    label: opt.label,
+  }));
+  const yearOptions = getYearOptions(currentYear).map((opt) => ({
+    value: String(opt.value),
+    label: opt.label + "년",
+  }));
+  const monthYearOptions = getMonthYearOptions(currentYear, locale);
 
   const handlePrevMonth = () => {
     onMonthChange(subMonths(displayMonth, 1));
@@ -386,53 +395,59 @@ function DatePickerHeader({
     onMonthChange(addMonths(displayMonth, 1));
   };
 
-  const handleMonthChange = (month: number) => {
+  const handleMonthChange = (monthStr: string) => {
+    const month = Number(monthStr);
     const newDate = new Date(displayMonth);
     newDate.setMonth(month);
     onMonthChange(newDate);
   };
 
-  const handleYearChange = (year: number) => {
+  const handleYearChange = (yearStr: string) => {
+    const year = Number(yearStr);
     const newDate = new Date(displayMonth);
     newDate.setFullYear(year);
     onMonthChange(newDate);
   };
 
-  // Simple dropdown component (inline for now)
+  const handleMonthYearChange = (valStr: string) => {
+    const [year, month] = valStr.split("-").map(Number);
+    const newDate = new Date(displayMonth);
+    newDate.setFullYear(year);
+    newDate.setMonth(month);
+    onMonthChange(newDate);
+  };
+
   const MonthSelect = () => (
-    <select
-      value={currentMonth}
-      onChange={(e) => handleMonthChange(Number(e.target.value))}
-      className="px-8 py-4 rounded-small border border-border-200 text-label-2 text-text-primary hover:border-border-200-hover focus:outline-none focus:ring-2 focus:ring-border-brand bg-background-0"
-      aria-label="월 선택"
-    >
-      {monthOptions.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <Select
+      options={monthOptions}
+      value={String(currentMonth)}
+      onValueChange={handleMonthChange}
+      size="sm"
+      variant="inline"
+      className="w-80"
+    />
   );
 
   const YearSelect = () => (
-    <select
-      value={currentYear}
-      onChange={(e) => handleYearChange(Number(e.target.value))}
-      className="px-8 py-4 rounded-small border border-border-200 text-label-2 text-text-primary hover:border-border-200-hover focus:outline-none focus:ring-2 focus:ring-border-brand bg-background-0"
-      aria-label="연도 선택"
-    >
-      {yearOptions.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <Select
+      options={yearOptions}
+      value={String(currentYear)}
+      onValueChange={handleYearChange}
+      size="sm"
+      variant="inline"
+      className="w-100"
+    />
   );
 
-  const MonthYearDisplay = () => (
-    <span className="text-label-1 text-text-primary font-semibold">
-      {format(displayMonth, "yyyy년 M월", { locale })}
-    </span>
+  const MonthYearSelect = () => (
+    <Select
+      options={monthYearOptions}
+      value={`${currentYear}-${currentMonth}`}
+      onValueChange={handleMonthYearChange}
+      size="sm"
+      variant="inline"
+      className="w-140"
+    />
   );
 
   const NavButton = ({
@@ -458,11 +473,11 @@ function DatePickerHeader({
       className={cn(datePickerHeaderVariants({ variant }), className)}
       {...props}
     >
-      {/* Variant A: ← Month↓ Year↓ → */}
+      {/* Variant A: ← Month↓ Year↓ → (분리된 셀렉터) */}
       {variant === "variant-a" && (
         <>
           <NavButton direction="prev" onClick={handlePrevMonth} />
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-4">
             <MonthSelect />
             <YearSelect />
           </div>
@@ -470,22 +485,19 @@ function DatePickerHeader({
         </>
       )}
 
-      {/* Variant B: ← Month Year↓ → */}
+      {/* Variant B: ← [Month Year Combined] → (결합된 셀렉터) */}
       {variant === "variant-b" && (
         <>
           <NavButton direction="prev" onClick={handlePrevMonth} />
-          <div className="flex items-center gap-8">
-            <MonthYearDisplay />
-            <YearSelect />
-          </div>
+          <MonthYearSelect />
           <NavButton direction="next" onClick={handleNextMonth} />
         </>
       )}
 
-      {/* Variant C: Month↓ Year↓ ← → */}
+      {/* Variant C: Month↓ Year↓ ← → (분리형 + 내비게이션 우측) */}
       {variant === "variant-c" && (
         <>
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-4">
             <MonthSelect />
             <YearSelect />
           </div>
@@ -496,13 +508,10 @@ function DatePickerHeader({
         </>
       )}
 
-      {/* Variant D: Month Year↓ ← → */}
+      {/* Variant D: [Month Year Combined] ← → (결합형 + 내비게이션 우측) */}
       {variant === "variant-d" && (
         <>
-          <div className="flex items-center gap-8">
-            <MonthYearDisplay />
-            <YearSelect />
-          </div>
+          <MonthYearSelect />
           <div className="flex items-center gap-4">
             <NavButton direction="prev" onClick={handlePrevMonth} />
             <NavButton direction="next" onClick={handleNextMonth} />

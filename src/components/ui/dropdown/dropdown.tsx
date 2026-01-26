@@ -159,7 +159,7 @@ export function Select({
           <DropdownMenuPrimitive.Content
             align={side === "left" ? "start" : "end"}
             sideOffset={4}
-            className="z-50 min-w-[320px] bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
+            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
           >
             {options.map((option) => (
               <DropdownMenuPrimitive.Item
@@ -309,7 +309,7 @@ export function MultiSelect({
           <DropdownMenuPrimitive.Content
             align={side === "left" ? "start" : "end"}
             sideOffset={4}
-            className="z-50 min-w-[320px] bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
+            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
           >
             {options.map((option) => {
               const isSelected = values.includes(option.value);

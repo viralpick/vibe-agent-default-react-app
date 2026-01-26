@@ -58,6 +58,17 @@ export interface YearOption {
 }
 
 /**
+ * 연도/월 조합 옵션 타입 (드롭다운용)
+ *
+ * @property {string} value - "YYYY-MM" 형식의 문자열
+ * @property {string} label - 표시 레이블
+ */
+export interface MonthYearOption {
+  value: string;
+  label: string;
+}
+
+/**
  * DatePicker Context 값 타입
  *
  * Context를 통해 모든 하위 컴포넌트에서 접근 가능한 상태와 콜백

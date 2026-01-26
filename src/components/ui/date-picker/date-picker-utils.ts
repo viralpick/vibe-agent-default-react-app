@@ -20,7 +20,7 @@ import {
   type Locale,
 } from "date-fns";
 import { ko } from "date-fns/locale";
-import type { DateRange, TimeValue, PresetRange, MonthOption, YearOption } from "./date-picker-types";
+import type { DateRange, TimeValue, PresetRange, MonthOption, YearOption, MonthYearOption } from "./date-picker-types";
 
 /**
  * 주어진 월의 달력 그리드를 생성합니다
@@ -316,6 +316,36 @@ export function getYearOptions(
     value: startYear + i,
     label: String(startYear + i),
   }));
+}
+
+/**
+ * 연도와 월이 결합된 옵션 배열을 생성합니다
+ *
+ * 현재 연도를 기준으로 ±10년 범위의 모든 월 옵션을 생성합니다.
+ *
+ * @param currentYear - 기준 연도
+ * @param locale - date-fns 로케일
+ * @returns 연도/월 조합 옵션 배열
+ */
+export function getMonthYearOptions(
+  currentYear: number = new Date().getFullYear(),
+  locale: Locale = ko
+): MonthYearOption[] {
+  const startYear = currentYear - 10;
+  const endYear = currentYear + 10;
+  const options: MonthYearOption[] = [];
+
+  for (let year = startYear; year <= endYear; year++) {
+    for (let month = 0; month < 12; month++) {
+      const date = new Date(year, month, 1);
+      options.push({
+        value: `${year}-${month}`,
+        label: format(date, "yyyy년 M월", { locale }),
+      });
+    }
+  }
+
+  return options;
 }
 
 /**
