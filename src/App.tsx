@@ -9,6 +9,11 @@ import { TextareaPage } from "./pages/ui/textarea-page";
 import { DatePickerPage } from "./pages/ui/date-picker-page";
 import { TabsPage } from "./pages/ui/tabs-page";
 import { DropdownPage } from "./pages/ui/dropdown-page";
+import { CardPage } from "./pages/ui/card-page";
+import { ProgressPage } from "./pages/ui/progress-page";
+import { TooltipPage } from "./pages/ui/tooltip-page";
+import { StatCardPage } from "./pages/ui/stat-card-page";
+import PatternsPage from "./pages/patterns-page";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function UILayout({ children }: { children?: React.ReactNode }) {
@@ -40,6 +45,11 @@ function UILayout({ children }: { children?: React.ReactNode }) {
               <TabsTrigger value="date-picker">DatePicker</TabsTrigger>
               <TabsTrigger value="tabs">Tabs</TabsTrigger>
               <TabsTrigger value="dropdown">Dropdown</TabsTrigger>
+              <TabsTrigger value="card">Card</TabsTrigger>
+              <TabsTrigger value="progress">Progress</TabsTrigger>
+              <TabsTrigger value="tooltip">Tooltip</TabsTrigger>
+              <TabsTrigger value="stat-card">StatCard</TabsTrigger>
+              <TabsTrigger value="patterns">Patterns</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -68,6 +78,11 @@ function App() {
         <Route path="/ui/date-picker" element={<UILayout><DatePickerPage /></UILayout>} />
         <Route path="/ui/tabs" element={<UILayout><TabsPage /></UILayout>} />
         <Route path="/ui/dropdown" element={<UILayout><DropdownPage /></UILayout>} />
+        <Route path="/ui/card" element={<UILayout><CardPage /></UILayout>} />
+        <Route path="/ui/progress" element={<UILayout><ProgressPage /></UILayout>} />
+        <Route path="/ui/tooltip" element={<UILayout><TooltipPage /></UILayout>} />
+        <Route path="/ui/stat-card" element={<UILayout><StatCardPage /></UILayout>} />
+        <Route path="/ui/patterns" element={<UILayout><PatternsPage /></UILayout>} />
       </Routes>
     </BrowserRouter>
   );

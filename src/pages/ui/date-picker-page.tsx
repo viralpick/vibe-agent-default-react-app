@@ -22,7 +22,7 @@ export function DatePickerPage() {
   return (
     <div className="space-y-40">
       <section className="space-y-32">
-        <h2 className="text-h2 mb-16">DatePicker</h2>
+        <h2 className="text-h3 font-semibold mb-16">DatePicker</h2>
         <div className="space-y-16 mb-32 p-24 bg-background-50 rounded-large">
           <div className="flex flex-wrap gap-8">
             <OptionButton label="Single" selected={datePickerType === "single"} onClick={() => setDatePickerType("single")} />

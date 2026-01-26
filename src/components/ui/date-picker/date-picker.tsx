@@ -151,8 +151,6 @@ function DatePickerItem({ date, size, className, ...props }: DatePickerItemProps
     rangeSelectionPhaseRef,
     indicator,
   } = useDatePickerContext();
-  
-  console.log(indicator)
 
   const isDisabled = isDateDisabled(date, minDate, maxDate, disabledDates);
   const isToday = isTodayFn(date);

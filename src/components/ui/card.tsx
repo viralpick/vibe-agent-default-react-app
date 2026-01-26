@@ -1,69 +1,107 @@
+/**
+ * @component Card
+ * @description Container for grouped content with header, content, and footer sections.
+ * Composed of Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, CardFooter.
+ *
+ * @designTokens rounded-xlarge (12px), py-24, px-24, gap-24
+ * @useCase Dashboard widgets, content sections, form containers, data displays
+ */
 import * as React from "react";
+
 import { cn } from "@/lib/commerce-sdk";
 
-/**
- * Card Component
- *
- * 콘텐츠를 그룹화하는 카드 컨테이너입니다.
- */
-export const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-large border border-border-100 bg-background-0 shadow-sm",
-      className
-    )}
-    {...props}
-  />
-));
-Card.displayName = "Card";
+type CardProps = React.ComponentProps<"div"> & {
+  queryId?: string;
+  queryContent?: string;
+};
 
-/**
- * CardHeader Component
- *
- * 카드의 헤더 영역입니다.
- */
-export const CardHeader = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex flex-col space-y-6 p-24", className)}
-    {...props}
-  />
-));
-CardHeader.displayName = "CardHeader";
+function Card({ className, queryId, queryContent, ...props }: CardProps) {
+  return (
+    <div
+      data-slot="card"
+      data-query-id={queryId}
+      data-query-content={queryContent}
+      className={cn(
+        "bg-card text-card-foreground flex flex-col gap-6 py-24 rounded-xlarge border shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-/**
- * CardTitle Component
- *
- * 카드의 제목입니다.
- */
-export const CardTitle = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    ref={ref}
-    className={cn("text-title-3 font-semibold text-text-primary", className)}
-    {...props}
-  />
-));
-CardTitle.displayName = "CardTitle";
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-header"
+      className={cn(
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-8 px-24 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-24 pb-12",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-/**
- * CardContent Component
- *
- * 카드의 본문 콘텐츠 영역입니다.
- */
-export const CardContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("p-24 pt-0", className)} {...props} />
-));
-CardContent.displayName = "CardContent";
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-title"
+      className={cn("leading-none font-semibold", className)}
+      {...props}
+    />
+  );
+}
+
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-muted-foreground text-label-l", className)}
+      {...props}
+    />
+  );
+}
+
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn(
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-content"
+      className={cn("px-24", className)}
+      {...props}
+    />
+  );
+}
+
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center px-24 [.border-t]:pt-24", className)}
+      {...props}
+    />
+  );
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
+};
