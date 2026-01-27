@@ -15,6 +15,7 @@ import { TooltipPage } from "./pages/ui/tooltip-page";
 import { StatCardPage } from "./pages/ui/stat-card-page";
 import PatternsPage from "./pages/patterns-page";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioPage } from "./pages/ui/radio-page";
 
 function UILayout({ children }: { children?: React.ReactNode }) {
   const navigate = useNavigate();
@@ -50,6 +51,7 @@ function UILayout({ children }: { children?: React.ReactNode }) {
               <TabsTrigger value="tooltip">Tooltip</TabsTrigger>
               <TabsTrigger value="stat-card">StatCard</TabsTrigger>
               <TabsTrigger value="patterns">Patterns</TabsTrigger>
+              <TabsTrigger value="radio">Radio</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -83,6 +85,7 @@ function App() {
         <Route path="/ui/tooltip" element={<UILayout><TooltipPage /></UILayout>} />
         <Route path="/ui/stat-card" element={<UILayout><StatCardPage /></UILayout>} />
         <Route path="/ui/patterns" element={<UILayout><PatternsPage /></UILayout>} />
+        <Route path="/ui/radio" element={<UILayout><RadioPage /></UILayout>} />
       </Routes>
     </BrowserRouter>
   );
