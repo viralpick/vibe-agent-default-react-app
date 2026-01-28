@@ -71,10 +71,11 @@ export type ColumnMeta = {
  * Props for DynamicDataTable component
  */
 export type DynamicDataTableProps = {
-  title: string | React.ReactNode;
+  title?: string | React.ReactNode;
   overline?: string;
   size?: "default" | "sm";
-  columns: ColumnMeta[];
+  /** Column definitions, or array of field keys (strings) for simple usage */
+  columns: (string | ColumnMeta)[];
   data: Record<string, string | number | boolean>[];
   pageSize?: number;
   showPageSize?: boolean;
@@ -153,6 +154,14 @@ export const DynamicDataTable = ({
 }: DynamicDataTableProps): JSX.Element => {
   const safeData = Array.isArray(data) ? data : [];
 
+  const normalizedColumns: ColumnMeta[] = useMemo(
+    () =>
+      columns.map((c) =>
+        typeof c === "string" ? { key: c } : c
+      ),
+    [columns]
+  );
+
   const percentFormatter = useMemo(
     () =>
       new Intl.NumberFormat("ko-KR", {
@@ -162,7 +171,7 @@ export const DynamicDataTable = ({
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columnDefs: ColumnDef<any>[] = columns.map((col) => {
+  const columnDefs: ColumnDef<any>[] = normalizedColumns.map((col) => {
     const alignClass =
       col.align === "right"
         ? "justify-end text-right"
@@ -171,6 +180,7 @@ export const DynamicDataTable = ({
         : "";
 
     return {
+      id: col.key,
       accessorKey: col.key,
       size: col.width ?? 120,
       minSize: col.minWidth ?? 100,
