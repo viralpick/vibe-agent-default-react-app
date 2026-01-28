@@ -9,57 +9,6 @@ This is a user request context.
 {{user_prompt}}
 
 ====================
-PIPELINE CONTEXT
-====================
-You are the final step in a multi-step analytics dashboard generation pipeline.
-
-You will receive the following inputs (as JSON objects) from earlier steps:
-
-- analyzed_requirements
-  - Business requirements and logical data sources.
-  - Dimensions, metrics, filters, and time dimensions.
-  - Mappings from these to ontology fields.
-
-- decided_components
-  - UI layout and components per requirement / data source.
-  - For each UI component:
-    - component_type (e.g., "kpi_card", "line_chart", "bar_chart", "table")
-    - requirement_name
-    - data_source_logical_name
-    - data_shape: which logical fields it expects to display (dimensions/metrics).
-
-– planed_queries
-  - Logical GraphQL schema and queries (types & arguments).
-  - For each (requirement_name, data_source_logical_name):
-    - Logical GraphQL type fields (names, types, mapping to ontology).
-    - Logical GraphQL query definitions (query_name, arguments, return_type).
-
-– generated_queries
-  - Final, executable GraphQL queries and metadata per data source.
-  - This is the single source of truth for:
-    - collection_name (implicitly embedded in query / aggregation_query).
-    - Exact GraphQL query strings to call.
-    - Field lists: available_fields, numeric_fields, categorical_fields, date_fields.
-
-In this step, you MUST:
-
-- Use:
-  - {{user_prompt}}
-  - {{requirements_text}}
-  - {{ontology_schema_text}}
-- To generate actual React + TypeScript code that:
-  - Calls the final GraphQL queries from generated_queries.
-  - Binds data correctly to the UI components from decided_components.
-  - Respects the business semantics from analyzed_requirements.
-  - Respects the GraphQL schema design from planed_queries.
-- You MUST NOT redesign GraphQL schemas or queries here; treat generated_queries output as final.
-
-You will receive these JSON objects in variables:
-  - {{user_prompt}}
-  - {{requirements_text}}
-  - {{ontology_schema_text}}
-
-====================
 FILE SCOPE (HARD)
 ====================
 
@@ -337,7 +286,24 @@ ARCHITECTURE CONSTRAINTS
 API USAGE (HARD)
 ====================
 
-You MUST use the GraphQL queries from {planed_queries}:
+You MUST make the GraphQL queries with these instructions:
+
+example:
+{
+collection_name: "enhans_internal__product_review"
+graphql_queries_per_data_source: [{"requirement_name": ...}, {"requirement_name": ...}, {"requirement_name": ...}, {"requirement_name": ...}, {"requirement_name": ...}]
+graphql_queries_per_data_source[0]: {"requirement_name": "리뷰 점수 분포", "requirement_description": "제품별로 리뷰 점수의 분포를 시각화하여, 각 제품의 평점 경향을 파악합니다.", "data_source_logical_name": "review_date_range",
+graphql_queries: [
+collection_name:  "enhans_internal__product_review",
+query: "query Source { source { enhans_internal__product_review(limit: 10, page: 1) { totalPageCount page rows } } }",
+"aggregation_query": "query Source { aggregation { enhans_internal__product_review( groupBy: ["created_day"] 
+filters: [{ field: "created_day", operator: GTE, value: "{{DATE_FROM}}" },{ field: "created_day", operator: LTE, value: "{{DATE_TO}}" }] ) { groupBy count } } }",
+"available_fields": ["_id", "created_day", "platform", ...],
+"numeric_fields": ["review_score", "sentiment_score"],
+"categorical_fields": ["_id", "platform", "product_id", ...],
+"date_fields": ["created_day"],
+]}
+}
 
 - For each (requirement_name, data_source_logical_name):
   - Find the corresponding entry in generated_queries.graphql_queries_per_data_source.
@@ -347,7 +313,6 @@ You MUST use the GraphQL queries from {planed_queries}:
     - graphql_queries.aggregation_query as the base aggregation query string.
     - Field lists: available_fields, numeric_fields, categorical_fields, date_fields.
 
-You MUST NOT modify the structure of query strings from {planed_queries}.
 **EXCEPTION - DATE PLACEHOLDERS:** The GraphQL queries contain date placeholder values "{{DATE_FROM}}" and "{{DATE_TO}}". You MUST use the `injectDateFilters()` utility to replace these placeholders with actual dates at runtime. Do NOT manually compute dates.
 
 Endpoint & HTTP:
