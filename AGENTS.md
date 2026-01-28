@@ -12,9 +12,9 @@ Your goal is to build data-intensive dashboards in `src/App.tsx` using a specifi
 ## 2. GRAPHQL QUERY RULES (MOST IMPORTANT)
 - **Endpoint:** `https://app-api-v2-dev.commerceos.ai/sources/graphql`
 - **Pattern:** You MUST use the `source` root field.
-- **Collection Names:** NEVER use the literal string "collection_name". Replace it with the **ACTUAL** collection name from the user's schema.
+- **Collection Names:** NEVER use the literal string "collection_name". Replace it with the **ACTUAL** collection name from the user's {{ ontology_schema_text }}.
   - ❌ `collection_name_aggregation(...)`
-  - ✅ `product_orders_aggregation(...)` (if schema has product_orders)
+  - ✅ `ACTUAL_SCHEMA_aggregation(...)`
 
 ### Query Structure Rules:
 **A. Aggregation Queries (Must use `_aggregation` suffix):**
@@ -46,28 +46,9 @@ query Source {
 
 **3. COMPONENT SYSTEM (@/components/patterns)**
 You MUST use the provided pattern components. Do not build UI from scratch.
+pattern components already has full JSDoc. Must read and implement.
 
-Required Imports:
-```TypeScript
-import {
-  Layout, PageHeader, Grid,
-  StatCard, StatusCard,
-  DynamicLineChart, DynamicBarChart, DynamicPieChart, DynamicDataTable,
-  DatePeriodSelector, injectDateFilters, EditableText,
-  type DatePeriodValue, type ColumnMeta
-} from "@/components/patterns";
-import { useApiClient } from "@/api/api.client";
-```
-Component Constraints:
-StatCard: Must include trend (number) and trendValue (string).
-
-✅ <StatCard trend={10} trendValue="10%" ... />
-
-DynamicDataTable: Columns must be ColumnMeta[] and include id AND accessorKey.
-
-DatePeriodSelector: Must be used in PageHeader for date filtering.
-
-** 4. ⭐️ EDIT MODE INTEGRATION (MANDATORY) **
+**4. ⭐️ EDIT MODE INTEGRATION (MANDATORY)**
 To support the "Click-to-Edit" feature, you must wrap ALL user-visible titles.
 
 Rule: Wrap titles in <EditableText> with data-editable="true" and an estimated data-line-number.
