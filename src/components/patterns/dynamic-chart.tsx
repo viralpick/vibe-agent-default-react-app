@@ -965,19 +965,20 @@ export function DynamicPieChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const safeData = useMemo(() => data ?? [], [data]);
 
-  // Build color map with case-insensitive lookup
+  // Build color map with case-insensitive lookup (name may be number from API e.g. promotion_id)
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     safeData.forEach((entry, index) => {
-      const name = entry?.name ?? "";
+      const raw = entry?.name;
+      const name = raw != null ? String(raw) : "";
       const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
       map[key] = colors[index % colors.length];
     });
     return map;
   }, [safeData, colors, normalizeKey]);
 
-  const getColor = (name: string, index: number): string => {
-    const safeName = name ?? "";
+  const getColor = (name: string | number, index: number): string => {
+    const safeName = name != null ? String(name) : "";
     const key = normalizeKey ? normalizeKey(safeName) : safeName.toLowerCase();
     return colorMap[key] || colors[index % colors.length];
   };
