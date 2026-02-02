@@ -25,6 +25,7 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  Brush,
 } from "recharts";
 
 import { cn } from "@/lib/commerce-sdk";
@@ -47,6 +48,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const DEFAULT_CHART_HEIGHT = 300;
+const DEFAULT_BRUSH_LIMIT = 5;
 
 /**
  * Formats large numbers with K/M/B suffixes for better readability on axes
@@ -58,6 +60,27 @@ const formatAxisNumber = (value: number): string => {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return value.toLocaleString();
+};
+
+/**
+ * Formats brush tick values - converts dates to yyyy-MM-dd format if possible
+ * @param value - The tick value to format
+ * @returns Formatted string
+ */
+const formatBrushTick = (value: unknown): string => {
+  if (value == null) return "";
+  const strValue = String(value);
+  
+  // Try to parse as date
+  const date = new Date(strValue);
+  if (!isNaN(date.getTime()) && strValue.length > 6) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  
+  return strValue;
 };
 
 type SeriesType = "line" | "bar" | "area";
@@ -109,12 +132,14 @@ export type BaseDynamicChartProps = {
   queryId?: string;
   /** Query content for query edit mode (optional) */
   queryContent?: string;
+  /** Enable brush for data navigation when data exceeds brushLimit */
+  enableBrush?: boolean;
+  /** Number of items to show initially before brush kicks in (default: 5) */
+  brushLimit?: number;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
-  /** Maximum visible items before horizontal scrolling is enabled */
-  maxVisibleItems?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
 };
@@ -170,36 +195,17 @@ export function DynamicAreaChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  maxVisibleItems,
+  enableBrush = false,
+  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
   queryId,
   queryContent,
 }: DynamicAreaChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
-  const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const dataCount = Array.isArray(data) ? data.length : 0;
-
-  // Calculate width per item for horizontal scrolling
-  const itemWidth = 60; // width per data point
-  const minChartWidth = 400;
-
-  const { actualChartWidth, needsScroll } = useMemo(() => {
-    const calculatedWidth = dataCount * itemWidth;
-    
-    if (maxVisibleItems && dataCount > maxVisibleItems) {
-      const visibleWidth = maxVisibleItems * itemWidth;
-      return {
-        actualChartWidth: Math.max(minChartWidth, calculatedWidth),
-        needsScroll: calculatedWidth > visibleWidth,
-      };
-    }
-    
-    return {
-      actualChartWidth: Math.max(minChartWidth, calculatedWidth),
-      needsScroll: false,
-    };
-  }, [dataCount, maxVisibleItems]);
+  const showBrush = enableBrush && dataCount > brushLimit;
 
   if (isLoading) {
     return (
@@ -215,7 +221,7 @@ export function DynamicAreaChart({
           </CardHeader>
         )}
         <CardContent>
-          <Skeleton className="w-full" style={{ height: baseHeight }} />
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
     );
@@ -238,71 +244,72 @@ export function DynamicAreaChart({
         </CardHeader>
       )}
       <CardContent>
-        <div
-          className={cn("w-full", needsScroll && "overflow-x-auto")}
-          style={{ height: baseHeight }}
+        <ChartContainer
+          config={effectiveConfig}
+          className="w-full"
+          style={{ height: chartHeight }}
         >
-          <ChartContainer
-            config={effectiveConfig}
-            className="h-full"
-            style={{ 
-              width: needsScroll ? actualChartWidth : "100%",
-              minWidth: needsScroll ? actualChartWidth : undefined,
-              height: baseHeight 
-            }}
+          <AreaChart
+            accessibilityLayer
+            data={data ?? []}
+            height={chartHeight}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
-            <AreaChart
-              accessibilityLayer
-              data={data ?? []}
-              height={baseHeight}
-              margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
-            >
-              <CartesianGrid vertical={false} stroke="#ebebeb" />
-              <XAxis
-                dataKey={xAxisKey}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={5}
-                tickFormatter={tickFormatter}
-                fontSize={10}
-                interval={0}
-                dx={10}
-                dy={0}
+            <CartesianGrid vertical={false} stroke="#ebebeb" />
+            <XAxis
+              dataKey={xAxisKey}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={5}
+              tickFormatter={tickFormatter}
+              fontSize={10}
+              interval={showBrush ? "preserveStartEnd" : 0}
+              dx={10}
+              dy={0}
+            />
+            <YAxis
+              dataKey={yAxisKey}
+              fontSize={12}
+              tickLine={false}
+              tickMargin={8}
+              axisLine={false}
+              tickFormatter={formatAxisNumber}
+            />
+            {tooltipIndicator !== false && (
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent indicator={tooltipIndicator} />}
               />
-              <YAxis
-                dataKey={yAxisKey}
-                fontSize={12}
-                tickLine={false}
-                tickMargin={8}
-                axisLine={false}
-                tickFormatter={formatAxisNumber}
-              />
-              {tooltipIndicator !== false && (
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator={tooltipIndicator} />}
+            )}
+            {showLegend && <Legend content={<ChartLegendContent />} />}
+            {keys.map((key) => {
+              const color = effectiveConfig[key]?.color || "#000000";
+              return (
+                <Area
+                  key={key}
+                  type={variant}
+                  dataKey={key}
+                  stroke={color}
+                  fill={color}
+                  fillOpacity={0.4}
+                  strokeWidth={2}
+                  connectNulls
+                  dot={false}
                 />
-              )}
-              {showLegend && <Legend content={<ChartLegendContent />} />}
-              {keys.map((key) => {
-                const color = effectiveConfig[key]?.color || "#000000";
-                return (
-                  <Area
-                    key={key}
-                    type={variant}
-                    dataKey={key}
-                    stroke={color}
-                    fill={color}
-                    fillOpacity={0.4}
-                    strokeWidth={2}
-                    connectNulls
-                    dot={false}
-                  />
-                );
-              })}
-            </AreaChart>
-          </ChartContainer>
-        </div>
+              );
+            })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
+          </AreaChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
@@ -310,8 +317,6 @@ export function DynamicAreaChart({
 
 export type DynamicLineChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
-  /** Maximum visible items before horizontal scrolling is enabled */
-  maxVisibleItems?: number;
   /** Show loading skeleton */
   isLoading?: boolean;
 };
@@ -368,36 +373,17 @@ export function DynamicLineChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  maxVisibleItems,
+  enableBrush = false,
+  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
   queryId,
   queryContent,
 }: DynamicLineChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
-  const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const dataCount = Array.isArray(data) ? data.length : 0;
-
-  // Calculate width per item for horizontal scrolling
-  const itemWidth = 60; // width per data point
-  const minChartWidth = 400;
-
-  const { actualChartWidth, needsScroll } = useMemo(() => {
-    const calculatedWidth = dataCount * itemWidth;
-    
-    if (maxVisibleItems && dataCount > maxVisibleItems) {
-      const visibleWidth = maxVisibleItems * itemWidth;
-      return {
-        actualChartWidth: Math.max(minChartWidth, calculatedWidth),
-        needsScroll: calculatedWidth > visibleWidth,
-      };
-    }
-    
-    return {
-      actualChartWidth: Math.max(minChartWidth, calculatedWidth),
-      needsScroll: false,
-    };
-  }, [dataCount, maxVisibleItems]);
+  const showBrush = enableBrush && dataCount > brushLimit;
 
   if (isLoading) {
     return (
@@ -413,7 +399,7 @@ export function DynamicLineChart({
           </CardHeader>
         )}
         <CardContent>
-          <Skeleton className="w-full" style={{ height: baseHeight }} />
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
     );
@@ -436,69 +422,70 @@ export function DynamicLineChart({
         </CardHeader>
       )}
       <CardContent>
-        <div
-          className={cn("w-full", needsScroll && "overflow-x-auto")}
-          style={{ height: baseHeight }}
+        <ChartContainer
+          config={effectiveConfig}
+          className="w-full"
+          style={{ height: chartHeight }}
         >
-          <ChartContainer
-            config={effectiveConfig}
-            className="h-full"
-            style={{ 
-              width: needsScroll ? actualChartWidth : "100%",
-              minWidth: needsScroll ? actualChartWidth : undefined,
-              height: baseHeight 
-            }}
+          <LineChart
+            accessibilityLayer
+            data={data ?? []}
+            height={chartHeight}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
-            <LineChart
-              accessibilityLayer
-              data={data ?? []}
-              height={baseHeight}
-              margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
-            >
-              <CartesianGrid vertical={false} stroke="#ebebeb" />
-              <XAxis
-                dataKey={xAxisKey}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={5}
-                tickFormatter={tickFormatter}
-                fontSize={10}
-                interval={0}
-                dx={10}
-                dy={0}
+            <CartesianGrid vertical={false} stroke="#ebebeb" />
+            <XAxis
+              dataKey={xAxisKey}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={5}
+              tickFormatter={tickFormatter}
+              fontSize={10}
+              interval={showBrush ? "preserveStartEnd" : 0}
+              dx={10}
+              dy={0}
+            />
+            <YAxis
+              dataKey={yAxisKey}
+              fontSize={12}
+              tickLine={false}
+              tickMargin={8}
+              axisLine={false}
+              tickFormatter={formatAxisNumber}
+            />
+            {tooltipIndicator !== false && (
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent indicator={tooltipIndicator} />}
               />
-              <YAxis
-                dataKey={yAxisKey}
-                fontSize={12}
-                tickLine={false}
-                tickMargin={8}
-                axisLine={false}
-                tickFormatter={formatAxisNumber}
-              />
-              {tooltipIndicator !== false && (
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator={tooltipIndicator} />}
+            )}
+            {showLegend && <Legend content={<ChartLegendContent />} />}
+            {keys.map((key) => {
+              const color = effectiveConfig[key]?.color || "#000000";
+              return (
+                <Line
+                  key={key}
+                  dataKey={key}
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  type={variant}
                 />
-              )}
-              {showLegend && <Legend content={<ChartLegendContent />} />}
-              {keys.map((key) => {
-                const color = effectiveConfig[key]?.color || "#000000";
-                return (
-                  <Line
-                    key={key}
-                    dataKey={key}
-                    stroke={color}
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                    type={variant}
-                  />
-                );
-              })}
-            </LineChart>
-          </ChartContainer>
-        </div>
+              );
+            })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
+          </LineChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
@@ -566,12 +553,15 @@ export function DynamicBarChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  enableBrush = false,
+  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
   maxVisibleItems,
   queryId,
   queryContent,
 }: DynamicBarChartProps & {
   isLoading?: boolean;
+  /** @deprecated Use enableBrush instead for vertical layout */
   maxVisibleItems?: number;
 }): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
@@ -581,6 +571,9 @@ export function DynamicBarChart({
   // For horizontal layout, calculate height based on data count
   const barHeight = 36; // height per bar item
   const dataCount = Array.isArray(data) ? data.length : 0;
+
+  // Brush for vertical layout only
+  const showBrush = layout === "vertical" && enableBrush && dataCount > brushLimit;
 
   const chartHeight = useMemo(() => {
     if (layout !== "horizontal") return baseHeight;
@@ -599,7 +592,7 @@ export function DynamicBarChart({
     return dataCount * barHeight + 40;
   }, [layout, dataCount, chartHeight]);
 
-  // Whether scrolling is needed
+  // Whether scrolling is needed (horizontal layout only)
   const needsScroll =
     layout === "horizontal" && actualChartHeight > chartHeight;
 
@@ -704,7 +697,7 @@ export function DynamicBarChart({
                   : {
                       top: 0,
                       right: 25,
-                      bottom: 0,
+                      bottom: showBrush ? 30 : 0,
                       left: 15,
                     }
               }
@@ -723,6 +716,7 @@ export function DynamicBarChart({
                   axisLine={false}
                   tickMargin={10}
                   tickFormatter={tickFormatter}
+                  interval={showBrush ? "preserveStartEnd" : 0}
                 />
               ) : (
                 <XAxis type="number" dataKey={xAxisKey} hide />
@@ -735,7 +729,6 @@ export function DynamicBarChart({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={10}
-                  // tickFormatter={tickFormatter}
                   tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
                 />
               ) : (
@@ -769,6 +762,16 @@ export function DynamicBarChart({
                   />
                 );
               })}
+              {showBrush && (
+                <Brush
+                  dataKey={xAxisKey}
+                  height={20}
+                  stroke="#d1d5db"
+                  startIndex={0}
+                  endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                  tickFormatter={formatBrushTick}
+                />
+              )}
             </BarChart>
           </ChartContainer>
         </div>
@@ -847,6 +850,8 @@ export function DynamicComposedChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  enableBrush = false,
+  brushLimit = DEFAULT_BRUSH_LIMIT,
   barMaxBarSize = 28,
   areaFillOpacity = 0.4,
   order,
@@ -864,6 +869,8 @@ export function DynamicComposedChart({
       { label: v.label, color: v.color },
     ])
   );
+  const dataCount = Array.isArray(data) ? data.length : 0;
+  const showBrush = enableBrush && dataCount > brushLimit;
 
   return (
     <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
@@ -891,7 +898,7 @@ export function DynamicComposedChart({
             accessibilityLayer
             data={data ?? []}
             height={height}
-            margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
             <CartesianGrid vertical={false} stroke="#ebebeb" />
             <XAxis
@@ -901,7 +908,7 @@ export function DynamicComposedChart({
               tickMargin={5}
               tickFormatter={tickFormatter}
               fontSize={10}
-              interval={0}
+              interval={showBrush ? "preserveStartEnd" : 0}
               dx={10}
               dy={0}
             />
@@ -982,6 +989,16 @@ export function DynamicComposedChart({
                 />
               );
             })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
           </ComposedChart>
         </ChartContainer>
       </CardContent>
