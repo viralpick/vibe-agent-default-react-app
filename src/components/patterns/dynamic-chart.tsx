@@ -49,7 +49,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeNumericValue } from "./data-utils";
 
 const DEFAULT_CHART_HEIGHT = 300;
-const DEFAULT_BRUSH_LIMIT = 5;
 
 /**
  * Normalizes chart data by converting object values to numbers.
@@ -180,12 +179,6 @@ export type BaseDynamicChartProps = {
   queryId?: string;
   /** Query content for query edit mode (optional) */
   queryContent?: string;
-  /** Enable brush for data navigation when data exceeds brushLimit */
-  enableBrush?: boolean;
-  /** Number of items to show initially before brush kicks in (default: 5) */
-  brushLimit?: number;
-  /** Hide X-axis labels (useful when there are too many data points) */
-  hideXAxisLabels?: boolean;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
@@ -245,10 +238,7 @@ export function DynamicAreaChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  enableBrush = false,
-  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
-  hideXAxisLabels = false,
   queryId,
   queryContent,
 }: DynamicAreaChartProps): React.ReactNode {
@@ -257,7 +247,10 @@ export function DynamicAreaChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  const showBrush = enableBrush && dataCount > brushLimit;
+  
+  // Auto-determine brush and x-axis labels based on data count
+  const showBrush = dataCount >= 5;
+  const hideXAxisLabels = dataCount >= 30;
 
   // Auto-detect date format and apply formatting
   const autoTickFormatter = useMemo(() => {
@@ -383,7 +376,7 @@ export function DynamicAreaChart({
                 height={20}
                 stroke="#d1d5db"
                 startIndex={0}
-                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                endIndex={Math.min(4, dataCount - 1)}
                 tickFormatter={formatBrushTick}
               />
             )}
@@ -452,10 +445,7 @@ export function DynamicLineChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  enableBrush = false,
-  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
-  hideXAxisLabels = false,
   queryId,
   queryContent,
 }: DynamicLineChartProps): React.ReactNode {
@@ -464,7 +454,10 @@ export function DynamicLineChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  const showBrush = enableBrush && dataCount > brushLimit;
+  
+  // Auto-determine brush and x-axis labels based on data count
+  const showBrush = dataCount >= 5;
+  const hideXAxisLabels = dataCount >= 30;
 
   // Auto-detect date format and apply formatting
   const autoTickFormatter = useMemo(() => {
@@ -589,7 +582,7 @@ export function DynamicLineChart({
                 height={20}
                 stroke="#d1d5db"
                 startIndex={0}
-                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                endIndex={Math.min(4, dataCount - 1)}
                 tickFormatter={formatBrushTick}
               />
             )}
@@ -662,17 +655,11 @@ export function DynamicBarChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  enableBrush = false,
-  brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
-  hideXAxisLabels = false,
-  maxVisibleItems,
   queryId,
   queryContent,
 }: DynamicBarChartProps & {
   isLoading?: boolean;
-  /** @deprecated Use enableBrush instead for vertical layout */
-  maxVisibleItems?: number;
 }): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
@@ -683,8 +670,9 @@ export function DynamicBarChart({
   const barHeight = 36; // height per bar item
   const dataCount = normalizedData.length;
 
-  // Brush for vertical layout only
-  const showBrush = layout === "vertical" && enableBrush && dataCount > brushLimit;
+  // Auto-determine brush and x-axis labels based on data count (vertical layout only)
+  const showBrush = layout === "vertical" && dataCount >= 5;
+  const hideXAxisLabels = layout === "vertical" && dataCount >= 30;
 
   // Auto-detect date format and apply formatting
   const autoTickFormatter = useMemo(() => {
@@ -716,12 +704,8 @@ export function DynamicBarChart({
     if (layout !== "horizontal") return baseHeight;
     // Calculate dynamic height based on data count
     const calculatedHeight = dataCount * barHeight + 40; // 40px for padding
-    // Use maxVisibleItems to limit visible area, rest will scroll
-    if (maxVisibleItems && dataCount > maxVisibleItems) {
-      return maxVisibleItems * barHeight + 40;
-    }
     return Math.max(baseHeight, calculatedHeight);
-  }, [layout, dataCount, baseHeight, maxVisibleItems]);
+  }, [layout, dataCount, baseHeight]);
 
   // Actual chart height (for scrollable content)
   const actualChartHeight = useMemo(() => {
@@ -906,7 +890,7 @@ export function DynamicBarChart({
                   height={20}
                   stroke="#d1d5db"
                   startIndex={0}
-                  endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                  endIndex={Math.min(4, dataCount - 1)}
                   tickFormatter={formatBrushTick}
                 />
               )}
@@ -988,8 +972,6 @@ export function DynamicComposedChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
-  enableBrush = false,
-  brushLimit = DEFAULT_BRUSH_LIMIT,
   barMaxBarSize = 28,
   areaFillOpacity = 0.4,
   order,
@@ -1009,7 +991,9 @@ export function DynamicComposedChart({
   );
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  const showBrush = enableBrush && dataCount > brushLimit;
+  
+  // Auto-determine brush based on data count
+  const showBrush = dataCount >= 5;
 
   return (
     <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
@@ -1134,7 +1118,7 @@ export function DynamicComposedChart({
                 height={20}
                 stroke="#d1d5db"
                 startIndex={0}
-                endIndex={Math.min(brushLimit - 1, dataCount - 1)}
+                endIndex={Math.min(4, dataCount - 1)}
                 tickFormatter={formatBrushTick}
               />
             )}
