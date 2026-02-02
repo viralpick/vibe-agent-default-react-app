@@ -46,9 +46,29 @@ import {
 } from "@/components/ui/card";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeNumericValue } from "./data-utils";
 
 const DEFAULT_CHART_HEIGHT = 300;
 const DEFAULT_BRUSH_LIMIT = 5;
+
+/**
+ * Normalizes chart data by converting object values to numbers.
+ * Handles GraphQL response patterns where numeric values are wrapped in objects.
+ */
+const normalizeChartData = (data: Record<string, unknown>[]): Record<string, unknown>[] => {
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(item)) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        normalized[key] = normalizeNumericValue(value);
+      } else {
+        normalized[key] = value;
+      }
+    }
+    return normalized;
+  });
+};
 
 /**
  * Formats large numbers with K/M/B suffixes for better readability on axes
@@ -204,7 +224,8 @@ export function DynamicAreaChart({
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
-  const dataCount = Array.isArray(data) ? data.length : 0;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
   const showBrush = enableBrush && dataCount > brushLimit;
 
   if (isLoading) {
@@ -251,7 +272,7 @@ export function DynamicAreaChart({
         >
           <AreaChart
             accessibilityLayer
-            data={data ?? []}
+            data={normalizedData}
             height={chartHeight}
             margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
@@ -382,7 +403,8 @@ export function DynamicLineChart({
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
-  const dataCount = Array.isArray(data) ? data.length : 0;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
   const showBrush = enableBrush && dataCount > brushLimit;
 
   if (isLoading) {
@@ -429,7 +451,7 @@ export function DynamicLineChart({
         >
           <LineChart
             accessibilityLayer
-            data={data ?? []}
+            data={normalizedData}
             height={chartHeight}
             margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
@@ -567,10 +589,11 @@ export function DynamicBarChart({
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
 
   // For horizontal layout, calculate height based on data count
   const barHeight = 36; // height per bar item
-  const dataCount = Array.isArray(data) ? data.length : 0;
+  const dataCount = normalizedData.length;
 
   // Brush for vertical layout only
   const showBrush = layout === "vertical" && enableBrush && dataCount > brushLimit;
@@ -602,13 +625,13 @@ export function DynamicBarChart({
 
   const autoYAxisWidth = useMemo(() => {
     if (layout !== "horizontal" || !yAxisKey) return undefined;
-    const maxLen = (Array.isArray(data) ? data : []).reduce((m, d) => {
+    const maxLen = normalizedData.reduce((m, d) => {
       const v = String((d as Record<string, unknown>)[yAxisKey] ?? "");
       return Math.max(m, v.length);
     }, 0);
     const est = maxLen * charWidth + 16;
     return Math.min(maxWidth, Math.max(minWidth, est));
-  }, [layout, yAxisKey, data]);
+  }, [layout, yAxisKey, normalizedData]);
 
   const AutoTick = ({
     x,
@@ -688,7 +711,7 @@ export function DynamicBarChart({
           >
             <BarChart
               accessibilityLayer
-              data={data ?? []}
+              data={normalizedData}
               layout={layout === "horizontal" ? "vertical" : undefined}
               height={actualChartHeight}
               margin={
@@ -869,7 +892,8 @@ export function DynamicComposedChart({
       { label: v.label, color: v.color },
     ])
   );
-  const dataCount = Array.isArray(data) ? data.length : 0;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
   const showBrush = enableBrush && dataCount > brushLimit;
 
   return (
@@ -896,7 +920,7 @@ export function DynamicComposedChart({
         >
           <ComposedChart
             accessibilityLayer
-            data={data ?? []}
+            data={normalizedData}
             height={height}
             margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
@@ -1111,7 +1135,16 @@ export function DynamicPieChart({
   queryContent,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
-  const safeData = useMemo(() => data ?? [], [data]);
+  // Normalize pie data: ensure value is a number (handle object form like { review_id: 4 })
+  const safeData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data.map((item) => ({
+      name: item?.name ?? "",
+      value: typeof item?.value === 'object' && item?.value !== null
+        ? normalizeNumericValue(item.value)
+        : (typeof item?.value === 'number' ? item.value : 0),
+    }));
+  }, [data]);
 
   // Build color map with case-insensitive lookup (name may be number from API e.g. promotion_id)
   const colorMap = useMemo(() => {

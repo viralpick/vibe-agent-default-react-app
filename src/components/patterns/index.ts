@@ -67,3 +67,6 @@ export * from "./view-tabs";
 
 /** DatePeriodSelector - Date period picker with presets, monthly, and range selection */
 export * from "./date-period-selector";
+
+/** Data Utils - Utilities for GraphQL response handling */
+export * from "./data-utils";
