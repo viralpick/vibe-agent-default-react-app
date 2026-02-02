@@ -103,6 +103,34 @@ const formatBrushTick = (value: unknown): string => {
   return strValue;
 };
 
+/**
+ * Formats date values to M/D format for display
+ * @param value - The date value to format
+ * @returns Formatted string in M/D format or original value if not a date
+ */
+const formatDateShort = (value: unknown): string => {
+  if (value == null) return "";
+  const strValue = String(value);
+  
+  // Check if it looks like an ISO date (YYYY-MM-DD...)
+  if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
+    const date = new Date(strValue);
+    if (!isNaN(date.getTime())) {
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
+  }
+  
+  return strValue;
+};
+
+/**
+ * Checks if a value looks like an ISO date string
+ */
+const isISODateString = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false;
+  return /^\d{4}-\d{2}-\d{2}/.test(value);
+};
+
 type SeriesType = "line" | "bar" | "area";
 type YAxisSide = "left" | "right";
 
@@ -156,6 +184,8 @@ export type BaseDynamicChartProps = {
   enableBrush?: boolean;
   /** Number of items to show initially before brush kicks in (default: 5) */
   brushLimit?: number;
+  /** Hide X-axis labels (useful when there are too many data points) */
+  hideXAxisLabels?: boolean;
 };
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
@@ -218,6 +248,7 @@ export function DynamicAreaChart({
   enableBrush = false,
   brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
+  hideXAxisLabels = false,
   queryId,
   queryContent,
 }: DynamicAreaChartProps): React.ReactNode {
@@ -227,6 +258,32 @@ export function DynamicAreaChart({
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
   const showBrush = enableBrush && dataCount > brushLimit;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
 
   if (isLoading) {
     return (
@@ -282,9 +339,10 @@ export function DynamicAreaChart({
               tickLine={false}
               axisLine={false}
               tickMargin={5}
-              tickFormatter={tickFormatter}
+              tickFormatter={autoTickFormatter}
               fontSize={10}
               interval={showBrush ? "preserveStartEnd" : 0}
+              tick={hideXAxisLabels ? false : undefined}
               dx={10}
               dy={0}
             />
@@ -299,7 +357,7 @@ export function DynamicAreaChart({
             {tooltipIndicator !== false && (
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
               />
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
@@ -397,6 +455,7 @@ export function DynamicLineChart({
   enableBrush = false,
   brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
+  hideXAxisLabels = false,
   queryId,
   queryContent,
 }: DynamicLineChartProps): React.ReactNode {
@@ -406,6 +465,33 @@ export function DynamicLineChart({
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
   const showBrush = enableBrush && dataCount > brushLimit;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    // Check first data item for ISO date format
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
 
   if (isLoading) {
     return (
@@ -461,9 +547,10 @@ export function DynamicLineChart({
               tickLine={false}
               axisLine={false}
               tickMargin={5}
-              tickFormatter={tickFormatter}
+              tickFormatter={autoTickFormatter}
               fontSize={10}
               interval={showBrush ? "preserveStartEnd" : 0}
+              tick={hideXAxisLabels ? false : undefined}
               dx={10}
               dy={0}
             />
@@ -478,7 +565,7 @@ export function DynamicLineChart({
             {tooltipIndicator !== false && (
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
               />
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
@@ -578,6 +665,7 @@ export function DynamicBarChart({
   enableBrush = false,
   brushLimit = DEFAULT_BRUSH_LIMIT,
   isLoading = false,
+  hideXAxisLabels = false,
   maxVisibleItems,
   queryId,
   queryContent,
@@ -597,6 +685,32 @@ export function DynamicBarChart({
 
   // Brush for vertical layout only
   const showBrush = layout === "vertical" && enableBrush && dataCount > brushLimit;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
 
   const chartHeight = useMemo(() => {
     if (layout !== "horizontal") return baseHeight;
@@ -738,8 +852,9 @@ export function DynamicBarChart({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={10}
-                  tickFormatter={tickFormatter}
+                  tickFormatter={autoTickFormatter}
                   interval={showBrush ? "preserveStartEnd" : 0}
+                  tick={hideXAxisLabels ? false : undefined}
                 />
               ) : (
                 <XAxis type="number" dataKey={xAxisKey} hide />
@@ -767,7 +882,7 @@ export function DynamicBarChart({
               {tooltipIndicator !== false && (
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                  content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
                 />
               )}
               {showLegend && <Legend content={<ChartLegendContent />} />}
