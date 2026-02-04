@@ -39,7 +39,7 @@ export type CommentCardProps = {
   comment: string;
 };
 
-export default function CommentCard({
+export function CommentCard({
   status,
   comment,
 }: CommentCardProps): React.JSX.Element {

@@ -165,7 +165,7 @@ const renderMainValue = (
   return null;
 };
 
-export default function StatusCard({
+export function StatusCard({
   title,
   icon,
   value,
