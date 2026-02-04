@@ -15,7 +15,6 @@
 }
 
 @theme {
-  --color-*: initial;
   --color-white: #ffffff;
   --color-black: #000000;
   --font-*: initial;
