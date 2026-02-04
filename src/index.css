@@ -15,10 +15,7 @@
 }
 
 @theme {
-  --color-white: #ffffff;
-  --color-black: #000000;
   --font-*: initial;
-  --radius-*: initial;
   --text-*: initial;
 }
 
