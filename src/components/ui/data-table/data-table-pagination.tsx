@@ -50,14 +50,14 @@ function DataTablePagination<TData>({
 
       <div className="flex items-center justify-between">
         {table.options.enableRowSelection && (
-          <div className="flex-1 text-sm text-muted-foreground">
+          <div className="flex-1 text-caption-1 text-text-secondary">
             {table.getFilteredSelectedRowModel().rows.length} of{" "}
             {table.getFilteredRowModel().rows.length} row(s) selected.
           </div>
         )}
 
         <div className="ml-auto flex items-center gap-1.5 lg:gap-2">
-          <div className="flex min-w-[140px] items-center justify-center text-sm">
+          <div className="flex min-w-[140px] items-center justify-center text-caption-1 text-text-secondary">
             {table.getState().pagination.pageIndex + 1}페이지 (총{" "}
             {table.getPageCount()}페이지)
           </div>

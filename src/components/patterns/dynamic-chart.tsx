@@ -249,7 +249,7 @@ export function DynamicAreaChart({
   const dataCount = normalizedData.length;
   
   // Auto-determine brush and x-axis labels based on data count
-  const showBrush = dataCount >= 5;
+  const showBrush = dataCount > 5;
   const hideXAxisLabels = dataCount >= 30;
 
   // Auto-detect date format and apply formatting
@@ -456,7 +456,7 @@ export function DynamicLineChart({
   const dataCount = normalizedData.length;
   
   // Auto-determine brush and x-axis labels based on data count
-  const showBrush = dataCount >= 5;
+  const showBrush = dataCount > 5;
   const hideXAxisLabels = dataCount >= 30;
 
   // Auto-detect date format and apply formatting
@@ -993,7 +993,7 @@ export function DynamicComposedChart({
   const dataCount = normalizedData.length;
   
   // Auto-determine brush based on data count
-  const showBrush = dataCount >= 5;
+  const showBrush = dataCount > 5;
 
   return (
     <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>

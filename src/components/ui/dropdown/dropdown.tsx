@@ -146,7 +146,6 @@ export function Select({
           disabled={disabled}
           className={cn(
             dropdownTriggerVariants({ size, variant, disabled }),
-            "min-w-30"
           )}
         >
           <span className={cn(!selectedOption && "text-text-tertiary")}>
@@ -295,8 +294,7 @@ export function MultiSelect({
         <DropdownMenuPrimitive.Trigger
           disabled={disabled}
           className={cn(
-            dropdownTriggerVariants({ size, variant, disabled }),
-            "min-w-30"
+            dropdownTriggerVariants({ size, variant, disabled })
           )}
         >
           <span className={cn(selectedCount === 0 && "text-text-tertiary")}>

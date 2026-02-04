@@ -54,10 +54,6 @@ function DataTableColumnHeader<TData, TValue>({
         variant="inline"
         size={size === "sm" ? "sm" : "md"}
         side="left"
-        className={cn(
-          "-ml-3 -mr-3 h-8 gap-1",
-          size === "sm" && "h-1.5 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5"
-        )}
         placeholder={title}
         options={[
           {

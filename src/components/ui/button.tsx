@@ -22,10 +22,10 @@ const buttonVariants = cva(
         ghost: "bg-transparent",
       },
       size: {
-        lg: "",
-        md: "",
-        sm: "",
-        xs: "",
+        lg: "text-label-1",
+        md: "text-label-2",
+        sm: "text-label-2",
+        xs: "text-label-3",
       },
       target: {
         default: "",
