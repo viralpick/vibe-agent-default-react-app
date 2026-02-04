@@ -35,8 +35,8 @@ export type ViewTabsProps = {
  *
  * @designTokens
  * - Uses w-full for full width
- * - Uses mt-2 for content top margin
- * - Uses gap-6 between content elements
+ * - Uses mt-0.5 for content top margin
+ * - Uses gap-1.5 between content elements
  *
  * @useCase
  * - Dashboard section navigation
@@ -78,7 +78,7 @@ export function ViewTabs({
         <TabsContent
           key={t.id}
           value={t.id}
-          className="mt-2 flex flex-col gap-6"
+          className="mt-0.5 flex flex-col gap-1.5"
         >
           {contentsById[t.id] ?? null}
         </TabsContent>

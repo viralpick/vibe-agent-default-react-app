@@ -65,20 +65,20 @@ function DataTableToolbar<TData>({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-2",
+        "flex items-center justify-between gap-0.5",
         !full ? "ml-auto" : "w-full"
       )}
     >
-      <div className={cn("flex items-start gap-2", full && "flex-1")}>
+      <div className={cn("flex items-start gap-0.5", full && "flex-1")}>
         {/* custom toolbar 좌측 노출 */}
         {!customControlsOnLeft && customToolbar}
         {showSearch && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5">
             <Input
               placeholder={placeholder}
               value={globalFilter}
               onChange={handleSearch}
-              className={cn("h-32 w-[150px] lg:w-[250px]", classNames?.search)}
+              className={cn("h-8 w-[150px] lg:w-[250px]", classNames?.search)}
             />
             {isFiltered && (
               <Button
@@ -92,13 +92,13 @@ function DataTableToolbar<TData>({
           </div>
         )}
         {controlsOnLeft && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5">
             {showOptions && <DataTableViewOptions table={table} />}
             {onDownload && (
               <Button
                 variant="outline"
                 onClick={onDownload}
-                className={cn("h-32", !downloadButtonText && "px-2!")}
+                className={cn("h-8", !downloadButtonText && "px-0.5!")}
                 disabled={downloadDisabled}
               >
                 <Download /> {downloadButtonText}
@@ -109,7 +109,7 @@ function DataTableToolbar<TData>({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5">
         {!controlsOnLeft && showOptions && (
           <DataTableViewOptions table={table} />
         )}
@@ -117,7 +117,7 @@ function DataTableToolbar<TData>({
           <Button
             variant="outline"
             onClick={onDownload}
-            className={cn("h-32", !downloadButtonText && "px-2!")}
+            className={cn("h-8", !downloadButtonText && "px-0.5!")}
           >
             <Download /> {downloadButtonText}
           </Button>
@@ -143,7 +143,7 @@ export function DataTableViewOptions<TData>({
         <Button
           variant="outline"
           size="icon-sm"
-          className="ml-auto hidden h-32 lg:flex"
+          className="ml-auto hidden h-8 lg:flex"
         >
           <SettingsIcon />
         </Button>

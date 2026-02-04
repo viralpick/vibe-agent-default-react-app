@@ -178,7 +178,7 @@ function SingleSelect({
             {selectedLabel}
           </span>
           <ChevronDown
-            className={cn("ml-auto size-16 opacity-50", iconClassName)}
+            className={cn("ml-auto size-4 opacity-50", iconClassName)}
           />
         </Button>
       </PopoverTrigger>
@@ -207,10 +207,10 @@ function SingleSelect({
                 <CommandItem
                   value="none"
                   onSelect={() => handleSelect(null)}
-                  className="cursor-pointer text-xs [&_svg]:size-12 pr-10"
+                  className="cursor-pointer text-xs [&_svg]:size-3 pr-2.5"
                 >
                   {noneLabel}
-                  <div className="ml-auto flex items-center justify-center self-start pt-2">
+                  <div className="ml-auto flex items-center justify-center self-start pt-0.5">
                     <Check
                       className={cn(
                         "ml-auto",
@@ -230,7 +230,7 @@ function SingleSelect({
                   )}
                 >
                   {option.label}
-                  <div className="ml-auto flex items-center justify-center self-start pt-2">
+                  <div className="ml-auto flex items-center justify-center self-start pt-0.5">
                     <Check
                       className={cn(
                         "ml-auto",

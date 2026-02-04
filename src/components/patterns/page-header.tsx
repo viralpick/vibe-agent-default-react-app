@@ -15,9 +15,9 @@
  * - Uses text-body-m (16px) for description
  * - Uses text-text-primary for title, text-text-secondary for description
  * - Uses text-icon-primary for icon
- * - Uses size-24 (24px) for icon size
- * - Uses gap-8 between action buttons
- * - Uses mb-24 for bottom margin
+ * - Uses size-6 (24px) for icon size
+ * - Uses gap-2 between action buttons
+ * - Uses mb-6 for bottom margin
  *
  * @useCase
  * - Top of dashboard pages
@@ -58,10 +58,10 @@ export function PageHeader({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full flex items-center justify-between mb-24">
-      <div className="flex flex-col gap-6">
-        <div className="flex gap-8 items-center">
-          {Icon && <Icon className="size-24 text-icon-primary" />}
+    <div className="w-full flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-2 items-center">
+          {Icon && <Icon className="size-6 text-icon-primary" />}
           <h1 className="text-h3 font-bold text-text-primary">
             {title}
           </h1>
@@ -70,7 +70,7 @@ export function PageHeader({
           <p className="text-text-secondary text-body-m">{description}</p>
         )}
       </div>
-      {children && <div className="flex gap-8">{children}</div>}
+      {children && <div className="flex gap-2">{children}</div>}
     </div>
   );
 }

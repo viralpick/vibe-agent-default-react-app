@@ -46,7 +46,7 @@ export default function CommentCard({
   return (
     <div
       className={cn(
-        "w-full flex px-24 py-16 items-center justify-center font-semibold gap-10 border border-state-200 rounded-large leading-6",
+        "w-full flex px-6 py-4 items-center justify-center font-semibold gap-2.5 border border-state-200 rounded-large leading-6",
         status === "neutral" && "bg-linear-to-b from-[#f8f1fb] to-[#f1f6fb]",
         status === "good" && "bg-green-100",
         status === "bad" && "bg-red-100"

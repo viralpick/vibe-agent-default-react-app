@@ -52,7 +52,7 @@ function DataTableColumnHeader<TData, TValue>({
   return (
     <div
       className={cn(
-        "flex items-center gap-2",
+        "flex items-center gap-0.5",
         size === "sm" && "text-xs",
         className
       )}
@@ -63,7 +63,7 @@ function DataTableColumnHeader<TData, TValue>({
             variant="ghost"
             size="sm"
             className={cn(
-              "-ml-12 -mr-12 h-32 data-[state=open]:bg-accent gap-4",
+              "-ml-3 -mr-3 h-8 data-[state=open]:bg-accent gap-1",
               size === "sm" &&
                 "h-6 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5 [&_svg:not([class*='size-'])]:size-3"
             )}
@@ -89,11 +89,11 @@ function DataTableColumnHeader<TData, TValue>({
             )}
             {!disableSort &&
               (column.getIsSorted() === "desc" ? (
-                <ArrowDown className="size-16" />
+                <ArrowDown className="size-4" />
               ) : column.getIsSorted() === "asc" ? (
-                <ArrowUp className="size-16" />
+                <ArrowUp className="size-4" />
               ) : (
-                <ChevronsUpDown className="size-16" />
+                <ChevronsUpDown className="size-4" />
               ))}
           </Button>
         </DropdownMenuTrigger>

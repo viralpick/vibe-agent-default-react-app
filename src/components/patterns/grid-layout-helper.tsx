@@ -7,13 +7,13 @@ import { cn } from "@/lib/commerce-sdk";
  *
  * @dataStructure
  * - cols: number - Number of grid columns (required, default: 2)
- * - gap: number - Gap between items in design tokens (required, default: 16)
- *   - Maps to Tailwind gap classes (gap-8, gap-16, gap-24, etc.)
+ * - gap: number - Gap between items in Tailwind spacing units (required, default: 4)
+ *   - Maps to Tailwind gap classes (gap-2 = 8px, gap-4 = 16px, gap-6 = 24px, etc.)
  * - children: ReactNode - Child elements to arrange (required)
  * - className?: string - Additional CSS classes
  *
  * @designTokens
- * - Uses spacing tokens: gap-8 (8px), gap-16 (16px), gap-24 (24px), etc.
+ * - Uses spacing tokens: gap-2 (8px), gap-4 (16px), gap-6 (24px), etc.
  * - Columns use minmax(0, 1fr) for equal distribution
  *
  * @useCase
@@ -25,7 +25,7 @@ import { cn } from "@/lib/commerce-sdk";
  * @example
  * ```tsx
  * // 4-column grid for stat cards
- * <Grid cols={4} gap={16}>
+ * <Grid cols={4} gap={4}>
  *   <StatCard title="Revenue" value="$100K" />
  *   <StatCard title="Orders" value="1,234" />
  *   <StatCard title="Users" value="5,678" />
@@ -33,7 +33,7 @@ import { cn } from "@/lib/commerce-sdk";
  * </Grid>
  *
  * // 2-column grid for charts
- * <Grid cols={2} gap={24}>
+ * <Grid cols={2} gap={6}>
  *   <DynamicLineChart {...} />
  *   <DynamicBarChart {...} />
  * </Grid>
@@ -41,7 +41,7 @@ import { cn } from "@/lib/commerce-sdk";
  */
 export function Grid({
   cols = 2,
-  gap = 16,
+  gap = 4,
   children,
   className,
 }: {

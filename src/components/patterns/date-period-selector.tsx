@@ -146,7 +146,7 @@ function formatDateRange(from: Date, to: Date): string {
  * - Uses Calendar with range mode for custom selection
  * - Uses Popover for calendar dropdown
  * - Uses text-label-l (14px) for trigger text
- * - Uses gap-8 between trigger icon and text
+ * - Uses gap-2 between trigger icon and text
  *
  * @useCase
  * - Dashboard date filtering
@@ -293,10 +293,10 @@ export function DatePeriodSelector({
   const displayValue = value?.label || placeholder;
 
   return (
-    <div className={cn("flex items-center gap-8", className)}>
+    <div className={cn("flex items-center gap-2", className)}>
       <Select value={selectValue} onValueChange={handleSelectChange}>
         <SelectTrigger size={size} className="min-w-[160px]">
-          <CalendarIcon className="size-16 text-icon-secondary" />
+          <CalendarIcon className="size-4 text-icon-secondary" />
           <SelectValue placeholder={placeholder}>{displayValue}</SelectValue>
         </SelectTrigger>
         <SelectContent align={align}>
@@ -326,11 +326,11 @@ export function DatePeriodSelector({
       </Select>
 
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <DialogContent className="w-auto max-w-fit p-24">
+        <DialogContent className="w-auto max-w-fit p-6">
           <DialogHeader>
             <DialogTitle>날짜 범위 선택</DialogTitle>
           </DialogHeader>
-          <div className="mt-16">
+          <div className="mt-4">
             <Calendar
               mode="range"
               selected={calendarRange}
@@ -340,7 +340,7 @@ export function DatePeriodSelector({
                 new Date(new Date().getFullYear(), new Date().getMonth() - 1)
               }
             />
-            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
               <Button
                 variant="outline"
                 size="sm"

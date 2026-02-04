@@ -280,7 +280,7 @@ export function DynamicAreaChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && <CardTitle className="w-fit">{title}</CardTitle>}
@@ -299,7 +299,7 @@ export function DynamicAreaChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -488,7 +488,7 @@ export function DynamicLineChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && <CardTitle className="w-fit">{title}</CardTitle>}
@@ -507,7 +507,7 @@ export function DynamicLineChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -759,7 +759,7 @@ export function DynamicBarChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -782,7 +782,7 @@ export function DynamicBarChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -996,7 +996,7 @@ export function DynamicComposedChart({
   const showBrush = dataCount >= 5;
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -1265,7 +1265,7 @@ export function DynamicPieChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -1288,7 +1288,7 @@ export function DynamicPieChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
