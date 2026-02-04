@@ -13,8 +13,8 @@ const dropdownTriggerVariants = cva(
   {
     variants: {
       size: {
-        sm: "h-32 px-8 py-6 text-label-2",
-        md: "h-40 px-12 py-10 text-label-2",
+        sm: "h-8 px-2 py-3 text-label-2",
+        md: "h-10 px-3 py-2.5 text-label-2",
       },
       variant: {
         default:
@@ -40,7 +40,7 @@ const dropdownTriggerVariants = cva(
 // ============================================================================
 
 const dropdownItemVariants = cva(
-  "flex items-center gap-8 p-8 cursor-pointer transition-colors outline-none select-none rounded-small",
+  "flex items-center gap-2 p-2 cursor-pointer transition-colors outline-none select-none rounded-small",
   {
     variants: {
       state: {
@@ -137,7 +137,7 @@ export function Select({
   const selectedOption = options.find((opt) => opt.value === value);
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn("flex flex-col gap-1", className)}>
       {label && (
         <span className="text-label-2 text-text-secondary">{label}</span>
       )}
@@ -152,14 +152,14 @@ export function Select({
           <span className={cn(!selectedOption && "text-text-tertiary")}>
             {selectedOption?.label || placeholder}
           </span>
-          <ChevronDown className="size-16 text-icon-secondary shrink-0" />
+          <ChevronDown className="size-4 text-icon-secondary shrink-0" />
         </DropdownMenuPrimitive.Trigger>
 
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
             align={side === "left" ? "start" : "end"}
             sideOffset={4}
-            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
+            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-1 animate-in fade-in-0 zoom-in-95"
           >
             {options.map((option) => (
               <DropdownMenuPrimitive.Item
@@ -178,7 +178,7 @@ export function Select({
                 )}
               >
                 {option.leadIcon && (
-                  <span className="size-16 shrink-0 text-icon-secondary">
+                  <span className="size-4 shrink-0 text-icon-secondary">
                     {option.leadIcon}
                   </span>
                 )}
@@ -191,7 +191,7 @@ export function Select({
                   )}
                 </div>
                 {value === option.value && (
-                  <Check className="size-16 shrink-0 text-icon-primary" />
+                  <Check className="size-4 shrink-0 text-icon-primary" />
                 )}
               </DropdownMenuPrimitive.Item>
             ))}
@@ -287,7 +287,7 @@ export function MultiSelect({
         : `${selectedCount}개 선택됨`;
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn("flex flex-col gap-1", className)}>
       {label && (
         <span className="text-label-2 text-text-secondary">{label}</span>
       )}
@@ -302,14 +302,14 @@ export function MultiSelect({
           <span className={cn(selectedCount === 0 && "text-text-tertiary")}>
             {displayText}
           </span>
-          <ChevronDown className="size-16 text-icon-secondary shrink-0" />
+          <ChevronDown className="size-4 text-icon-secondary shrink-0" />
         </DropdownMenuPrimitive.Trigger>
 
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
             align={side === "left" ? "start" : "end"}
             sideOffset={4}
-            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-4 animate-in fade-in-0 zoom-in-95"
+            className="z-50 bg-background-0 border border-border-100 rounded-medium shadow-lg p-1 animate-in fade-in-0 zoom-in-95"
           >
             {options.map((option) => {
               const isSelected = values.includes(option.value);
@@ -329,16 +329,16 @@ export function MultiSelect({
                 >
                   <div
                     className={cn(
-                      "size-16 shrink-0 rounded-small border flex items-center justify-center transition-colors",
+                      "size-4 shrink-0 rounded-small border flex items-center justify-center transition-colors",
                       isSelected
                         ? "bg-background-inverted border-transparent"
                         : "border-border-200 bg-background-0"
                     )}
                   >
-                    {isSelected && <Check className="size-12 text-icon-inverted" />}
+                    {isSelected && <Check className="size-3 text-icon-inverted" />}
                   </div>
                   {option.leadIcon && (
-                    <span className="size-16 shrink-0 text-icon-secondary">
+                    <span className="size-4 shrink-0 text-icon-secondary">
                       {option.leadIcon}
                     </span>
                   )}

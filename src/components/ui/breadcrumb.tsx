@@ -36,7 +36,7 @@ const breadcrumbDividerVariants = cva(
   {
     variants: {
       type: {
-        chevron: "[&>svg]:size-16",
+        chevron: "[&>svg]:size-4",
         slash: "text-label-2 font-medium",
       },
     },
@@ -172,7 +172,7 @@ function BreadcrumbItem({
 
   const content = (
     <>
-      {icon && <span className="shrink-0 [&>svg]:size-16">{icon}</span>}
+      {icon && <span className="shrink-0 [&>svg]:size-4">{icon}</span>}
       <span>{children}</span>
     </>
   );

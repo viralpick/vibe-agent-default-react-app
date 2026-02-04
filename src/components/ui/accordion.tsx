@@ -357,7 +357,7 @@ function AccordionTrigger({
               <span
                 className={cn(
                   "shrink-0 text-icon-primary",
-                  size === "lg" ? "[&>svg]:size-20" : "[&>svg]:size-16"
+                  size === "lg" ? "[&>svg]:size-5" : "[&>svg]:size-4"
                 )}
               >
                 {leadIcon}
@@ -369,7 +369,7 @@ function AccordionTrigger({
             <ChevronDown
               className={cn(
                 "shrink-0 text-icon-secondary transition-transform duration-200",
-                size === "lg" ? "size-20" : "size-16",
+                size === "lg" ? "size-5" : "size-4",
                 isOpen && "rotate-180"
               )}
             />
@@ -379,11 +379,11 @@ function AccordionTrigger({
             <div
               className={cn(
                 "flex items-center gap-4 text-body-s text-text-secondary",
-                leadIcon && (size === "lg" ? "pl-28" : "pl-24")
+                leadIcon && (size === "lg" ? "pl-7" : "pl-6")
               )}
             >
               {icon && (
-                <span className="shrink-0 [&>svg]:size-12">{icon}</span>
+                <span className="shrink-0 [&>svg]:size-3">{icon}</span>
               )}
               <span className="truncate">{description}</span>
             </div>

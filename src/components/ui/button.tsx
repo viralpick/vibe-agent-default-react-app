@@ -140,22 +140,22 @@ const buttonVariants = cva(
       {
         buttonType: "default",
         size: "lg",
-        className: "h-48 px-16 py-12 gap-8 text-label-1 [&_svg]:size-20",
+        className: "h-12 px-4 py-3 gap-2 text-label-1 [&_svg]:size-5",
       },
       {
         buttonType: "default",
         size: "md",
-        className: "h-40 px-12 py-10 gap-6 text-label-2 [&_svg]:size-20",
+        className: "h-10 px-3 py-2.5 gap-1.5 text-label-2 [&_svg]:size-5",
       },
       {
         buttonType: "default",
         size: "sm",
-        className: "h-32 px-8 py-6 gap-4 text-label-3 [&_svg]:size-16",
+        className: "h-8 px-2 py-1.5 gap-1 text-label-3 [&_svg]:size-5",
       },
       {
         buttonType: "default",
         size: "xs",
-        className: "h-24 px-4 py-4 gap-4 text-label-4 [&_svg]:size-16",
+        className: "h-6 px-1 py-1 gap-1 text-label-4 [&_svg]:size-5",
       },
 
       // ============================================
@@ -164,22 +164,22 @@ const buttonVariants = cva(
       {
         buttonType: "icon",
         size: "lg",
-        className: "size-48 [&_svg]:size-20",
+        className: "size-12 [&_svg]:size-5",
       },
       {
         buttonType: "icon",
         size: "md",
-        className: "size-40 [&_svg]:size-20",
+        className: "size-10 [&_svg]:size-5",
       },
       {
         buttonType: "icon",
         size: "sm",
-        className: "size-32 [&_svg]:size-16",
+        className: "size-8 [&_svg]:size-4",
       },
       {
         buttonType: "icon",
         size: "xs",
-        className: "size-24 [&_svg]:size-16",
+        className: "size-6 [&_svg]:size-4",
       },
     ],
     defaultVariants: {

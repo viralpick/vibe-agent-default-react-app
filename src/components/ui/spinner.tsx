@@ -16,9 +16,9 @@ const spinnerVariants = cva(
   {
     variants: {
       size: {
-        default: "[&_svg]:size-24",
-        xs: "[&_svg]:size-10",
-        sm: "[&_svg]:size-16",
+        default: "[&_svg]:size-6",
+        xs: "[&_svg]:size-2.5",
+        sm: "[&_svg]:size-4",
       },
     },
     defaultVariants: {

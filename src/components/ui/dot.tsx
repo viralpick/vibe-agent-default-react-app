@@ -6,10 +6,10 @@ import { cn } from "@/lib/commerce-sdk";
 const dotVariants = cva("inline-block rounded-full", {
   variants: {
     size: {
-      small: "size-6",
-      medium: "size-8",
-      large: "size-12",
-      xlarge: "size-16",
+      small: "size-1.5",
+      medium: "size-2",
+      large: "size-3",
+      xlarge: "size-4",
     },
     color: {
       gray: "bg-gray-400",

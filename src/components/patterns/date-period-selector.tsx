@@ -319,7 +319,7 @@ export function DatePeriodSelector({
   }, [presets, monthOptions]);
 
   return (
-    <div className={cn("flex items-center gap-8", className)}>
+    <div className={cn("flex items-center gap-2", className)}>
       <Select
         value={selectValue}
         onValueChange={handleSelectChange}
@@ -331,11 +331,11 @@ export function DatePeriodSelector({
       />
 
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <DialogContent className="w-auto max-w-fit p-24">
+        <DialogContent className="w-auto max-w-fit p-6">
           <DialogHeader>
             <DialogTitle>날짜 범위 선택</DialogTitle>
           </DialogHeader>
-          <div className="mt-16">
+          <div className="mt-4">
             <DatePickerProvider
               type="range"
               rangeValue={
@@ -351,7 +351,7 @@ export function DatePeriodSelector({
             >
               <DatePickerCalendar size="md" />
             </DatePickerProvider>
-            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
               <Button
                 buttonStyle="secondary"
                 size="sm"
