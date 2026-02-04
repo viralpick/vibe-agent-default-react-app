@@ -1,4 +1,3 @@
-import { cn } from "@/lib/commerce-sdk";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 

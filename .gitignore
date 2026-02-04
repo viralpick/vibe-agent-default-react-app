@@ -29,3 +29,4 @@ TestPage.tsx
 prompt.py
 .dom
 .llm
+.kiro
