@@ -28,12 +28,12 @@ import { Select } from "@/components/ui/dropdown";
 // ============================================================================
 
 const datePickerFieldVariants = cva(
-  "inline-flex items-center bg-background-0 gap-8 rounded-medium transition-all border w-full",
+  "inline-flex items-center bg-background-0 gap-2 rounded-medium transition-all border w-full",
   {
     variants: {
       size: {
-        sm: "h-32 px-10 py-6",
-        md: "h-40 px-10 py-8",
+        sm: "h-8 px-2.5 py-1.5",
+        md: "h-10 px-2.5 py-2",
       },
       error: {
         true: "border-border-error focus-within:ring-2 focus-within:ring-border-error",
@@ -57,8 +57,8 @@ const datePickerItemVariants = cva(
   {
     variants: {
       size: {
-        sm: "h-32 w-32 text-caption-1",
-        md: "h-40 w-40 text-caption-1",
+        sm: "h-8 w-8 text-caption-1",
+        md: "h-10 w-10 text-caption-1",
       },
       state: {
         default: "text-text-secondary hover:bg-background-100 cursor-pointer rounded-medium font-normal",
@@ -82,14 +82,14 @@ const datePickerItemVariants = cva(
 );
 
 const datePickerHeaderVariants = cva(
-  "flex items-center p-12 border-b border-border-100",
+  "flex items-center p-3 border-b border-border-100",
   {
     variants: {
       variant: {
-        "variant-a": "justify-between gap-8",
-        "variant-b": "justify-between gap-8",
-        "variant-c": "justify-between gap-8",
-        "variant-d": "justify-between gap-8",
+        "variant-a": "justify-between gap-2",
+        "variant-b": "justify-between gap-2",
+        "variant-c": "justify-between gap-2",
+        "variant-d": "justify-between gap-2",
       },
     },
     defaultVariants: {
@@ -99,7 +99,7 @@ const datePickerHeaderVariants = cva(
 );
 
 const datePickerPresetVariants = cva(
-  "flex items-center w-full px-12 py-8 rounded-medium text-label-2 transition-all cursor-pointer text-left",
+  "flex items-center w-full px-3 py-2 rounded-medium text-label-2 transition-all cursor-pointer text-left",
   {
     variants: {
       selected: {
@@ -314,18 +314,18 @@ function DatePickerGrid({ size = "md", className, ...props }: DatePickerGridProp
       role="grid"
       aria-label={`${format(displayMonth, "yyyy년 M월")} 달력`}
       data-slot="date-picker-grid"
-      className={cn("p-12", className)}
+      className={cn("p-3", className)}
       {...props}
     >
       {/* Weekday headers */}
-      <div role="row" className="grid grid-cols-7 gap-4 mb-8">
+      <div role="row" className="grid grid-cols-7 gap-1 mb-2">
         {weekdays.map((day) => (
           <div
             key={day}
             role="columnheader"
             className={cn(
               "flex items-center justify-center text-label-3 text-text-secondary font-medium",
-              size === "sm" ? "h-32" : "h-40"
+              size === "sm" ? "h-8" : "h-10"
             )}
           >
             {day}
@@ -424,7 +424,7 @@ function DatePickerHeader({
       onValueChange={handleMonthChange}
       size="sm"
       variant="inline"
-      className="w-80"
+      className="w-20"
     />
   );
 
@@ -435,7 +435,7 @@ function DatePickerHeader({
       onValueChange={handleYearChange}
       size="sm"
       variant="inline"
-      className="w-100"
+      className="w-25"
     />
   );
 
@@ -446,7 +446,7 @@ function DatePickerHeader({
       onValueChange={handleMonthYearChange}
       size="sm"
       variant="inline"
-      className="w-140"
+      className="w-35"
     />
   );
 
@@ -461,7 +461,7 @@ function DatePickerHeader({
       type="button"
       onClick={onClick}
       aria-label={direction === "prev" ? "이전 달" : "다음 달"}
-      className="p-4 rounded-small hover:bg-background-100 transition-all text-icon-secondary hover:text-icon-primary"
+      className="p-1 rounded-small hover:bg-background-100 transition-all text-icon-secondary hover:text-icon-primary"
     >
       {direction === "prev" ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
     </button>
@@ -477,7 +477,7 @@ function DatePickerHeader({
       {variant === "variant-a" && (
         <>
           <NavButton direction="prev" onClick={handlePrevMonth} />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
             <MonthSelect />
             <YearSelect />
           </div>
@@ -497,11 +497,11 @@ function DatePickerHeader({
       {/* Variant C: Month↓ Year↓ ← → (분리형 + 내비게이션 우측) */}
       {variant === "variant-c" && (
         <>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
             <MonthSelect />
             <YearSelect />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
             <NavButton direction="prev" onClick={handlePrevMonth} />
             <NavButton direction="next" onClick={handleNextMonth} />
           </div>
@@ -512,7 +512,7 @@ function DatePickerHeader({
       {variant === "variant-d" && (
         <>
           <MonthYearSelect />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
             <NavButton direction="prev" onClick={handlePrevMonth} />
             <NavButton direction="next" onClick={handleNextMonth} />
           </div>
@@ -593,12 +593,12 @@ function DatePickerPresets({ className, ...props }: DatePickerPresetsProps) {
     <div
       data-slot="date-picker-presets"
       className={cn(
-        "flex flex-col gap-4 p-12 border-r border-border-100 min-w-[140px]",
+        "flex flex-col gap-1 p-3 border-r border-border-100 min-w-[140px]",
         className
       )}
       {...props}
     >
-      <span className="text-label-3 text-text-secondary font-medium mb-4">Custom Range</span>
+      <span className="text-label-3 text-text-secondary font-medium mb-1">Custom Range</span>
       {presets.map((preset) => {
         const isSelected =
           selectedRange &&
@@ -660,10 +660,10 @@ function DatePickerTimePicker({ className, ...props }: DatePickerTimePickerProps
   return (
     <div
       data-slot="date-picker-time-picker"
-      className={cn("p-12 border-t border-border-100", className)}
+      className={cn("p-3 border-t border-border-100", className)}
       {...props}
     >
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-2">
         <span className="text-label-2 text-text-secondary">시간</span>
         <input
           type="text"
@@ -671,7 +671,7 @@ function DatePickerTimePicker({ className, ...props }: DatePickerTimePickerProps
           onChange={handleTimeInputChange}
           placeholder="00:00"
           className={cn(
-            "px-8 py-4 rounded-small border text-label-2 text-text-primary focus:outline-none focus:ring-2 bg-background-0 w-80",
+            "px-2 py-1 rounded-small border text-label-2 text-text-primary focus:outline-none focus:ring-2 bg-background-0 w-20",
             error
               ? "border-border-error focus:ring-border-error"
               : "border-border-200 focus:ring-border-brand"
@@ -814,7 +814,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
     const hasValue = type === "single" ? startDateInput : (startDateInput || endDateInput);
 
     return (
-      <div ref={ref} className={cn("flex flex-col gap-6", className)} {...props}>
+      <div ref={ref} className={cn("flex flex-col gap-1.5", className)} {...props}>
         {label && (
           <Label htmlFor={fieldId} className="text-label-2 text-text-primary">
             {label}
@@ -835,8 +835,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
               aria-label="달력 열기"
             >
               <Calendar
-                size={size === "sm" ? 14 : 16}
-                className="text-icon-secondary"
+                className={cn("text-icon-secondary", size === 'sm' ? 'size-3.5' : 'size-4')}
               />
             </button>
 
@@ -900,7 +899,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
                 className="text-icon-secondary hover:text-icon-primary transition-colors shrink-0"
                 aria-label="날짜 지우기"
               >
-                <X size={size === "sm" ? 14 : 16} />
+                <X className={cn(size === 'sm' ? 'size-3.5' : 'size-4')} />
               </button>
             )}
           </div>
@@ -908,7 +907,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
           {/* Time Input(s) - only for single mode with timePicker */}
           {type === "single" && hasTimePicker && (
             <div
-              className={cn(datePickerFieldVariants({ size, error, disabled }), "w-80")}
+              className={cn(datePickerFieldVariants({ size, error, disabled }), "w-20")}
             >
               <input
                 type="text"
@@ -926,7 +925,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
           {type === "range" && hasTimePicker && (
             <>
               <div
-                className={cn(datePickerFieldVariants({ size, error, disabled }), "w-80")}
+                className={cn(datePickerFieldVariants({ size, error, disabled }), "w-20")}
               >
                 <input
                   type="text"
@@ -939,7 +938,7 @@ const DatePickerField = React.forwardRef<HTMLDivElement, DatePickerFieldProps>(
                 />
               </div>
               <div
-                className={cn(datePickerFieldVariants({ size, error, disabled }), "w-80")}
+                className={cn(datePickerFieldVariants({ size, error, disabled }), "w-20")}
               >
                 <input
                   type="text"
