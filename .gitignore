@@ -30,3 +30,4 @@ prompt.py
 .dom
 .llm
 .kiro
+src/pages/*
