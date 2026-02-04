@@ -85,7 +85,7 @@ function DataTableFilter<TData>({
         side="bottom"
         sideOffset={8}
       >
-        <div className="p-4 flex flex-col gap-4">
+        <div className="p-1 flex flex-col gap-1">
           {filters.map((filter, index) => (
             <DataTableFilterItem
               key={index}
@@ -105,12 +105,12 @@ function DataTableFilter<TData>({
             onClick={handleAddFilter}
             className="text-primary hover:text-primary"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-0.5" />
             Add
           </Button>
         </div>
         <Separator />
-        <div className="p-2 flex justify-between items-center">
+        <div className="p-0.5 flex justify-between items-center">
           <p className="text-sm text-muted-foreground">
             {table.getFilteredRowModel().rows.length} results
           </p>
@@ -161,7 +161,7 @@ function DataTableFilterItem<TData>({
   const showInput = !["isEmpty", "isNotEmpty"].includes(item.operator);
 
   return (
-    <div className="flex items-center gap-2 py-1">
+    <div className="flex items-center gap-0.5 py-0.25">
       <span className="text-sm text-muted-foreground">Where</span>
       <Select
         value={item.id}
@@ -188,7 +188,7 @@ function DataTableFilterItem<TData>({
         placeholder="값 입력"
         value={item.value}
         onChange={handleValueChange}
-        className={cn("w-[150px] h-9", !showInput && "invisible")}
+        className={cn("w-[150px] h-3", !showInput && "invisible")}
       />
       <Button buttonStyle="ghost" buttonType="icon" size="sm" onClick={onRemove}>
         <X className="h-4 w-4" />

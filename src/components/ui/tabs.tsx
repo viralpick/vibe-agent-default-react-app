@@ -1,3 +1,10 @@
+/**
+ * @component Tabs
+ * @description Tab-based content switcher. Built on Radix UI Tabs.
+ * Composed of Tabs, TabsList, TabsTrigger, TabsContent.
+ *
+ * @useCase Section navigation, view switching, settings panels
+ */
 import * as React from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/commerce-sdk";
@@ -8,9 +15,9 @@ import { cn } from "@/lib/commerce-sdk";
 const tabsListVariants = cva("inline-flex items-center", {
   variants: {
     variant: {
-      segmented: "gap-2 p-4 bg-background-100 rounded-large",
-      fill: "gap-2 p-4",
-      line: "gap-2 p-4",
+      segmented: "gap-0.5 p-1 bg-background-100 rounded-large",
+      fill: "gap-0.5 p-1",
+      line: "gap-0.5 p-1",
     },
     size: {
       sm: "",
@@ -34,9 +41,9 @@ const tabsTriggerVariants = cva(
         line: "border-b-2 border-transparent data-[state=active]:border-border-900",
       },
       size: {
-        sm: "h-30 px-8 py-2",
-        md: "h-32 px-12 py-4",
-        lg: "h-42 px-12 py-8",
+        sm: "h-8 px-2 py-0.5",
+        md: "h-8 px-3 py-1",
+        lg: "h-10 px-3 py-2",
       },
     },
     defaultVariants: {
@@ -252,7 +259,7 @@ export const TabsContent = React.forwardRef<HTMLDivElement, TabsContentProps>(
         ref={ref}
         role="tabpanel"
         data-state={isActive ? "active" : "inactive"}
-        className={cn("mt-8", className)}
+        className={cn("mt-2", className)}
         {...props}
       >
         {children}

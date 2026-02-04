@@ -33,7 +33,7 @@
  */
 
 /** CommentCard - Status-based feedback message with icons */
-export { default as CommentCard } from "./comment-card";
+export * from "./comment-card";
 
 /** ChartCard - Container for chart components with title and actions */
 export * from "./chart-card";
@@ -60,10 +60,13 @@ export * from "./page-header";
 export * from "./stat-card";
 
 /** StatusCard - Flexible metric display (progress, rating, metrics) */
-export { default as StatusCard } from "./status-card";
+export * from "./status-card";
 
 /** ViewTabs - Tab-based view switching */
 export * from "./view-tabs";
 
 /** DatePeriodSelector - Date period picker with presets, monthly, and range selection */
 export * from "./date-period-selector";
+
+/** Data Utils - Utilities for GraphQL response handling */
+export * from "./data-utils";

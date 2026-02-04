@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/commerce-sdk";
@@ -56,6 +56,25 @@ const DEFAULT_PRESETS: DatePresetOption[] = [
   { id: "30days", label: "최근 30일", days: 30 },
   { id: "90days", label: "최근 90일", days: 90 },
 ];
+
+/**
+ * Creates the default DatePeriodValue (최근 30일)
+ * Shared between DatePeriodSelector and injectDateFilters for consistency
+ */
+export function getDefaultDatePeriod(): DatePeriodValue {
+  const today = new Date();
+  const to = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+  const from = new Date(today);
+  from.setDate(today.getDate() - 30);
+  from.setHours(0, 0, 0, 0);
+
+  return {
+    type: "preset",
+    from,
+    to,
+    label: "최근 30일",
+  };
+}
 
 /**
  * Generates month options for the past N months
@@ -120,7 +139,7 @@ function formatDateRange(from: Date, to: Date): string {
  * - Uses Calendar with range mode for custom selection
  * - Uses Popover for calendar dropdown
  * - Uses text-label-l (14px) for trigger text
- * - Uses gap-8 between trigger icon and text
+ * - Uses gap-2 between trigger icon and text
  *
  * @useCase
  * - Dashboard date filtering
@@ -171,6 +190,12 @@ export function DatePeriodSelector({
     () => getMonthOptions(monthsCount),
     [monthsCount]
   );
+
+  useEffect(() => {
+    if (!value || !isValidDatePeriodValue(value)) {
+      onChange(getDefaultDatePeriod());
+    }
+  }, []); // Run only on mount
 
   // Compute current select value
   const selectValue = useMemo(() => {
@@ -231,6 +256,9 @@ export function DatePeriodSelector({
     }
   };
 
+  const handleCalendarSelect = (range: DateRange | undefined) => {
+    setCalendarRange(range);
+  };
 
   const handleCalendarApply = () => {
     if (calendarRange?.from && calendarRange?.to) {
@@ -382,19 +410,12 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
   from: string;
   to: string;
 } {
-  // Validate period - if invalid, treat as undefined
+  // Validate period - if invalid, use default (최근 30일)
   if (!isValidDatePeriodValue(period)) {
-    // Default to last 30 days
-    const today = new Date();
-    const from = new Date(today);
-    from.setDate(today.getDate() - 30);
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(today);
-    to.setHours(23, 59, 59, 999);
-
+    const defaultPeriod = getDefaultDatePeriod();
     return {
-      from: from.toISOString(),
-      to: to.toISOString(),
+      from: defaultPeriod.from.toISOString(),
+      to: defaultPeriod.to.toISOString(),
     };
   }
 

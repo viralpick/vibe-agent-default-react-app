@@ -25,6 +25,7 @@ import {
   ColumnPrice,
   ColumnValue,
 } from "@/components/ui/column";
+import { normalizeNumericValue } from "./data-utils";
 
 /**
  * Column metadata definition for DynamicDataTable
@@ -151,7 +152,22 @@ export const DynamicDataTable = ({
   queryId,
   queryContent,
 }: DynamicDataTableProps): JSX.Element => {
-  const safeData = Array.isArray(data) ? data : [];
+  // Normalize data: convert object values (like { review_id: 4 }) to numbers
+  const safeData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data.map((row) => {
+      const normalizedRow: Record<string, string | number | boolean> = {};
+      for (const [key, value] of Object.entries(row)) {
+        // If value is an object (not null, not array), extract numeric value
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          normalizedRow[key] = normalizeNumericValue(value);
+        } else {
+          normalizedRow[key] = value as string | number | boolean;
+        }
+      }
+      return normalizedRow;
+    });
+  }, [data]);
 
   const percentFormatter = useMemo(
     () =>
@@ -171,6 +187,7 @@ export const DynamicDataTable = ({
         : "";
 
     return {
+      id: col.key,
       accessorKey: col.key,
       size: col.width ?? 120,
       minSize: col.minWidth ?? 100,
@@ -192,8 +209,8 @@ export const DynamicDataTable = ({
             col.progress
           ) {
             return (
-              <div className={cn("flex items-center gap-2", alignClass)}>
-                <Progress value={value} className="w-[56px] flex-row items-center gap-4">
+              <div className={cn("flex items-center gap-0.5", alignClass)}>
+                <Progress value={value} className="w-[56px] flex-row items-center gap-1">
                   <Progress.Bar
                     indicatorClassName={col.progress.color ? getColorClass(col.progress.color) : "bg-[#2a9d90]"}
                   />

@@ -18,9 +18,9 @@ const tooltipVariants = cva(
   {
     variants: {
       size: {
-        lg: "p-12 rounded-large",
-        md: "px-8 py-4 h-32 flex items-center rounded-large",
-        sm: "px-8 py-4 h-24 flex items-center rounded-[2px]",
+        lg: "p-3 rounded-large",
+        md: "px-2 py-1 h-8 flex items-center rounded-large",
+        sm: "px-2 py-1 h-6 flex items-center rounded-[2px]",
       },
     },
     defaultVariants: {

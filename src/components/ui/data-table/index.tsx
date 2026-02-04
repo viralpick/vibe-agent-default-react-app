@@ -379,11 +379,11 @@ function DataTable<TData, TValue>({
       : (value: number) => table.setPageSize(value);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-1">
       {(title || showSearch || showOptions || onDownload || customToolbar) && (
         <div className="w-full flex items-center justify-between">
           {title && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-0.5 items-center">
               <h2 className="text-xl font-bold">
                 {title}
               </h2>
@@ -459,7 +459,7 @@ function DataTable<TData, TValue>({
                           header.column.columnDef.meta?.cellVariant === "dim" &&
                             "bg-state-200",
                           header.column.columnDef.meta?.headerClassName,
-                          size === "xs" && "h-32 py-2 px-6 text-xs",
+                          size === "xs" && "h-8 py-0.5 px-1.5 text-xs",
                           size === "sm" && "h-9 py-1 px-2.5 text-xs",
                           className
                         )}
@@ -479,7 +479,7 @@ function DataTable<TData, TValue>({
                             onMouseDown={header.getResizeHandler()}
                             onTouchStart={header.getResizeHandler()}
                             className={cn(
-                              "absolute p-1 right-0 top-0 h-full w-2.5 bg-transparent cursor-col-resize select-none touch-none hover:bg-muted-foreground/10",
+                              "absolute p-px right-0 top-0 h-full w-0.5 bg-transparent cursor-col-resize select-none touch-none hover:bg-muted-foreground/10",
                               header.column.getIsResizing() &&
                                 "bg-muted-foreground/20"
                             )}
@@ -571,7 +571,7 @@ function DataTable<TData, TValue>({
                             cell.column.columnDef.meta?.cellVariant === "dim" &&
                               "bg-state-200",
                             "transition-colors duration-150 ease-in-out",
-                            size === "xs" && "py-1 px-1.5 text-xs",
+                            size === "xs" && "py-px px-0.5 text-xs",
                             size === "sm" && "py-2 px-2.5 text-xs",
                             className
                           )}

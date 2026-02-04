@@ -32,9 +32,9 @@ const barVariants = cva("relative w-full overflow-hidden bg-background-track", {
       stripped: "",
     },
     size: {
-      sm: "h-4",
-      md: "h-8",
-      lg: "h-12",
+      sm: "h-1",
+      md: "h-2",
+      lg: "h-3",
     },
   },
   defaultVariants: {
@@ -46,9 +46,9 @@ const barVariants = cva("relative w-full overflow-hidden bg-background-track", {
 const circleVariants = cva("relative inline-flex items-center justify-center", {
   variants: {
     size: {
-      sm: "h-32 w-32",
-      md: "h-68 w-68",
-      lg: "h-80 w-80",
+      sm: "h-8 w-8",
+      md: "h-17 w-17",
+      lg: "h-20 w-20",
     },
   },
   defaultVariants: {
@@ -75,7 +75,7 @@ function ProgressRoot({
         data-slot="progress-root"
         value={value}
         max={max}
-        className={cn("flex flex-col gap-8 w-full", className)}
+        className={cn("flex flex-col gap-2 w-full", className)}
         {...props}
       >
         {children}
@@ -193,7 +193,7 @@ function ProgressHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("flex items-center justify-between w-full", className)}>
-      <div className="flex items-center gap-4">{children}</div>
+      <div className="flex items-center gap-1">{children}</div>
     </div>
   );
 }
@@ -206,7 +206,7 @@ function ProgressFooter({
   children,
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-4 w-full mt-4", className)}>
+    <div className={cn("flex items-center gap-1 w-full mt-1", className)}>
       {children}
     </div>
   );
@@ -253,7 +253,7 @@ function ProgressValue({
   return (
     <div
       className={cn(
-        "flex items-center gap-4 px-8 py-4 bg-background-100 rounded-small text-label-l font-bold text-text-primary",
+        "flex items-center gap-1 px-2 py-1 bg-background-100 rounded-small text-label-l font-bold text-text-primary",
         className
       )}
     >
@@ -280,7 +280,7 @@ function ProgressCaption({
  * 프로그레스 스피너 (로딩 표시)
  */
 function ProgressSpinner({ className }: { className?: string }) {
-  return <Loader2 className={cn("h-16 w-16 animate-spin text-icon-secondary", className)} />;
+  return <Loader2 className={cn("h-4 w-4 animate-spin text-icon-secondary", className)} />;
 }
 
 // --- Export ---

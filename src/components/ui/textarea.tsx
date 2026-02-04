@@ -1,9 +1,16 @@
+/**
+ * @component Textarea
+ * @description Multi-line text input with auto-sizing.
+ *
+ * @designTokens rounded-medium, px-3, py-2, text-label-l
+ * @useCase Comments, descriptions, long-form input, notes
+ */
 import * as React from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/commerce-sdk";
 
 const textareaVariants = cva(
-  "w-full p-12 text-label-2 rounded-medium border transition-all resize-none border-border-200 bg-background-0 hover:border-border-200-hover focus:border-border-brand focus:ring-2 focus:ring-border-brand focus:ring-offset-1 disabled:border-border-100 disabled:bg-background-50 disabled:text-text-primary-disabled disabled:cursor-not-allowed text-text-primary placeholder:text-text-tertiary outline-none"
+  "w-full p-3 text-label-2 rounded-medium border transition-all resize-none border-border-200 bg-background-0 hover:border-border-200-hover focus:border-border-brand focus:ring-2 focus:ring-border-brand focus:ring-offset-1 disabled:border-border-100 disabled:bg-background-50 disabled:text-text-primary-disabled disabled:cursor-not-allowed text-text-primary placeholder:text-text-tertiary outline-none"
 );
 
 /**
@@ -97,7 +104,7 @@ function TextareaActions({ children, className, ...props }: TextareaActionsProps
   return (
     <div
       data-slot="textarea-actions"
-      className={cn("flex items-center justify-end gap-8 mt-8", className)}
+      className={cn("flex items-center justify-end gap-2 mt-2", className)}
       {...props}
     >
       {children}

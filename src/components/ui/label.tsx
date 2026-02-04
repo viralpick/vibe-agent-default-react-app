@@ -1,3 +1,9 @@
+/**
+ * @component Label
+ * @description Accessible label for form controls. Built on Radix UI Label.
+ *
+ * @useCase Form field labels, checkbox labels, radio button labels
+ */
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -8,7 +14,7 @@ const labelVariants = cva(
   {
     variants: {
       required: {
-        true: "after:content-['*'] after:ml-4 after:text-text-error",
+        true: "after:content-['*'] after:ml-1 after:text-text-error",
         false: "",
       },
     },

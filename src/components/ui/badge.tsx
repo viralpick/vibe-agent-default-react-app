@@ -1,3 +1,10 @@
+/**
+ * @component Badge
+ * @description Small label for status, categories, or counts.
+ * Variants: default, secondary, destructive, outline.
+ *
+ * @useCase Status indicators, tags, notification counts, labels
+ */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/commerce-sdk";
@@ -7,8 +14,8 @@ const badgeVariants = cva(
   {
     variants: {
       size: {
-        lg: "h-28 px-6 py-4 gap-4 text-body-s [&>svg]:size-16",
-        sm: "h-20 px-4 py-2 gap-4 text-label-m [&>svg]:size-12",
+        lg: "h-7 px-1.5 py-1 gap-1 text-body-s [&>svg]:size-4",
+        sm: "h-5 px-1 py-0.5 gap-1 text-label-m [&>svg]:size-3",
       },
       shape: {
         rounded: "rounded-round",
@@ -221,9 +228,9 @@ function Badge({
       )}
       {...props}
     >
-      {leftIcon && <span className="shrink-0 w-16 h-16">{leftIcon}</span>}
+      {leftIcon && <span className="shrink-0 w-4 h-4">{leftIcon}</span>}
       {children}
-      {rightIcon && <span className="shrink-0 w-16 h-16">{rightIcon}</span>}
+      {rightIcon && <span className="shrink-0 w-4 h-4">{rightIcon}</span>}
     </span>
   );
 }

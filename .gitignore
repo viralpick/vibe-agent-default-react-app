@@ -25,5 +25,7 @@ dist-ssr
 *.sw?
 
 # for tests
+TestPage.tsx
+prompt.py
 .dom
 .llm

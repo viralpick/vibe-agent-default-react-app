@@ -1,14 +1,22 @@
+/**
+ * @component Input
+ * @description Single-line text input field with consistent styling.
+ * Supports all native input types (text, email, password, number, etc.).
+ *
+ * @designTokens h-9, rounded-medium, px-3, text-label-l
+ * @useCase Form fields, search inputs, filters
+ */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/commerce-sdk";
 
 const inputVariants = cva(
-  "inline-flex items-center bg-gray-0 gap-4 rounded-medium transition-all focus-within:ring-2 focus-within:ring-border-brand focus-within:ring-offset-1",
+  "inline-flex items-center bg-gray-0 gap-1 rounded-medium transition-all focus-within:ring-2 focus-within:ring-border-brand focus-within:ring-offset-1",
   {
     variants: {
       size: {
-        sm: "h-32 px-10 py-6",
-        md: "h-40 p-10",
+        sm: "h-8 px-2.5 py-1.5",
+        md: "h-10 p-2.5",
       },
       isFilled: {
         true: "",
@@ -96,7 +104,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
       >
         {leadIcon && (
-          <span className="shrink-0 text-icon-secondary [&>svg]:size-16">
+          <span className="shrink-0 text-icon-secondary [&>svg]:size-4">
             {leadIcon}
           </span>
         )}
@@ -110,7 +118,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         />
         {badge && <span className="shrink-0">{badge}</span>}
         {tailIcon && (
-          <span className="shrink-0 text-icon-secondary [&>svg]:size-16">
+          <span className="shrink-0 text-icon-secondary [&>svg]:size-4">
             {tailIcon}
           </span>
         )}

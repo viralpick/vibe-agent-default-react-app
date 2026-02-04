@@ -17,7 +17,7 @@ import { Skeleton } from "../ui/skeleton";
  * - Uses rounded-xlarge (12px) for card border radius
  * - Uses border-gray-200, bg-gray-0 for card styling
  * - Uses text-t1 for title typography
- * - Uses px-24, py-20 for header padding
+ * - Uses px-6, py-5 for header padding
  * - Fixed height of 400px
  *
  * @useCase
@@ -53,7 +53,7 @@ export function ChartCard({
 }) {
   return (
     <Card className="flex flex-col rounded-xlarge border border-gray-200 bg-gray-0 h-[400px]">
-      <CardHeader className="px-24 py-20 border-b border-gray-100 flex flex-row items-center justify-between space-y-0">
+      <CardHeader className="px-6 py-5 border-b border-gray-100 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="font-semibold text-t1 text-text-primary">
           {title}
         </CardTitle>

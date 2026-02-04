@@ -1,3 +1,11 @@
+/**
+ * @component Button
+ * @description Interactive button with multiple variants and sizes.
+ * Variants: default, destructive, outline, secondary, ghost, link.
+ * Sizes: default (36px), sm (32px), lg (40px), icon, icon-sm, icon-lg.
+ *
+ * @useCase Primary actions, form submissions, navigation, icon buttons
+ */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";

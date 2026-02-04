@@ -278,7 +278,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "bg-[#ffffff] grid min-w-[8rem] items-start gap-6 rounded-xlarge border border-gray-200 px-12 py-8 text-xs shadow-lg",
+        "bg-[#ffffff] grid min-w-[8rem] items-start gap-1.5 rounded-xlarge border border-gray-200 px-3 py-2 text-xs shadow-lg",
         className
       )}
     >
@@ -309,7 +309,7 @@ function ChartTooltipContent({
                     item.payload ?? {}
                   )
                 ) : (
-                  <div className="flex items-center justify-between gap-12 w-full min-w-[140px]">
+                  <div className="flex items-center justify-between gap-3 w-full min-w-[140px]">
                     <div className="flex items-center gap-2">
                       {itemConfig?.icon ? (
                         <itemConfig.icon />
@@ -317,7 +317,7 @@ function ChartTooltipContent({
                         !hideIndicator && (
                           <div
                             className={cn("shrink-0 rounded-[3px]", {
-                              "h-8 w-8": indicator === "dot",
+                              "h-2 w-2": indicator === "dot",
                               "w-1 h-3": indicator === "line",
                               "w-0 h-3 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
@@ -397,8 +397,8 @@ function ChartLegendContent({
   return (
     <div
       className={cn(
-        "flex items-center justify-center gap-12",
-        verticalAlign === "top" ? "pb-12" : "pt-12",
+        "flex items-center justify-center gap-3",
+        verticalAlign === "top" ? "pb-3" : "pt-3",
         className
       )}
     >

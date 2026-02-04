@@ -192,8 +192,8 @@ export default function StatusCard({
           {title}
         </CardTitle>
         {percent ? (
-          <div className="flex items-center gap-2">
-            <Progress value={percent.value} className="w-[56px] flex-row items-center gap-4">
+          <div className="flex items-center gap-0.5">
+            <Progress value={percent.value} className="w-[56px] flex-row items-center gap-1">
               <Progress.Bar
                 indicatorClassName={percent.color ? getColorClass(percent.color) : "bg-[#2a9d90]"}
               />
@@ -209,14 +209,14 @@ export default function StatusCard({
           </div>
         ) : (
           Icon && (
-            <div className="size-16 text-black/50">
+            <div className="size-4 text-black/50">
               {React.createElement(Icon, { size: 16 })}
             </div>
           )
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
           {renderMainValue(value, maxValue, format)}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {progress && (
@@ -226,19 +226,19 @@ export default function StatusCard({
                   indicatorClassName={progress.color ? getColorClass(progress.color) : "bg-[#2a9d90]"}
                 />
               </Progress>
-              <p className="flex text-xs text-muted-foreground mt-1 justify-between">
+              <p className="flex text-xs text-muted-foreground mt-0.25 justify-between">
                 <span>0</span>
                 <span>{progress.max}</span>
               </p>
             </div>
           )}
           {rating && (
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-1.5">
               {[...Array(rating.max || 5)].map((_, i) => (
                 <StarIcon
                   key={i}
                   className={cn(
-                    "size-22 text-[#d9d9d9]",
+                    "size-5.5 text-[#d9d9d9]",
                     i < Math.round(rating.value) && "text-[#fbbf24]"
                   )}
                 />
@@ -246,9 +246,9 @@ export default function StatusCard({
             </div>
           )}
           {metrics && (
-            <div className="text-xs text-muted-foreground flex gap-4 flex-wrap">
+            <div className="text-xs text-muted-foreground flex gap-1 flex-wrap">
               {metrics.mom !== undefined && (
-                <span className="flex gap-2">
+                <span className="flex gap-0.5">
                   MoM
                   <span
                     className={
@@ -261,7 +261,7 @@ export default function StatusCard({
                 </span>
               )}
               {metrics.wow !== undefined && (
-                <span className="flex gap-2">
+                <span className="flex gap-0.5">
                   WoW
                   <span
                     className={
@@ -274,7 +274,7 @@ export default function StatusCard({
                 </span>
               )}
               {metrics.dod !== undefined && (
-                <span className="flex gap-22">
+                <span className="flex gap-5.5">
                   DoD
                   <span
                     className={

@@ -403,14 +403,14 @@ function ColumnArrowPrice({ value }: ColumnArrowPriceProps): React.JSX.Element {
   }).format(absValue);
   if (value > 0) {
     return (
-      <div className="flex items-center gap-8 justify-end">
+      <div className="flex items-center gap-2 justify-end">
         <ArrowUp size={16} />
         <span className="text-right">+{formattedValue}</span>
       </div>
     );
   } else if (value < 0) {
     return (
-      <div className="text-red-500 flex items-center gap-8 justify-end">
+      <div className="text-red-500 flex items-center gap-2 justify-end">
         <ArrowDown size={16} />
         <span className="text-right">-{formattedValue}</span>
       </div>
@@ -449,7 +449,7 @@ function ColumnCheckStatus({
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="flex items-center text-muted-foreground gap-4">
+              <p className="flex items-center text-muted-foreground gap-1">
                 <span className="text-xs">Skip</span>
                 <Info size={12} />
               </p>

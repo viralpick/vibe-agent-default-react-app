@@ -29,11 +29,13 @@ type DataTableColumnHeaderProps<TData, TValue> = Omit<
 
 function DataTableColumnHeader<TData, TValue>({
   column,
+  prefix,
   size,
   title,
   tooltip,
   tooltipIcon,
   className,
+  disableSort = false,
   disableHiding = false,
 }: DataTableColumnHeaderProps<TData, TValue>): React.JSX.Element {
   if (!column.getCanSort()) {
@@ -43,7 +45,7 @@ function DataTableColumnHeader<TData, TValue>({
   return (
     <div
       className={cn(
-        "flex items-center gap-2",
+        "flex items-center gap-0.5",
         size === "sm" && "text-xs",
         className
       )}
@@ -53,27 +55,27 @@ function DataTableColumnHeader<TData, TValue>({
         size={size === "sm" ? "sm" : "md"}
         side="left"
         className={cn(
-          "-ml-12 -mr-12 h-32 gap-4",
-          size === "sm" && "h-6 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5"
+          "-ml-3 -mr-3 h-8 gap-1",
+          size === "sm" && "h-1.5 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5"
         )}
         placeholder={title}
         options={[
           {
             value: "asc",
             label: "Asc",
-            leadIcon: <ArrowUp className="size-16" />,
+            leadIcon: <ArrowUp className="size-4" />,
           },
           {
             value: "desc",
             label: "Desc",
-            leadIcon: <ArrowDown className="size-16" />,
+            leadIcon: <ArrowDown className="size-4" />,
           },
           ...(!disableHiding
             ? [
                 {
                   value: "hide",
                   label: "Hide",
-                  leadIcon: <EyeOff className="size-16" />,
+                  leadIcon: <EyeOff className="size-4" />,
                 },
               ]
             : []),

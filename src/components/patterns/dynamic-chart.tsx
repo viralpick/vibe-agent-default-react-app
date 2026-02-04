@@ -25,6 +25,7 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  Brush,
 } from "recharts";
 
 import { cn } from "@/lib/commerce-sdk";
@@ -45,8 +46,89 @@ import {
 } from "@/components/ui/card";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { normalizeNumericValue } from "./data-utils";
 
 const DEFAULT_CHART_HEIGHT = 300;
+
+/**
+ * Normalizes chart data by converting object values to numbers.
+ * Handles GraphQL response patterns where numeric values are wrapped in objects.
+ */
+const normalizeChartData = (data: Record<string, unknown>[]): Record<string, unknown>[] => {
+  if (!Array.isArray(data)) return [];
+  return data.map((item) => {
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(item)) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        normalized[key] = normalizeNumericValue(value);
+      } else {
+        normalized[key] = value;
+      }
+    }
+    return normalized;
+  });
+};
+
+/**
+ * Formats large numbers with K/M/B suffixes for better readability on axes
+ * @param value - The numeric value to format
+ * @returns Formatted string with appropriate suffix
+ */
+const formatAxisNumber = (value: number): string => {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString();
+};
+
+/**
+ * Formats brush tick values - converts dates to yyyy-MM-dd format if possible
+ * @param value - The tick value to format
+ * @returns Formatted string
+ */
+const formatBrushTick = (value: unknown): string => {
+  if (value == null) return "";
+  const strValue = String(value);
+  
+  // Try to parse as date
+  const date = new Date(strValue);
+  if (!isNaN(date.getTime()) && strValue.length > 6) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  
+  return strValue;
+};
+
+/**
+ * Formats date values to M/D format for display
+ * @param value - The date value to format
+ * @returns Formatted string in M/D format or original value if not a date
+ */
+const formatDateShort = (value: unknown): string => {
+  if (value == null) return "";
+  const strValue = String(value);
+  
+  // Check if it looks like an ISO date (YYYY-MM-DD...)
+  if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
+    const date = new Date(strValue);
+    if (!isNaN(date.getTime())) {
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
+  }
+  
+  return strValue;
+};
+
+/**
+ * Checks if a value looks like an ISO date string
+ */
+const isISODateString = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false;
+  return /^\d{4}-\d{2}-\d{2}/.test(value);
+};
 
 type SeriesType = "line" | "bar" | "area";
 type YAxisSide = "left" | "right";
@@ -101,6 +183,8 @@ export type BaseDynamicChartProps = {
 
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
+  /** Show loading skeleton */
+  isLoading?: boolean;
 };
 
 /**
@@ -154,15 +238,68 @@ export function DynamicAreaChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  isLoading = false,
   queryId,
   queryContent,
 }: DynamicAreaChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
+  
+  // Auto-determine brush and x-axis labels based on data count
+  const showBrush = dataCount >= 5;
+  const hideXAxisLabels = dataCount >= 30;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
+
+  if (isLoading) {
+    return (
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
+        {(title || description) && (
+          <CardHeader>
+            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {description ? (
+              <CardDescription>{description}</CardDescription>
+            ) : (
+              <CardDescription hidden />
+            )}
+          </CardHeader>
+        )}
+        <CardContent>
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -185,9 +322,9 @@ export function DynamicAreaChart({
         >
           <AreaChart
             accessibilityLayer
-            data={data ?? []}
-            height={height}
-            margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
+            data={normalizedData}
+            height={chartHeight}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
             <CartesianGrid vertical={false} stroke="#ebebeb" />
             <XAxis
@@ -195,9 +332,10 @@ export function DynamicAreaChart({
               tickLine={false}
               axisLine={false}
               tickMargin={5}
-              tickFormatter={tickFormatter}
+              tickFormatter={autoTickFormatter}
               fontSize={10}
-              interval={0}
+              interval={showBrush ? "preserveStartEnd" : 0}
+              tick={hideXAxisLabels ? false : undefined}
               dx={10}
               dy={0}
             />
@@ -207,11 +345,12 @@ export function DynamicAreaChart({
               tickLine={false}
               tickMargin={8}
               axisLine={false}
+              tickFormatter={formatAxisNumber}
             />
             {tooltipIndicator !== false && (
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
               />
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
@@ -231,6 +370,16 @@ export function DynamicAreaChart({
                 />
               );
             })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(4, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
           </AreaChart>
         </ChartContainer>
       </CardContent>
@@ -240,6 +389,8 @@ export function DynamicAreaChart({
 
 export type DynamicLineChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
+  /** Show loading skeleton */
+  isLoading?: boolean;
 };
 
 /**
@@ -294,15 +445,69 @@ export function DynamicLineChart({
   tooltipIndicator = "dot",
   showLegend = true,
   tickFormatter,
+  isLoading = false,
   queryId,
   queryContent,
 }: DynamicLineChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
+  
+  // Auto-determine brush and x-axis labels based on data count
+  const showBrush = dataCount >= 5;
+  const hideXAxisLabels = dataCount >= 30;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    // Check first data item for ISO date format
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
+
+  if (isLoading) {
+    return (
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
+        {(title || description) && (
+          <CardHeader>
+            {title && <CardTitle className="w-fit">{title}</CardTitle>}
+            {description ? (
+              <CardDescription>{description}</CardDescription>
+            ) : (
+              <CardDescription hidden />
+            )}
+          </CardHeader>
+        )}
+        <CardContent>
+          <Skeleton className="w-full" style={{ height: chartHeight }} />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -325,9 +530,9 @@ export function DynamicLineChart({
         >
           <LineChart
             accessibilityLayer
-            data={data ?? []}
-            height={height}
-            margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
+            data={normalizedData}
+            height={chartHeight}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
             <CartesianGrid vertical={false} stroke="#ebebeb" />
             <XAxis
@@ -335,9 +540,10 @@ export function DynamicLineChart({
               tickLine={false}
               axisLine={false}
               tickMargin={5}
-              tickFormatter={tickFormatter}
+              tickFormatter={autoTickFormatter}
               fontSize={10}
-              interval={0}
+              interval={showBrush ? "preserveStartEnd" : 0}
+              tick={hideXAxisLabels ? false : undefined}
               dx={10}
               dy={0}
             />
@@ -347,11 +553,12 @@ export function DynamicLineChart({
               tickLine={false}
               tickMargin={8}
               axisLine={false}
+              tickFormatter={formatAxisNumber}
             />
             {tooltipIndicator !== false && (
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
               />
             )}
             {showLegend && <Legend content={<ChartLegendContent />} />}
@@ -369,6 +576,16 @@ export function DynamicLineChart({
                 />
               );
             })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(4, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
           </LineChart>
         </ChartContainer>
       </CardContent>
@@ -439,31 +656,56 @@ export function DynamicBarChart({
   showLegend = true,
   tickFormatter,
   isLoading = false,
-  maxVisibleItems,
   queryId,
   queryContent,
 }: DynamicBarChartProps & {
   isLoading?: boolean;
-  maxVisibleItems?: number;
 }): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
 
   // For horizontal layout, calculate height based on data count
   const barHeight = 36; // height per bar item
-  const dataCount = Array.isArray(data) ? data.length : 0;
+  const dataCount = normalizedData.length;
+
+  // Auto-determine brush and x-axis labels based on data count (vertical layout only)
+  const showBrush = layout === "vertical" && dataCount >= 5;
+  const hideXAxisLabels = layout === "vertical" && dataCount >= 30;
+
+  // Auto-detect date format and apply formatting
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  // Format tooltip labels for dates
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return (value: unknown) => {
+        const strValue = String(value ?? '');
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
 
   const chartHeight = useMemo(() => {
     if (layout !== "horizontal") return baseHeight;
     // Calculate dynamic height based on data count
     const calculatedHeight = dataCount * barHeight + 40; // 40px for padding
-    // Use maxVisibleItems to limit visible area, rest will scroll
-    if (maxVisibleItems && dataCount > maxVisibleItems) {
-      return maxVisibleItems * barHeight + 40;
-    }
     return Math.max(baseHeight, calculatedHeight);
-  }, [layout, dataCount, baseHeight, maxVisibleItems]);
+  }, [layout, dataCount, baseHeight]);
 
   // Actual chart height (for scrollable content)
   const actualChartHeight = useMemo(() => {
@@ -471,7 +713,7 @@ export function DynamicBarChart({
     return dataCount * barHeight + 40;
   }, [layout, dataCount, chartHeight]);
 
-  // Whether scrolling is needed
+  // Whether scrolling is needed (horizontal layout only)
   const needsScroll =
     layout === "horizontal" && actualChartHeight > chartHeight;
 
@@ -481,13 +723,13 @@ export function DynamicBarChart({
 
   const autoYAxisWidth = useMemo(() => {
     if (layout !== "horizontal" || !yAxisKey) return undefined;
-    const maxLen = (Array.isArray(data) ? data : []).reduce((m, d) => {
+    const maxLen = normalizedData.reduce((m, d) => {
       const v = String((d as Record<string, unknown>)[yAxisKey] ?? "");
       return Math.max(m, v.length);
     }, 0);
     const est = maxLen * charWidth + 16;
     return Math.min(maxWidth, Math.max(minWidth, est));
-  }, [layout, yAxisKey, data]);
+  }, [layout, yAxisKey, normalizedData]);
 
   const AutoTick = ({
     x,
@@ -517,7 +759,7 @@ export function DynamicBarChart({
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -540,7 +782,7 @@ export function DynamicBarChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -567,7 +809,7 @@ export function DynamicBarChart({
           >
             <BarChart
               accessibilityLayer
-              data={data ?? []}
+              data={normalizedData}
               layout={layout === "horizontal" ? "vertical" : undefined}
               height={actualChartHeight}
               margin={
@@ -576,7 +818,7 @@ export function DynamicBarChart({
                   : {
                       top: 0,
                       right: 25,
-                      bottom: 0,
+                      bottom: showBrush ? 30 : 0,
                       left: 15,
                     }
               }
@@ -594,7 +836,9 @@ export function DynamicBarChart({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={10}
-                  tickFormatter={tickFormatter}
+                  tickFormatter={autoTickFormatter}
+                  interval={showBrush ? "preserveStartEnd" : 0}
+                  tick={hideXAxisLabels ? false : undefined}
                 />
               ) : (
                 <XAxis type="number" dataKey={xAxisKey} hide />
@@ -607,7 +851,6 @@ export function DynamicBarChart({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={10}
-                  // tickFormatter={tickFormatter}
                   tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
                 />
               ) : (
@@ -617,12 +860,13 @@ export function DynamicBarChart({
                   tickLine={false}
                   tickMargin={8}
                   axisLine={false}
+                  tickFormatter={formatAxisNumber}
                 />
               )}
               {tooltipIndicator !== false && (
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent indicator={tooltipIndicator} />}
+                  content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
                 />
               )}
               {showLegend && <Legend content={<ChartLegendContent />} />}
@@ -640,6 +884,16 @@ export function DynamicBarChart({
                   />
                 );
               })}
+              {showBrush && (
+                <Brush
+                  dataKey={xAxisKey}
+                  height={20}
+                  stroke="#d1d5db"
+                  startIndex={0}
+                  endIndex={Math.min(4, dataCount - 1)}
+                  tickFormatter={formatBrushTick}
+                />
+              )}
             </BarChart>
           </ChartContainer>
         </div>
@@ -735,9 +989,14 @@ export function DynamicComposedChart({
       { label: v.label, color: v.color },
     ])
   );
+  const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
+  const dataCount = normalizedData.length;
+  
+  // Auto-determine brush based on data count
+  const showBrush = dataCount >= 5;
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
@@ -760,9 +1019,9 @@ export function DynamicComposedChart({
         >
           <ComposedChart
             accessibilityLayer
-            data={data ?? []}
+            data={normalizedData}
             height={height}
-            margin={{ top: 0, right: 25, bottom: 0, left: 15 }}
+            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
           >
             <CartesianGrid vertical={false} stroke="#ebebeb" />
             <XAxis
@@ -772,7 +1031,7 @@ export function DynamicComposedChart({
               tickMargin={5}
               tickFormatter={tickFormatter}
               fontSize={10}
-              interval={0}
+              interval={showBrush ? "preserveStartEnd" : 0}
               dx={10}
               dy={0}
             />
@@ -783,6 +1042,7 @@ export function DynamicComposedChart({
               tickLine={false}
               tickMargin={8}
               axisLine={false}
+              tickFormatter={formatAxisNumber}
             />
             {hasRight && (
               <YAxis
@@ -793,6 +1053,7 @@ export function DynamicComposedChart({
                 tickLine={false}
                 tickMargin={8}
                 axisLine={false}
+                tickFormatter={formatAxisNumber}
               />
             )}
             {tooltipIndicator !== false && (
@@ -851,6 +1112,16 @@ export function DynamicComposedChart({
                 />
               );
             })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={20}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(4, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
           </ComposedChart>
         </ChartContainer>
       </CardContent>
@@ -963,28 +1234,38 @@ export function DynamicPieChart({
   queryContent,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
-  const safeData = useMemo(() => data ?? [], [data]);
+  // Normalize pie data: ensure value is a number (handle object form like { review_id: 4 })
+  const safeData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    return data.map((item) => ({
+      name: item?.name ?? "",
+      value: typeof item?.value === 'object' && item?.value !== null
+        ? normalizeNumericValue(item.value)
+        : (typeof item?.value === 'number' ? item.value : 0),
+    }));
+  }, [data]);
 
-  // Build color map with case-insensitive lookup
+  // Build color map with case-insensitive lookup (name may be number from API e.g. promotion_id)
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     safeData.forEach((entry, index) => {
-      const name = entry?.name ?? "";
+      const raw = entry?.name;
+      const name = raw != null ? String(raw) : "";
       const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
       map[key] = colors[index % colors.length];
     });
     return map;
   }, [safeData, colors, normalizeKey]);
 
-  const getColor = (name: string, index: number): string => {
-    const safeName = name ?? "";
+  const getColor = (name: string | number, index: number): string => {
+    const safeName = name != null ? String(name) : "";
     const key = normalizeKey ? normalizeKey(safeName) : safeName.toLowerCase();
     return colorMap[key] || colors[index % colors.length];
   };
 
   if (isLoading) {
     return (
-      <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
         {(title || description) && (
           <CardHeader>
             {title && (
@@ -1007,7 +1288,7 @@ export function DynamicPieChart({
   }
 
   return (
-    <Card className="gap-6" queryId={queryId} queryContent={queryContent}>
+    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
       {(title || description) && (
         <CardHeader>
           {title && (
