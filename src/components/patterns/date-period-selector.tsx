@@ -295,21 +295,11 @@ export function DatePeriodSelector({
       },
       ...presets.map((p) => ({ value: `preset:${p.id}`, label: p.label })),
       {
-        value: "sep:1",
-        label: "-",
-        disabled: true,
-      },
-      {
         value: "group:months",
         label: "월별 선택",
         disabled: true,
       },
       ...monthOptions.map((m) => ({ value: `month:${m.id}`, label: m.label })),
-      {
-        value: "sep:2",
-        label: "-",
-        disabled: true,
-      },
       {
         value: "group:custom",
         label: "직접 선택",
@@ -324,7 +314,6 @@ export function DatePeriodSelector({
       <Select
         value={selectValue}
         onValueChange={handleSelectChange}
-        className="min-w-[160px]"
         size={size === "sm" ? "sm" : "md"}
         side={align === "start" ? "left" : "right"}
         placeholder={displayValue}
@@ -354,14 +343,12 @@ export function DatePeriodSelector({
             </DatePickerProvider>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
               <Button
-                buttonStyle="secondary"
-                size="sm"
+                buttonStyle="secondary"                
                 onClick={handleCalendarCancel}
               >
                 취소
               </Button>
               <Button
-                size="sm"
                 onClick={handleCalendarApply}
                 disabled={!calendarRange?.from || !calendarRange?.to}
               >

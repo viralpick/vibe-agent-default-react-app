@@ -47,6 +47,7 @@ import {
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeNumericValue } from "./data-utils";
+import { format } from "date-fns";
 
 const DEFAULT_CHART_HEIGHT = 300;
 
@@ -270,7 +271,7 @@ export function DynamicAreaChart({
         const strValue = String(value ?? '');
         const date = new Date(strValue);
         if (!isNaN(date.getTime())) {
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          return format(date,'yyyy-MM-dd')
         }
         return strValue;
       };
@@ -291,7 +292,7 @@ export function DynamicAreaChart({
             )}
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className="px-4">
           <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
@@ -373,7 +374,7 @@ export function DynamicAreaChart({
             {showBrush && (
               <Brush
                 dataKey={xAxisKey}
-                height={20}
+                height={10}
                 stroke="#d1d5db"
                 startIndex={0}
                 endIndex={Math.min(4, dataCount - 1)}
@@ -474,11 +475,23 @@ export function DynamicLineChart({
   const tooltipLabelFormatter = useMemo(() => {
     const firstValue = normalizedData[0]?.[xAxisKey];
     if (isISODateString(firstValue)) {
+      // 모든 데이터의 시간(HH:mm:ss) 부분이 동일한지 체크
+      const uniqueTimes = new Set(
+        normalizedData.map((item) => {
+          const value = item[xAxisKey];
+          if (!isISODateString(value)) return null;
+          const date = new Date(String(value));
+          return `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+        }).filter((time) => time !== null)
+      );
+      const allSameTime = uniqueTimes.size <= 1;
+      const dateFormat = allSameTime ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
+
       return (value: unknown) => {
         const strValue = String(value ?? '');
         const date = new Date(strValue);
         if (!isNaN(date.getTime())) {
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          return format(date, dateFormat);
         }
         return strValue;
       };
@@ -499,7 +512,7 @@ export function DynamicLineChart({
             )}
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className="px-4">
           <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
@@ -579,7 +592,7 @@ export function DynamicLineChart({
             {showBrush && (
               <Brush
                 dataKey={xAxisKey}
-                height={20}
+                height={10}
                 stroke="#d1d5db"
                 startIndex={0}
                 endIndex={Math.min(4, dataCount - 1)}
@@ -671,7 +684,7 @@ export function DynamicBarChart({
   const dataCount = normalizedData.length;
 
   // Auto-determine brush and x-axis labels based on data count (vertical layout only)
-  const showBrush = layout === "vertical" && dataCount >= 5;
+  const showBrush = layout === "vertical" && dataCount > 5;
   const hideXAxisLabels = layout === "vertical" && dataCount >= 30;
 
   // Auto-detect date format and apply formatting
@@ -692,7 +705,7 @@ export function DynamicBarChart({
         const strValue = String(value ?? '');
         const date = new Date(strValue);
         if (!isNaN(date.getTime())) {
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          return format(date,'yyyy-MM-dd')
         }
         return strValue;
       };
@@ -774,7 +787,7 @@ export function DynamicBarChart({
             )}
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className="px-4">
           <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>
@@ -887,7 +900,7 @@ export function DynamicBarChart({
               {showBrush && (
                 <Brush
                   dataKey={xAxisKey}
-                  height={20}
+                  height={10}
                   stroke="#d1d5db"
                   startIndex={0}
                   endIndex={Math.min(4, dataCount - 1)}
@@ -1115,7 +1128,7 @@ export function DynamicComposedChart({
             {showBrush && (
               <Brush
                 dataKey={xAxisKey}
-                height={20}
+                height={10}
                 stroke="#d1d5db"
                 startIndex={0}
                 endIndex={Math.min(4, dataCount - 1)}
@@ -1280,7 +1293,7 @@ export function DynamicPieChart({
             )}
           </CardHeader>
         )}
-        <CardContent>
+        <CardContent className="px-4">
           <Skeleton className="w-full" style={{ height: chartHeight }} />
         </CardContent>
       </Card>

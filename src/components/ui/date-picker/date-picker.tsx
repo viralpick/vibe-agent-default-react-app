@@ -424,7 +424,6 @@ function DatePickerHeader({
       onValueChange={handleMonthChange}
       size="sm"
       variant="inline"
-      className="w-20"
     />
   );
 
@@ -435,7 +434,6 @@ function DatePickerHeader({
       onValueChange={handleYearChange}
       size="sm"
       variant="inline"
-      className="w-25"
     />
   );
 

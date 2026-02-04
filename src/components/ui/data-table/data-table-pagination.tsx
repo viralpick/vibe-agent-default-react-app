@@ -63,7 +63,7 @@ function DataTablePagination<TData>({
           </div>
           <div className="flex items-center gap-0.5">
             <Button
-              buttonStyle="secondary"
+              buttonStyle="ghost"
               buttonType="icon"
               size="sm"
               className="hidden lg:flex"
@@ -74,7 +74,7 @@ function DataTablePagination<TData>({
               <ChevronsLeft className="size-4" />
             </Button>
             <Button
-              buttonStyle="secondary"
+              buttonStyle="ghost"
               buttonType="icon"
               size="sm"
               onClick={() => table.previousPage()}
@@ -84,7 +84,7 @@ function DataTablePagination<TData>({
               <ChevronLeft className="size-4" />
             </Button>
             <Button
-              buttonStyle="secondary"
+              buttonStyle="ghost"
               buttonType="icon"
               size="sm"
               onClick={() => table.nextPage()}
@@ -94,7 +94,7 @@ function DataTablePagination<TData>({
               <ChevronRight className="size-4" />
             </Button>
             <Button
-              buttonStyle="secondary"
+              buttonStyle="ghost"
               buttonType="icon"
               size="sm"
               className="hidden lg:flex"

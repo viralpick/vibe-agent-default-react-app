@@ -314,7 +314,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {leadIcon && <span className="shrink-0">{leadIcon}</span>}
-        {children}
+        <span className="px-1">{children}</span>
         {badge && <span className="shrink-0">{badge}</span>}
         {tailIcon && <span className="shrink-0">{tailIcon}</span>}
       </Comp>

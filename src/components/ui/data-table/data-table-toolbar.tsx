@@ -2,7 +2,7 @@
 "use no memo";
 
 import type { Table } from "@tanstack/react-table";
-import { Download, X } from "lucide-react";
+import { Download, Search, X } from "lucide-react";
 import React from "react";
 
 import { cn } from "@/lib/commerce-sdk";
@@ -34,7 +34,7 @@ type DataTableToolbarProps<TData> = {
 function DataTableToolbar<TData>({
   table,
   full = false,
-  placeholder,
+  placeholder = 'Search...',
   classNames,
   showSearch = true,
   showOptions = false,
@@ -70,10 +70,12 @@ function DataTableToolbar<TData>({
         {showSearch && (
           <div className="flex items-center gap-0.5">
             <Input
+              size='sm'
+              leadIcon={<Search className="size-4" />}
               placeholder={placeholder}
               value={globalFilter}
               onChange={handleSearch}
-              className={cn("h-8 w-[150px] lg:w-[250px]", classNames?.search)}
+              className={classNames?.search}
             />
             {isFiltered && (
               <Button
