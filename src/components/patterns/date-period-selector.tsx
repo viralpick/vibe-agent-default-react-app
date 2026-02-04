@@ -1,28 +1,21 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/commerce-sdk";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { Select } from "@/components/ui/dropdown";
+import {
+  DatePickerProvider,
+  DatePickerCalendar,
+} from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 /**
  * Preset option for quick date selection
@@ -292,57 +285,75 @@ export function DatePeriodSelector({
 
   const displayValue = value?.label || placeholder;
 
+  const selectOptions = useMemo(() => {
+    return [
+      {
+        value: "group:presets",
+        label: "빠른 선택",
+        disabled: true,
+      },
+      ...presets.map((p) => ({ value: `preset:${p.id}`, label: p.label })),
+      {
+        value: "sep:1",
+        label: "-",
+        disabled: true,
+      },
+      {
+        value: "group:months",
+        label: "월별 선택",
+        disabled: true,
+      },
+      ...monthOptions.map((m) => ({ value: `month:${m.id}`, label: m.label })),
+      {
+        value: "sep:2",
+        label: "-",
+        disabled: true,
+      },
+      {
+        value: "group:custom",
+        label: "직접 선택",
+        disabled: true,
+      },
+      { value: "custom", label: "날짜 범위 선택..." },
+    ];
+  }, [presets, monthOptions]);
+
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <Select value={selectValue} onValueChange={handleSelectChange}>
-        <SelectTrigger size={size} className="min-w-[160px]">
-          <CalendarIcon className="size-4 text-icon-secondary" />
-          <SelectValue placeholder={placeholder}>{displayValue}</SelectValue>
-        </SelectTrigger>
-        <SelectContent align={align}>
-          <SelectGroup>
-            <SelectLabel>빠른 선택</SelectLabel>
-            {presets.map((preset) => (
-              <SelectItem key={preset.id} value={`preset:${preset.id}`}>
-                {preset.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-          <SelectSeparator />
-          <SelectGroup>
-            <SelectLabel>월별 선택</SelectLabel>
-            {monthOptions.map((month) => (
-              <SelectItem key={month.id} value={`month:${month.id}`}>
-                {month.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-          <SelectSeparator />
-          <SelectGroup>
-            <SelectLabel>직접 선택</SelectLabel>
-            <SelectItem value="custom">날짜 범위 선택...</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+    <div className={cn("flex items-center gap-8", className)}>
+      <Select
+        value={selectValue}
+        onValueChange={handleSelectChange}
+        className="min-w-[160px]"
+        size={size === "sm" ? "sm" : "md"}
+        side={align === "start" ? "left" : "right"}
+        placeholder={displayValue}
+        options={selectOptions}
+      />
 
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-        <DialogContent className="w-auto max-w-fit p-6">
+        <DialogContent className="w-auto max-w-fit p-24">
           <DialogHeader>
             <DialogTitle>날짜 범위 선택</DialogTitle>
           </DialogHeader>
-          <div className="mt-4">
-            <Calendar
-              mode="range"
-              selected={calendarRange}
-              onSelect={handleCalendarSelect}
-              numberOfMonths={2}
-              defaultMonth={
-                new Date(new Date().getFullYear(), new Date().getMonth() - 1)
+          <div className="mt-16">
+            <DatePickerProvider
+              type="range"
+              rangeValue={
+                calendarRange?.from && calendarRange?.to
+                  ? { start: calendarRange.from, end: calendarRange.to }
+                  : null
               }
-            />
-            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
+              onRangeValueChange={(range) =>
+                setCalendarRange(
+                  range ? { from: range.start, to: range.end } : undefined
+                )
+              }
+            >
+              <DatePickerCalendar size="md" />
+            </DatePickerProvider>
+            <div className="flex justify-end gap-8 mt-16 pt-16 border-t border-gray-100">
               <Button
-                variant="outline"
+                buttonStyle="secondary"
                 size="sm"
                 onClick={handleCalendarCancel}
               >

@@ -13,7 +13,7 @@ import { useMemo } from "react";
 
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
-import { cn } from "@/lib/commerce-sdk";
+import { cn, getColorClass } from "@/lib/commerce-sdk";
 
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -203,36 +203,36 @@ export const DynamicDataTable = ({
       cell: ({ row }) => {
         const value = row.original[col.key];
 
-        if (
-          col.type === "progress" &&
-          typeof value === "number" &&
-          col.progress
-        ) {
-          return (
-            <div className={cn("flex items-center gap-2", alignClass)}>
-              <Progress
-                className="w-[56px]"
-                value={(value / 100) * 100}
-                indicatorColor={col.progress.color || "#2a9d90"}
-              />
-              {col.showValue && (
-                <span
-                  className={cn("text-sm", size === "sm" && "text-xs")}
-                  style={{
-                    color: col.progress.color || "#2a9d90",
-                  }}
-                >
-                  {col.valueFormat === "percent"
-                    ? `${value.toFixed(1)}%`
-                    : col.valueFormat === "currency"
-                    ? value.toLocaleString()
-                    : value}
-                  {col.unit ?? ""}
-                </span>
-              )}
-            </div>
-          );
-        }
+          if (
+            col.type === "progress" &&
+            typeof value === "number" &&
+            col.progress
+          ) {
+            return (
+              <div className={cn("flex items-center gap-0.5", alignClass)}>
+                <Progress value={value} className="w-[56px] flex-row items-center gap-1">
+                  <Progress.Bar
+                    indicatorClassName={col.progress.color ? getColorClass(col.progress.color) : "bg-[#2a9d90]"}
+                  />
+                </Progress>
+                {col.showValue && (
+                  <span
+                    className={cn("text-sm", size === "sm" && "text-xs")}
+                    style={{
+                      color: col.progress.color || "#2a9d90",
+                    }}
+                  >
+                    {col.valueFormat === "percent"
+                      ? `${value.toFixed(1)}%`
+                      : col.valueFormat === "currency"
+                      ? value.toLocaleString()
+                      : value}
+                    {col.unit ?? ""}
+                  </span>
+                )}
+              </div>
+            );
+          }
 
         if (col.type === "badge" && col.badgeMap) {
           const badge = col.badgeMap[value as string] ?? {

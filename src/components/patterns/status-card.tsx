@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StarIcon } from "lucide-react";
 
-import { cn } from "@/lib/commerce-sdk";
+import { cn, getColorClass } from "@/lib/commerce-sdk";
 
 /**
  * @component StatusCard
@@ -193,11 +193,11 @@ export default function StatusCard({
         </CardTitle>
         {percent ? (
           <div className="flex items-center gap-0.5">
-            <Progress
-              className="w-[56px]"
-              value={(percent.value / 100) * 100}
-              indicatorColor={percent.color || "#2a9d90"}
-            />
+            <Progress value={percent.value} className="w-[56px] flex-row items-center gap-1">
+              <Progress.Bar
+                indicatorClassName={percent.color ? getColorClass(percent.color) : "bg-[#2a9d90]"}
+              />
+            </Progress>
             <span
               className="text-body-s"
               style={{
@@ -221,11 +221,12 @@ export default function StatusCard({
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {progress && (
             <div>
-              <Progress
-                value={(progress.current / progress.max) * 100}
-                indicatorColor={progress.color || "#2a9d90"}
-              />
-              <p className="flex text-xs text-muted-foreground mt-1 justify-between">
+              <Progress value={progress.current} max={progress.max}>
+                <Progress.Bar
+                  indicatorClassName={progress.color ? getColorClass(progress.color) : "bg-[#2a9d90]"}
+                />
+              </Progress>
+              <p className="flex text-xs text-muted-foreground mt-0.25 justify-between">
                 <span>0</span>
                 <span>{progress.max}</span>
               </p>

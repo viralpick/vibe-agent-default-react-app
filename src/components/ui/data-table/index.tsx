@@ -199,9 +199,9 @@ function DataTable<TData, TValue>({
   enableRowSelection = false,
   customLeftContainer,
   customRightContainer,
-  editableId,
-  editableFilePath = "src/App.tsx",
-  editableLineNumber,
+  // editableId,
+  // editableFilePath = "src/App.tsx",
+  // editableLineNumber,
   queryId,
   queryContent,
 }: DataTableProps<TData, TValue>): React.JSX.Element {

@@ -15,13 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/seperator";
 import { filterOperators } from "@/components/ui/data-table/types";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/commerce-sdk";
 
@@ -81,7 +75,7 @@ function DataTableFilter<TData>({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="icon-sm">
+        <Button buttonStyle="secondary" buttonType="icon" size="sm">
           <FilterIcon className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
@@ -106,12 +100,12 @@ function DataTableFilter<TData>({
             />
           ))}
           <Button
-            variant="ghost"
+            buttonStyle="ghost"
             size="sm"
             onClick={handleAddFilter}
             className="text-primary hover:text-primary"
           >
-            <Plus className="h-1 w-1 mr-0.5" />
+            <Plus className="h-4 w-4 mr-0.5" />
             Add
           </Button>
         </div>
@@ -121,7 +115,7 @@ function DataTableFilter<TData>({
             {table.getFilteredRowModel().rows.length} results
           </p>
           <Button
-            variant="link"
+            buttonStyle="tertiary"
             className="text-destructive hover:text-destructive"
             onClick={() => table.resetColumnFilters()}
           >
@@ -167,42 +161,36 @@ function DataTableFilterItem<TData>({
   const showInput = !["isEmpty", "isNotEmpty"].includes(item.operator);
 
   return (
-    <div className="flex items-center gap-0.5 py-px">
+    <div className="flex items-center gap-0.5 py-0.25">
       <span className="text-sm text-muted-foreground">Where</span>
-      <Select value={item.id} onValueChange={handleColumnChange}>
-        <SelectTrigger className="w-[150px]">
-          <SelectValue placeholder="컬럼 선택" />
-        </SelectTrigger>
-        <SelectContent>
-          {filterableColumns.map((col) => (
-            <SelectItem key={col.id} value={col.id}>
-              {col.columnDef.meta?.filterLabel ??
-                (typeof col.columnDef.header === "string"
-                  ? col.columnDef.header
-                  : col.id)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select value={item.operator} onValueChange={handleOperatorChange}>
-        <SelectTrigger className="w-[120px]">
-          <SelectValue placeholder="조건" />
-        </SelectTrigger>
-        <SelectContent>
-          {filterOperators.map((op) => (
-            <SelectItem key={op.value} value={op.value}>
-              {op.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Select
+        value={item.id}
+        onValueChange={handleColumnChange}
+        className="w-[150px]"
+        options={filterableColumns.map((col) => ({
+          value: col.id,
+          label: (col.columnDef.meta?.filterLabel as string) ??
+            (typeof col.columnDef.header === "string"
+              ? col.columnDef.header
+              : col.id),
+        }))}
+      />
+      <Select
+        value={item.operator}
+        onValueChange={(val) => handleOperatorChange(val as FilterOperator)}
+        className="w-[120px]"
+        options={filterOperators.map((op) => ({
+          value: op.value,
+          label: op.label,
+        }))}
+      />
       <Input
         placeholder="값 입력"
         value={item.value}
         onChange={handleValueChange}
-        className={cn("w-[150px] h-9", !showInput && "invisible")}
+        className={cn("w-[150px] h-3", !showInput && "invisible")}
       />
-      <Button variant="ghost" size="icon-sm" onClick={onRemove}>
+      <Button buttonStyle="ghost" buttonType="icon" size="sm" onClick={onRemove}>
         <X className="h-4 w-4" />
       </Button>
     </div>

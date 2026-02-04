@@ -2,19 +2,14 @@
 "use no memo";
 
 import type { Table } from "@tanstack/react-table";
+import { Download, X } from "lucide-react";
 import React from "react";
-import { Download, SettingsIcon, X } from "lucide-react";
 
 import { cn } from "@/lib/commerce-sdk";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { MultiSelect } from "../dropdown";
 
 type DataTableToolbarProps<TData> = {
   table: Table<TData>;
@@ -82,8 +77,9 @@ function DataTableToolbar<TData>({
             />
             {isFiltered && (
               <Button
-                variant="outline"
-                size="icon-sm"
+                buttonStyle="secondary"
+                buttonType="icon"
+                size="sm"
                 onClick={() => table.resetColumnFilters()}
               >
                 <X />
@@ -96,7 +92,7 @@ function DataTableToolbar<TData>({
             {showOptions && <DataTableViewOptions table={table} />}
             {onDownload && (
               <Button
-                variant="outline"
+                buttonStyle="secondary"
                 onClick={onDownload}
                 className={cn("h-8", !downloadButtonText && "px-0.5!")}
                 disabled={downloadDisabled}
@@ -115,7 +111,7 @@ function DataTableToolbar<TData>({
         )}
         {!controlsOnLeft && onDownload && (
           <Button
-            variant="outline"
+            buttonStyle="secondary"
             onClick={onDownload}
             className={cn("h-8", !downloadButtonText && "px-0.5!")}
           >
@@ -137,41 +133,36 @@ type DataTableViewOptionsProps<TData> = {
 export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>): React.JSX.Element {
+  const columns = table
+    .getAllColumns()
+    .filter(
+      (column) => typeof column.accessorFn !== "undefined" && column.getCanHide()
+    );
+
+  const options = columns.map((column) => ({
+    value: column.id,
+    label: (column.columnDef.meta?.title as string) ?? column.id,
+  }));
+
+  const values = columns
+    .filter((column) => column.getIsVisible())
+    .map((column) => column.id);
+
+  const handleValuesChange = (newValues: string[]) => {
+    columns.forEach((column) => {
+      column.toggleVisibility(newValues.includes(column.id));
+    });
+  };
+
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="ml-auto hidden h-8 lg:flex"
-        >
-          <SettingsIcon />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="min-w-[150px] overflow-y-auto"
-      >
-        {table
-          .getAllColumns()
-          .filter(
-            (column) =>
-              typeof column.accessorFn !== "undefined" && column.getCanHide()
-          )
-          .map((column) => {
-            return (
-              <DropdownMenuCheckboxItem
-                key={column.id}
-                className="capitalize whitespace-nowrap"
-                checked={column.getIsVisible()}
-                onCheckedChange={(value) => column.toggleVisibility(!!value)}
-              >
-                {column.columnDef.meta?.title ?? column.id}
-              </DropdownMenuCheckboxItem>
-            );
-          })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <MultiSelect
+      size="sm"
+      placeholder="컬럼 표시"
+      options={options}
+      values={values}
+      onValuesChange={handleValuesChange}
+      className="ml-auto hidden lg:flex w-[180px]"
+    />
   );
 }
 

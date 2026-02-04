@@ -13,10 +13,11 @@ dist-ssr
 *.local
 
 # Editor directories and files
-.vscode/*
+.vscode
 !.vscode/extensions.json
 .idea
 .DS_Store
+.claude
 *.suo
 *.ntvs*
 *.njsproj
@@ -28,3 +29,5 @@ TestPage.tsx
 prompt.py
 .dom
 .llm
+.kiro
+src/pages/*

@@ -10,6 +10,11 @@ import { Skeleton } from "../ui/skeleton";
  * @dataStructure
  * - title: string | React.ReactNode - Metric label or EditableText component (required)
  * - value: string - Formatted display value, e.g., "₩125,430,000" or "1,234명" (required)
+ * - trend: number - Trend direction and magnitude (required)
+ *   - Positive: green color, shows "+"
+ *   - Negative: red color
+ *   - Zero: neutral gray color
+ * - trendValue: string - Formatted trend display, e.g., "12.5%" or "-3.1%" (required)
  * - isLoading: boolean - Shows skeleton when true (required)
  * - icon: React.ElementType - Lucide icon component for the metric (required)
  *
@@ -26,6 +31,7 @@ import { Skeleton } from "../ui/skeleton";
  * - Dashboard KPI summary row
  * - Revenue/sales metrics display
  * - User count statistics
+ * - Performance indicators with trends
  *
  * @example
  * ```tsx

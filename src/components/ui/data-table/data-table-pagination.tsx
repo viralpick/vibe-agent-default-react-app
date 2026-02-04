@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { SingleSelect } from "@/components/ui/single-select";
+import { Select } from "@/components/ui/dropdown";
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>;
@@ -34,17 +34,16 @@ function DataTablePagination<TData>({
   return (
     <div className="flex gap-1.5">
       {showPageSize && (
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-2">
           <span className="text-sm">페이지 당 데이터 수</span>
-          <SingleSelect
-            className="min-w-20"
+          <Select
+            className="min-w-8"
             value={String(table.getState().pagination.pageSize)}
-            showSearch={false}
             options={pageSizeOptions.map((option) => ({
               label: String(option),
               value: String(option),
             }))}
-            onChange={(value) => onPageSizeChange(Number(value))}
+            onValueChange={(value) => onPageSizeChange(Number(value))}
           />
         </div>
       )}
@@ -64,8 +63,9 @@ function DataTablePagination<TData>({
           </div>
           <div className="flex items-center gap-0.5">
             <Button
-              variant="outline"
-              size="icon-sm"
+              buttonStyle="secondary"
+              buttonType="icon"
+              size="sm"
               className="hidden lg:flex"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
@@ -74,8 +74,9 @@ function DataTablePagination<TData>({
               <ChevronsLeft className="size-4" />
             </Button>
             <Button
-              variant="outline"
-              size="icon-sm"
+              buttonStyle="secondary"
+              buttonType="icon"
+              size="sm"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -83,8 +84,9 @@ function DataTablePagination<TData>({
               <ChevronLeft className="size-4" />
             </Button>
             <Button
-              variant="outline"
-              size="icon-sm"
+              buttonStyle="secondary"
+              buttonType="icon"
+              size="sm"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
@@ -92,8 +94,9 @@ function DataTablePagination<TData>({
               <ChevronRight className="size-4" />
             </Button>
             <Button
-              variant="outline"
-              size="icon-sm"
+              buttonStyle="secondary"
+              buttonType="icon"
+              size="sm"
               className="hidden lg:flex"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}

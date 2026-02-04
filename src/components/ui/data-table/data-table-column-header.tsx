@@ -1,17 +1,10 @@
 import type { Column } from "@tanstack/react-table";
 import React from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, EyeOff, Info } from "lucide-react";
+import { ArrowDown, ArrowUp, EyeOff, Info } from "lucide-react";
 
 import { cn } from "@/lib/commerce-sdk";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Select } from "@/components/ui/dropdown";
 import {
   Tooltip,
   TooltipContent,
@@ -57,82 +50,70 @@ function DataTableColumnHeader<TData, TValue>({
         className
       )}
     >
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "-ml-3 -mr-3 h-8 data-[state=open]:bg-accent gap-1",
-              size === "sm" &&
-                "h-6 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5 [&_svg:not([class*='size-'])]:size-3"
-            )}
-          >
-            {prefix && prefix}
-            <span>{nl2br(title)}</span>
-            {tooltip && (
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      {tooltipIcon && tooltipIcon}
-                      {!tooltipIcon && (
-                        <Info
-                          className={cn("size-3", size === "sm" && "size-2")}
-                        />
-                      )}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{tooltip}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {!disableSort &&
-              (column.getIsSorted() === "desc" ? (
-                <ArrowDown className="size-4" />
-              ) : column.getIsSorted() === "asc" ? (
-                <ArrowUp className="size-4" />
-              ) : (
-                <ChevronsUpDown className="size-4" />
-              ))}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="bg-white">
-          <DropdownMenuItem
-            onClick={() => {
-              if (column.getIsSorted() === "asc") {
-                column.clearSorting();
-              } else {
-                column.toggleSorting(false);
-              }
-            }}
-          >
-            <ArrowUp className="h-3.5 w-3.5 text-muted-foreground/70" />
-            Asc
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              if (column.getIsSorted() === "desc") {
-                column.clearSorting();
-              } else {
-                column.toggleSorting(true);
-              }
-            }}
-          >
-            <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/70" />
-            Desc
-          </DropdownMenuItem>
-          {!disableHiding && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => column.toggleVisibility(false)}>
-                <EyeOff className="h-3.5 w-3.5 text-muted-foreground/70" />
-                Hide
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Select
+        variant="inline"
+        size={size === "sm" ? "sm" : "md"}
+        side="left"
+        className={cn(
+          "-ml-3 -mr-3 h-8 gap-1",
+          size === "sm" && "h-1.5 -ml-1.5 -mr-1.5 px-2 text-xs gap-0.5"
+        )}
+        placeholder={title}
+        options={[
+          {
+            value: "asc",
+            label: "Asc",
+            leadIcon: <ArrowUp className="size-4" />,
+          },
+          {
+            value: "desc",
+            label: "Desc",
+            leadIcon: <ArrowDown className="size-4" />,
+          },
+          ...(!disableHiding
+            ? [
+                {
+                  value: "hide",
+                  label: "Hide",
+                  leadIcon: <EyeOff className="size-4" />,
+                },
+              ]
+            : []),
+        ]}
+        value={column.getIsSorted() || ""}
+        onValueChange={(val) => {
+          if (val === "asc") {
+            if (column.getIsSorted() === "asc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(false);
+            }
+          } else if (val === "desc") {
+            if (column.getIsSorted() === "desc") {
+              column.clearSorting();
+            } else {
+              column.toggleSorting(true);
+            }
+          } else if (val === "hide") {
+            column.toggleVisibility(false);
+          }
+        }}
+      />
+      {tooltip && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                {tooltipIcon && tooltipIcon}
+                {!tooltipIcon && (
+                  <Info className={cn("size-3", size === "sm" && "size-2")} />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{tooltip}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </div>
   );
 }
