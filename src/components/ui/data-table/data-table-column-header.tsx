@@ -25,6 +25,7 @@ type DataTableColumnHeaderProps<TData, TValue> = Omit<
   tooltipIcon?: React.JSX.Element;
   disableSort?: boolean;
   disableHiding?: boolean;
+  textAlign?: "left" | "center" | "right";
 };
 
 function DataTableColumnHeader<TData, TValue>({
@@ -35,22 +36,24 @@ function DataTableColumnHeader<TData, TValue>({
   tooltip,
   tooltipIcon,
   className,
+  textAlign = "left",
   disableSort = false,
   disableHiding = false,
 }: DataTableColumnHeaderProps<TData, TValue>): React.JSX.Element {
   if (!column.getCanSort()) {
-    return <div className={cn("flex text-xs", className)}>{nl2br(title)}</div>;
+    return <div className={cn("flex w-full text-xs", className)}>{nl2br(title)}</div>;
   }
 
   return (
     <div
       className={cn(
-        "flex items-center gap-0.5",
+        "flex w-full gap-0.5 py-1",
         size === "sm" && "text-xs",
         className
       )}
     >
       <Select
+        className={cn("w-full", textAlign === "right" && "justify-end", textAlign === "center" && "justify-center", textAlign === "left" && "justify-start")}
         variant="inline"
         size={size === "sm" ? "sm" : "md"}
         side="left"
