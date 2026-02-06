@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { StarIcon } from "lucide-react";
 
 import { cn, getColorClass } from "@/lib/commerce-sdk";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * @component StatusCard
@@ -99,7 +100,8 @@ export type StatusCardProps = {
 
 const formatValue = (
   value: number | string | undefined,
-  format?: StatusCardProps["format"]
+  format?: StatusCardProps["format"],
+  ratingSuffix?: string
 ): string => {
   if (value === undefined || value === null) return "";
 
@@ -127,7 +129,7 @@ const formatValue = (
   }
 
   if (format.type === "rating") {
-    return `${Number(value).toFixed(format.fractionDigits ?? 1)}점`;
+    return `${Number(value).toFixed(format.fractionDigits ?? 1)}${ratingSuffix ?? "점"}`;
   }
 
   return String(value);
@@ -136,29 +138,30 @@ const formatValue = (
 const renderMainValue = (
   value?: number | string,
   maxValue?: number | string,
-  format?: StatusCardProps["format"]
+  format?: StatusCardProps["format"],
+  ratingSuffix?: string
 ) => {
   if (value === undefined && maxValue === undefined) return null;
 
   if (value !== undefined && maxValue !== undefined) {
     return (
       <div className="flex text-h3 font-bold gap-1">
-        <span>{formatValue(value, format)}</span>
+        <span>{formatValue(value, format, ratingSuffix)}</span>
         <span className="text-state-400">/</span>
-        <span>{formatValue(maxValue, format)}</span>
+        <span>{formatValue(maxValue, format, ratingSuffix)}</span>
       </div>
     );
   }
 
   if (value !== undefined) {
     return (
-      <div className="text-h3 font-bold">{formatValue(value, format)}</div>
+      <div className="text-h3 font-bold">{formatValue(value, format, ratingSuffix)}</div>
     );
   }
 
   if (maxValue !== undefined) {
     return (
-      <div className="text-h3 font-bold">{formatValue(maxValue, format)}</div>
+      <div className="text-h3 font-bold">{formatValue(maxValue, format, ratingSuffix)}</div>
     );
   }
 
@@ -177,6 +180,7 @@ export function StatusCard({
   metrics,
   rating,
 }: StatusCardProps): React.JSX.Element {
+  const t = useTranslation();
   const Icon = icon
     ? (LucideIcons[icon as keyof typeof LucideIcons] as React.ElementType)
     : null;
@@ -217,7 +221,7 @@ export function StatusCard({
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-2">
-          {renderMainValue(value, maxValue, format)}
+          {renderMainValue(value, maxValue, format, t.statusCard.ratingSuffix)}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {progress && (
             <div>

@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/date-picker";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * Preset option for quick date selection
@@ -85,12 +85,17 @@ export type DatePeriodSelectorProps = {
   align?: "start" | "center" | "end";
 };
 
-const DEFAULT_PRESETS: DatePresetOption[] = [
-  { id: "today", label: "오늘", days: 0 },
-  { id: "7days", label: "최근 7일", days: 7 },
-  { id: "30days", label: "최근 30일", days: 30 },
-  { id: "90days", label: "최근 90일", days: 90 },
-];
+/**
+ * Creates default presets with translated labels
+ */
+function createDefaultPresets(t: ReturnType<typeof useTranslation>["datePeriod"]): DatePresetOption[] {
+  return [
+    { id: "today", label: t.today, days: 0 },
+    { id: "7days", label: t.last7Days, days: 7 },
+    { id: "30days", label: t.last30Days, days: 30 },
+    { id: "90days", label: t.last90Days, days: 90 },
+  ];
+}
 
 /**
  * Creates the default DatePeriodValue (최근 30일)
@@ -115,7 +120,8 @@ export function getDefaultDatePeriod(): DatePeriodValue {
  * Generates month options for the past N months
  */
 function getMonthOptions(
-  count: number
+  count: number,
+  monthFormat: (year: number, month: number) => string
 ): { id: string; label: string; from: Date; to: Date }[] {
   const options: { id: string; label: string; from: Date; to: Date }[] = [];
   const today = new Date();
@@ -129,7 +135,7 @@ function getMonthOptions(
     const to = new Date(year, month + 1, 0); // Last day of month
 
     const id = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const label = `${year}년 ${month + 1}월`;
+    const label = monthFormat(year, month + 1);
 
     options.push({ id, label, from, to });
   }
@@ -211,19 +217,28 @@ function formatDateRange(from: Date, to: Date): string {
 export function DatePeriodSelector({
   value,
   onChange,
-  presets = DEFAULT_PRESETS,
+  presets: customPresets,
   monthsCount = 12,
-  placeholder = "기간 선택",
+  placeholder: customPlaceholder,
   className,
   size = "default",
   align = "end",
 }: DatePeriodSelectorProps): React.JSX.Element {
+  const t = useTranslation();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarRange, setCalendarRange] = useState<DateRange | undefined>();
 
+  // Use custom presets if provided, otherwise use translated defaults
+  const presets = useMemo(
+    () => customPresets ?? createDefaultPresets(t.datePeriod),
+    [customPresets, t.datePeriod]
+  );
+
+  const placeholder = customPlaceholder ?? t.datePeriod.placeholder;
+
   const monthOptions = useMemo(
-    () => getMonthOptions(monthsCount),
-    [monthsCount]
+    () => getMonthOptions(monthsCount, t.datePeriod.monthFormat),
+    [monthsCount, t.datePeriod.monthFormat]
   );
 
   // Normalize value to ensure from/to are Date objects
@@ -330,24 +345,24 @@ export function DatePeriodSelector({
     return [
       {
         value: "group:presets",
-        label: "빠른 선택",
+        label: t.datePeriod.quickSelect,
         disabled: true,
       },
       ...presets.map((p) => ({ value: `preset:${p.id}`, label: p.label })),
       {
         value: "group:months",
-        label: "월별 선택",
+        label: t.datePeriod.monthlySelect,
         disabled: true,
       },
       ...monthOptions.map((m) => ({ value: `month:${m.id}`, label: m.label })),
       {
         value: "group:custom",
-        label: "직접 선택",
+        label: t.datePeriod.customSelect,
         disabled: true,
       },
-      { value: "custom", label: "날짜 범위 선택..." },
+      { value: "custom", label: t.datePeriod.selectDateRange },
     ];
-  }, [presets, monthOptions]);
+  }, [presets, monthOptions, t.datePeriod]);
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
@@ -363,7 +378,7 @@ export function DatePeriodSelector({
       <Dialog open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
         <DialogContent className="w-auto max-w-fit p-6">
           <DialogHeader>
-            <DialogTitle>날짜 범위 선택</DialogTitle>
+            <DialogTitle>{t.datePeriod.dateRangeTitle}</DialogTitle>
           </DialogHeader>
           <div className="mt-4">
             <DatePickerProvider
@@ -386,13 +401,13 @@ export function DatePeriodSelector({
                 buttonStyle="secondary"                
                 onClick={handleCalendarCancel}
               >
-                취소
+                {t.datePeriod.cancel}
               </Button>
               <Button
                 onClick={handleCalendarApply}
                 disabled={!calendarRange?.from || !calendarRange?.to}
               >
-                적용
+                {t.datePeriod.apply}
               </Button>
             </div>
           </div>

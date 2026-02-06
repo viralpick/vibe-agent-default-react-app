@@ -26,6 +26,7 @@ import {
   ColumnValue,
 } from "@/components/ui/column";
 import { normalizeNumericValue } from "./data-utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * Column metadata definition for DynamicDataTable
@@ -152,6 +153,8 @@ export const DynamicDataTable = ({
   queryId,
   queryContent,
 }: DynamicDataTableProps): JSX.Element => {
+  const t = useTranslation();
+
   // Normalize data: convert object values (like { review_id: 4 }) to numbers
   const safeData = useMemo(() => {
     if (!Array.isArray(data)) return [];
@@ -302,7 +305,7 @@ export const DynamicDataTable = ({
                 target="_blank"
                 className={`text-blue-500 underline ${alignClass}`}
               >
-                링크
+                {t.table.link}
               </a>
             );
           }

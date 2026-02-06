@@ -18,6 +18,7 @@ import { filterOperators } from "@/components/ui/data-table/types";
 import { Select } from "@/components/ui/dropdown";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/commerce-sdk";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type DataTableFilterProps<TData> = {
   table: Table<TData>;
@@ -26,6 +27,7 @@ type DataTableFilterProps<TData> = {
 function DataTableFilter<TData>({
   table,
 }: DataTableFilterProps<TData>): React.JSX.Element {
+  const t = useTranslation();
   const [open, setOpen] = React.useState(false);
   const filters = table.getState().columnFilters;
 
@@ -106,20 +108,20 @@ function DataTableFilter<TData>({
             className="text-primary hover:text-primary"
           >
             <Plus className="h-4 w-4 mr-0.5" />
-            Add
+            {t.dataTable.addFilter}
           </Button>
         </div>
         <Separator />
         <div className="p-0.5 flex justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            {table.getFilteredRowModel().rows.length} results
+            {t.dataTable.results(table.getFilteredRowModel().rows.length)}
           </p>
           <Button
             buttonStyle="tertiary"
             className="text-destructive hover:text-destructive"
             onClick={() => table.resetColumnFilters()}
           >
-            필터 초기화
+            {t.dataTable.resetFilters}
           </Button>
         </div>
       </PopoverContent>
@@ -146,6 +148,7 @@ function DataTableFilterItem<TData>({
   onRemove,
   filterableColumns,
 }: DataTableFilterItemProps<TData>): React.JSX.Element {
+  const t = useTranslation();
   const handleColumnChange = (id: string) => {
     onUpdate({ ...item, id });
   };
@@ -162,7 +165,7 @@ function DataTableFilterItem<TData>({
 
   return (
     <div className="flex items-center gap-0.5 py-0.25">
-      <span className="text-sm text-muted-foreground">Where</span>
+      <span className="text-sm text-muted-foreground">{t.dataTable.where}</span>
       <Select
         value={item.id}
         onValueChange={handleColumnChange}
@@ -185,7 +188,7 @@ function DataTableFilterItem<TData>({
         }))}
       />
       <Input
-        placeholder="값 입력"
+        placeholder={t.dataTable.enterValue}
         value={item.value}
         onChange={handleValueChange}
         className={cn("w-[150px] h-3", !showInput && "invisible")}

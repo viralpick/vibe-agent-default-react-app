@@ -42,6 +42,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-col
 import { DataTableFilter } from "@/components/ui/data-table/data-table-filter";
 import { DataTableToolbar } from "@/components/ui/data-table/data-table-toolbar";
 import { DataTablePagination } from "@/components/ui/data-table/data-table-pagination";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * Props for DataTable component
@@ -205,6 +206,7 @@ function DataTable<TData, TValue>({
   queryId,
   queryContent,
 }: DataTableProps<TData, TValue>): React.JSX.Element {
+  const t = useTranslation();
   const [rowSelection, setRowSelection] = React.useState({});
   const [internalPagination, setInternalPagination] =
     React.useState<PaginationState>({
@@ -604,7 +606,7 @@ function DataTable<TData, TValue>({
                       colSpan={columns.length}
                       className="h-24 text-center"
                     >
-                      결과가 없습니다.
+                      {t.dataTable.noResults}
                     </TableCell>
                   )}
                 </TableRow>

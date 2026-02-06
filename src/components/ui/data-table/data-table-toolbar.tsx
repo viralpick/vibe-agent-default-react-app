@@ -10,6 +10,7 @@ import { cn } from "@/lib/commerce-sdk";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "../dropdown";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type DataTableToolbarProps<TData> = {
   table: Table<TData>;
@@ -135,6 +136,7 @@ type DataTableViewOptionsProps<TData> = {
 export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>): React.JSX.Element {
+  const t = useTranslation();
   const columns = table
     .getAllColumns()
     .filter(
@@ -159,7 +161,7 @@ export function DataTableViewOptions<TData>({
   return (
     <MultiSelect
       size="sm"
-      placeholder="컬럼 표시"
+      placeholder={t.dataTable.showColumns}
       options={options}
       values={values}
       onValuesChange={handleValuesChange}

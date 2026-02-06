@@ -12,6 +12,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { nl2br } from "@/utils/nl2br";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type DataTableColumnHeaderProps<TData, TValue> = Omit<
   React.ComponentProps<"div">,
@@ -40,6 +41,8 @@ function DataTableColumnHeader<TData, TValue>({
   disableSort = false,
   disableHiding = false,
 }: DataTableColumnHeaderProps<TData, TValue>): React.JSX.Element {
+  const t = useTranslation();
+
   if (!column.getCanSort()) {
     return <div className={cn("flex w-full text-xs", className)}>{nl2br(title)}</div>;
   }
@@ -61,19 +64,19 @@ function DataTableColumnHeader<TData, TValue>({
         options={[
           {
             value: "asc",
-            label: "Asc",
+            label: t.dataTable.sortAsc,
             leadIcon: <ArrowUp className="size-4" />,
           },
           {
             value: "desc",
-            label: "Desc",
+            label: t.dataTable.sortDesc,
             leadIcon: <ArrowDown className="size-4" />,
           },
           ...(!disableHiding
             ? [
                 {
                   value: "hide",
-                  label: "Hide",
+                  label: t.dataTable.hide,
                   leadIcon: <EyeOff className="size-4" />,
                 },
               ]
