@@ -14,7 +14,12 @@ type EditTextMetaData = {
 
 const isE2BSandbox = () => {
   if (typeof window === "undefined") return false;
-  return window.location.hostname.endsWith(".e2b.app");
+  const result = window.location.hostname.endsWith(".e2b.app");
+  console.log('[useEnableEditMode] isE2BSandbox check:', {
+    hostname: window.location.hostname,
+    isE2B: result
+  });
+  return result;
 };
 
 // Hover 스타일을 CSS로 주입 (Tailwind JIT 문제 해결)
@@ -45,10 +50,22 @@ export const useEnableEditMode = () => {
 
   // 편집 모드에서 클릭 처리
   React.useEffect(() => {
-    if (!isE2B) return;
+    console.log('[useEnableEditMode] Edit mode click handler setup, isE2B:', isE2B);
+    if (!isE2B) {
+      console.log('[useEnableEditMode] Skipping click handler - not in E2B sandbox');
+      return;
+    }
+    console.log('[useEnableEditMode] Registering click event listener for editable text');
 
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      
+      console.log('[useEnableEditMode] Click detected:', {
+        tagName: target.tagName,
+        hasDataEditable: target.hasAttribute("data-editable"),
+        dataEditable: target.getAttribute("data-editable"),
+        textContent: target.textContent?.substring(0, 50)
+      });
 
       if (target.hasAttribute("data-editable")) {
         e.stopPropagation();
@@ -74,6 +91,8 @@ export const useEnableEditMode = () => {
           propName,
         };
 
+        console.log('[useEnableEditMode] Sending EDIT_REQUEST:', metadata);
+        
         window.parent.postMessage(
           {
             type: "EDIT_REQUEST",
@@ -81,6 +100,8 @@ export const useEnableEditMode = () => {
           },
           "*"
         );
+        
+        console.log('[useEnableEditMode] EDIT_REQUEST sent successfully');
       }
     };
 
