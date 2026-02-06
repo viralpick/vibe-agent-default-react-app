@@ -38,10 +38,44 @@ export type DatePeriodValue = {
 };
 
 /**
+ * Input type that accepts both Date and string for from/to fields
+ * Allows passing date strings like '2025-08-01' as initial values
+ */
+export type DatePeriodInputValue = {
+  type: "preset" | "month" | "range";
+  from: Date | string;
+  to: Date | string;
+  label: string;
+};
+
+/**
+ * Converts a Date or string to a Date object
+ */
+function toDate(value: Date | string): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+  return new Date(value);
+}
+
+/**
+ * Normalizes a DatePeriodInputValue to DatePeriodValue
+ * Converts string dates to Date objects
+ */
+function normalizeDatePeriodValue(value: DatePeriodInputValue): DatePeriodValue {
+  return {
+    type: value.type,
+    from: toDate(value.from),
+    to: toDate(value.to),
+    label: value.label,
+  };
+}
+
+/**
  * Props for DatePeriodSelector component
  */
 export type DatePeriodSelectorProps = {
-  value?: DatePeriodValue;
+  value?: DatePeriodValue | DatePeriodInputValue;
   onChange: (value: DatePeriodValue) => void;
   presets?: DatePresetOption[];
   monthsCount?: number;
@@ -192,6 +226,12 @@ export function DatePeriodSelector({
     [monthsCount]
   );
 
+  // Normalize value to ensure from/to are Date objects
+  const normalizedValue = useMemo(() => {
+    if (!value || !isValidDatePeriodValue(value)) return undefined;
+    return normalizeDatePeriodValue(value);
+  }, [value]);
+
   useEffect(() => {
     if (!value || !isValidDatePeriodValue(value)) {
       onChange(getDefaultDatePeriod());
@@ -200,18 +240,18 @@ export function DatePeriodSelector({
 
   // Compute current select value
   const selectValue = useMemo(() => {
-    if (!value) return undefined;
-    if (value.type === "preset") {
-      return `preset:${presets.find((p) => p.label === value.label)?.id || ""}`;
+    if (!normalizedValue) return undefined;
+    if (normalizedValue.type === "preset") {
+      return `preset:${presets.find((p) => p.label === normalizedValue.label)?.id || ""}`;
     }
-    if (value.type === "month") {
-      const monthId = `${value.from.getFullYear()}-${String(
-        value.from.getMonth() + 1
+    if (normalizedValue.type === "month") {
+      const monthId = `${normalizedValue.from.getFullYear()}-${String(
+        normalizedValue.from.getMonth() + 1
       ).padStart(2, "0")}`;
       return `month:${monthId}`;
     }
     return undefined;
-  }, [value, presets]);
+  }, [normalizedValue, presets]);
 
   const handleSelectChange = (val: string) => {
     if (val === "custom") {
@@ -284,7 +324,7 @@ export function DatePeriodSelector({
     setCalendarRange(undefined);
   };
 
-  const displayValue = value?.label || placeholder;
+  const displayValue = normalizedValue?.label || placeholder;
 
   const selectOptions = useMemo(() => {
     return [
@@ -363,17 +403,29 @@ export function DatePeriodSelector({
 }
 
 /**
- * Validates if a value is a valid DatePeriodValue
+ * Checks if a value is a valid date (Date object or parseable string)
  */
-function isValidDatePeriodValue(value: unknown): value is DatePeriodValue {
+function isValidDate(value: unknown): boolean {
+  if (value instanceof Date) {
+    return !isNaN(value.getTime());
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return !isNaN(parsed.getTime());
+  }
+  return false;
+}
+
+/**
+ * Validates if a value is a valid DatePeriodValue or DatePeriodInputValue
+ */
+function isValidDatePeriodValue(value: unknown): value is DatePeriodValue | DatePeriodInputValue {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
     (v.type === "preset" || v.type === "month" || v.type === "range") &&
-    v.from instanceof Date &&
-    !isNaN(v.from.getTime()) &&
-    v.to instanceof Date &&
-    !isNaN(v.to.getTime()) &&
+    isValidDate(v.from) &&
+    isValidDate(v.to) &&
     typeof v.label === "string"
   );
 }
@@ -394,7 +446,7 @@ function isValidDatePeriodValue(value: unknown): value is DatePeriodValue {
  *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
  * ```
  */
-export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
+export function getDateRangeFromPeriod(period?: DatePeriodValue | DatePeriodInputValue | unknown): {
   from: string;
   to: string;
 } {
@@ -407,9 +459,11 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
     };
   }
 
+  // Normalize to ensure Date objects
+  const normalized = normalizeDatePeriodValue(period);
   return {
-    from: period.from.toISOString(),
-    to: period.to.toISOString(),
+    from: normalized.from.toISOString(),
+    to: normalized.to.toISOString(),
   };
 }
 
@@ -429,7 +483,7 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | unknown): {
  */
 export function injectDateFilters(
   queryTemplate: string,
-  period?: DatePeriodValue | unknown
+  period?: DatePeriodValue | DatePeriodInputValue | unknown
 ): string {
   const { from, to } = getDateRangeFromPeriod(period);
   return queryTemplate
