@@ -15,6 +15,7 @@ import {
   sanitizeError,
   validateOrigin,
 } from "../utils/security.utils";
+import { useLocale } from "../contexts/LocaleContext";
 
 function createTokenCache() {
   let cachedToken: string | null = null;
@@ -57,6 +58,7 @@ const globalPendingRequests = new Map<string, (token: string) => void>();
  * PostMessage 기반 인증 훅
  */
 export function usePostMessageAuth() {
+  const { setLocale } = useLocale();
   const [authState, setAuthState] = useState<AuthState>({
     status: AuthStatus.IDLE,
   });
@@ -190,6 +192,12 @@ export function usePostMessageAuth() {
           DEFAULT_SECURITY_CONFIG.tokenCacheDurationMs
         );
 
+        // 6.1 Locale 설정
+        if (payload.locale) {
+          console.log("[usePostMessageAuth] Locale updated:", payload.locale);
+          setLocale(payload.locale);
+        }
+
         // 7. 대기 중인 요청 해결
         const resolver = globalPendingRequests.get(payload.nonce);
         if (resolver) {
@@ -227,7 +235,7 @@ export function usePostMessageAuth() {
       // 컴포넌트 언마운트 시 캐시를 지우지 않음 (다른 컴포넌트와 공유 위해)
       // globalTokenCache.clear();
     };
-  }, []);
+  }, [setLocale]);
 
   return {
     authState,

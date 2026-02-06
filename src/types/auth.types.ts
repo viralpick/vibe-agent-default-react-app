@@ -35,6 +35,8 @@ export interface AuthTokenPayload {
   timestamp: number;
   /** 재사용 방지를 위한 고유 식별자 */
   nonce: string;
+  /** 언어 설정 (optional) */
+  locale?: "ko" | "en";
 }
 
 /**

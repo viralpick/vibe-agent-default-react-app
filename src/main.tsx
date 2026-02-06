@@ -3,13 +3,13 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { usePostMessageFileContent } from "./hooks/usePostMessageFileContent.ts";
 import { useEnableEditMode } from "./hooks/useEnableEditMode.ts";
-import { useLocaleSync } from "./hooks/useLocaleSync.ts";
+import { usePostMessageAuth } from "./hooks/usePostMessageAuth.ts";
 import { LocaleProvider } from "./contexts/LocaleContext.tsx";
 
 function AppWithHooks() {
   useEnableEditMode();
   usePostMessageFileContent();
-  useLocaleSync();
+  usePostMessageAuth(); // AUTH_TOKEN에서 locale 동기화
 
   return <App />;
 }

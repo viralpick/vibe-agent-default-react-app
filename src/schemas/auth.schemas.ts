@@ -47,6 +47,7 @@ export const authTokenPayloadSchema = z.object({
   token: tokenSchema,
   timestamp: timestampSchema,
   nonce: nonceSchema,
+  locale: z.enum(["ko", "en"]).optional(),
 });
 
 /**
