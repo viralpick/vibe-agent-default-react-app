@@ -59,7 +59,7 @@ export function StatCard({
   icon: React.ElementType;
 }) {
   if (isLoading)
-    return <Skeleton className="h-[120px] w-full rounded-xlarge" />;
+    return <Skeleton className="h-[130px] w-full rounded-xlarge" />;
 
   return (
     <Card className="rounded-large border-border-200 bg-gray-0 h-full">

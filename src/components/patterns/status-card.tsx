@@ -1,11 +1,12 @@
-import React from "react";
-import * as LucideIcons from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import * as LucideIcons from "lucide-react";
 import { StarIcon } from "lucide-react";
+import React from "react";
 
-import { cn, getColorClass } from "@/lib/commerce-sdk";
 import { useTranslation } from "@/hooks/useTranslation";
+import { cn, getColorClass } from "@/lib/commerce-sdk";
+import { Skeleton } from "../ui/skeleton";
 
 /**
  * @component StatusCard
@@ -13,8 +14,9 @@ import { useTranslation } from "@/hooks/useTranslation";
  * progress bars, ratings, percentages, and period-over-period metrics (MoM/WoW/DoD).
  *
  * @dataStructure
- * - title: string - Card title/metric name (required)
- * - icon?: string - Lucide icon name as string, e.g., "TrendingUp" (optional)
+ * - title: string | React.ReactNode - Metric label or EditableText component (required)
+ * - icon?: React.ElementType - Lucide icon component for the metric (optional)
+ * - isLoading: boolean - Shows skeleton when true (required)
  * - value?: number | string - Primary value to display (optional)
  * - maxValue?: number | string - Maximum/target value for comparison (optional)
  * - note?: string - Additional note text below value (optional)
@@ -27,8 +29,6 @@ import { useTranslation } from "@/hooks/useTranslation";
  *
  * @designTokens
  * - Uses flex-1 for flexible card sizing
- * - Uses text-2xl for main value display
- * - Uses text-xs for metric labels
  * - Green (#2a9d90) for positive metrics, red (#e0654c) for negative
  * - Yellow (#fbbf24) for active stars in rating
  *
@@ -42,7 +42,11 @@ import { useTranslation } from "@/hooks/useTranslation";
  * ```tsx
  * // With progress bar
  * <StatusCard
- *   title="Monthly Goal"
+ *   title={
+ *     <EditableText data-editable="true" data-line-number="52">
+ *       Revenue
+ *     </EditableText>
+ *   }
  *   value={85}
  *   maxValue={100}
  *   format={{ type: "percent" }}
@@ -51,26 +55,35 @@ import { useTranslation } from "@/hooks/useTranslation";
  *
  * // With rating
  * <StatusCard
- *   title="Customer Rating"
+ *   title={
+ *     <EditableText data-editable="true" data-line-number="52">
+ *       Revenue
+ *     </EditableText>
+ *   }
  *   rating={{ value: 4.5, max: 5 }}
  *   format={{ type: "rating" }}
  * />
  *
  * // With period metrics
  * <StatusCard
- *   title="Revenue"
+ *   title={
+ *     <EditableText data-editable="true" data-line-number="52">
+ *       Revenue
+ *     </EditableText>
+ *   }
  *   value={12500000}
  *   format={{ type: "currency" }}
  *   metrics={{ mom: 5.2, wow: -1.3, dod: 2.1 }}
- *   icon="TrendingUp"
+ *   icon={TrendingUp}
  * />
  * ```
  */
 export type StatusCardProps = {
-  title: string;
-  icon?: string;
+  title: string | React.ReactNode;
+  icon?: React.ElementType;
   value?: number | string;
   maxValue?: number | string;
+  isLoading: boolean;
   note?: string;
   percent?: {
     value: number;
@@ -101,7 +114,7 @@ export type StatusCardProps = {
 const formatValue = (
   value: number | string | undefined,
   format?: StatusCardProps["format"],
-  ratingSuffix?: string
+  ratingSuffix?: string,
 ): string => {
   if (value === undefined || value === null) return "";
 
@@ -139,7 +152,7 @@ const renderMainValue = (
   value?: number | string,
   maxValue?: number | string,
   format?: StatusCardProps["format"],
-  ratingSuffix?: string
+  ratingSuffix?: string,
 ) => {
   if (value === undefined && maxValue === undefined) return null;
 
@@ -155,13 +168,17 @@ const renderMainValue = (
 
   if (value !== undefined) {
     return (
-      <div className="text-h3 font-bold">{formatValue(value, format, ratingSuffix)}</div>
+      <div className="text-h3 font-bold">
+        {formatValue(value, format, ratingSuffix)}
+      </div>
     );
   }
 
   if (maxValue !== undefined) {
     return (
-      <div className="text-h3 font-bold">{formatValue(maxValue, format, ratingSuffix)}</div>
+      <div className="text-h3 font-bold">
+        {formatValue(maxValue, format, ratingSuffix)}
+      </div>
     );
   }
 
@@ -179,27 +196,32 @@ export function StatusCard({
   progress,
   metrics,
   rating,
+  isLoading,
 }: StatusCardProps): React.JSX.Element {
   const t = useTranslation();
   const Icon = icon
     ? (LucideIcons[icon as keyof typeof LucideIcons] as React.ElementType)
     : null;
 
+  if (isLoading)
+    return <Skeleton className="h-[130px] w-full rounded-xlarge" />;
+
   return (
-    <Card className="flex-1">
+    <Card className="flex-1 rounded-large border-border-200 h-full">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle
-          className="text-body-s font-medium"
-          data-editable="title"
-          data-prop="title"
-        >
+        <CardTitle className="text-label-l font-medium text-text-secondary">
           {title}
         </CardTitle>
         {percent ? (
           <div className="flex items-center gap-0.5">
-            <Progress value={percent.value} className="w-[56px] flex-row items-center gap-1">
+            <Progress
+              value={percent.value}
+              className="w-[56px] flex-row items-center gap-1"
+            >
               <Progress.Bar
-                indicatorClassName={percent.color ? getColorClass(percent.color) : "bg-[#2a9d90]"}
+                indicatorClassName={
+                  percent.color ? getColorClass(percent.color) : "bg-[#2a9d90]"
+                }
               />
             </Progress>
             <span
@@ -212,22 +234,22 @@ export function StatusCard({
             </span>
           </div>
         ) : (
-          Icon && (
-            <div className="size-4 text-black/50">
-              {React.createElement(Icon, { size: 16 })}
-            </div>
-          )
+          Icon && <Icon className="size-4 text-icon-secondary" />
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 px-5">
           {renderMainValue(value, maxValue, format, t.statusCard.ratingSuffix)}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           {progress && (
             <div>
               <Progress value={progress.current} max={progress.max}>
                 <Progress.Bar
-                  indicatorClassName={progress.color ? getColorClass(progress.color) : "bg-[#2a9d90]"}
+                  indicatorClassName={
+                    progress.color
+                      ? getColorClass(progress.color)
+                      : "bg-[#2a9d90]"
+                  }
                 />
               </Progress>
               <p className="flex text-xs text-muted-foreground mt-0.25 justify-between">
@@ -243,7 +265,7 @@ export function StatusCard({
                   key={i}
                   className={cn(
                     "size-5.5 text-[#d9d9d9]",
-                    i < Math.round(rating.value) && "text-[#fbbf24]"
+                    i < Math.round(rating.value) && "text-[#fbbf24]",
                   )}
                 />
               ))}
