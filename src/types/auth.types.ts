@@ -22,6 +22,8 @@ export enum PostMessageType {
   FILE_CONTENT_ERROR = "FILE_CONTENT_ERROR",
   /** 샌드박스 -> 호스트 FE: 쿼리 클릭 이벤트 */
   QUERY_CLICK = "QUERY_CLICK",
+  /** 샌드박스 -> 호스트 FE: 생존 확인용 heartbeat */
+  HEARTBEAT = "HEARTBEAT",
 }
 
 /**
