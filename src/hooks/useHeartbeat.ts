@@ -20,8 +20,9 @@ export function useHeartbeat() {
           type: PostMessageType.HEARTBEAT,
           timestamp: Date.now(),
         },
-        "*"
+        "*",
       );
+      console.log("can you feel my heartbeat?");
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => clearInterval(interval);
