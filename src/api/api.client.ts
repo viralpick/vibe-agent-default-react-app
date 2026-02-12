@@ -26,15 +26,31 @@ export const apiClient = axios.create({
 type GetTokenFn = () => Promise<string>;
 
 let getTokenFn: GetTokenFn | null = null;
+let staticToken: string | null = null;
 
 export function setTokenProvider(fn: GetTokenFn) {
   getTokenFn = fn;
 }
 
+/**
+ * URL query parameter에서 가져온 정적 토큰 설정
+ * 이 토큰이 설정되면 PostMessage 인증보다 우선 사용됨
+ */
+export function setStaticToken(token: string | null) {
+  staticToken = token;
+  if (token) {
+    console.log("[API] Static token set from URL");
+  }
+}
+
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
-      if (getTokenFn) {
+      // URL token이 있으면 우선 사용
+      if (staticToken) {
+        config.headers.Authorization = `Bearer ${staticToken}`;
+      } else if (getTokenFn) {
+        // 없으면 PostMessage auth 사용
         const token = await getTokenFn();
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
