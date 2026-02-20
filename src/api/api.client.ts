@@ -64,7 +64,7 @@ apiClient.interceptors.request.use(
   },
   (error: unknown) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // 401 error retry
@@ -96,7 +96,7 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export function useApiClient() {
@@ -109,14 +109,3 @@ export function useApiClient() {
 
   return apiClient;
 }
-
-// sample api
-export const api = {
-  test: {
-    get: () => apiClient.get("/companies"),
-  },
-
-  user: {
-    me: () => apiClient.get("/members/me"),
-  },
-};
