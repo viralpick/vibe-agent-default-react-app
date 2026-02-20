@@ -47,10 +47,7 @@ export function validateTimestamp(
  * @returns 고유한 nonce 문자열
  */
 export function generateNonce(): string {
-  const timestamp = Date.now().toString(36);
-  const randomStr = Math.random().toString(36).substring(2, 15);
-  const randomStr2 = Math.random().toString(36).substring(2, 15);
-  return `${timestamp}-${randomStr}${randomStr2}`;
+  return crypto.randomUUID();
 }
 
 /**
@@ -170,13 +167,17 @@ class RateLimiter {
 export const rateLimiter = new RateLimiter();
 
 /**
- * 민감 정보 메모리 정리
+ * 민감 정보 참조 정리
+ *
+ * 주의: JavaScript 문자열은 immutable이므로, 원본 문자열 데이터가
+ * 메모리에서 즉시 제거되는 것을 보장하지 않습니다 (GC에 의존).
+ * 이 함수는 객체의 참조를 끊어 GC 대상으로 만드는 best-effort 방어입니다.
+ *
  * @param obj 정리할 객체
  */
 export function clearSensitiveData(obj: Record<string, any>): void {
   Object.keys(obj).forEach((key) => {
     if (typeof obj[key] === 'string') {
-      // 문자열을 0으로 덮어쓰기 (완전한 보안은 아니지만 추가 방어)
       obj[key] = '';
     }
     delete obj[key];
