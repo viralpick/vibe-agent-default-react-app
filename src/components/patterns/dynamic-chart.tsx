@@ -1158,6 +1158,9 @@ const PIE_CHART_COLORS = [
   "#6366f1", // indigo-500
 ];
 
+const PIE_OTHER_COLOR = "#9ca3af"; // gray-400
+const LEGEND_AUTO_HIDE_THRESHOLD = 10;
+
 /**
  * Props for DynamicPieChart component
  */
@@ -1172,6 +1175,8 @@ export type DynamicPieChartProps = {
   showLegend?: boolean;
   showLabel?: boolean;
   isLoading?: boolean;
+  /** Max number of pie segments. Excess items are grouped into "기타". */
+  maxItems?: number;
   /** Optional key normalization function for color mapping */
   normalizeKey?: (key: string) => string;
   /** Query ID for query edit mode (optional) */
@@ -1196,6 +1201,7 @@ export type DynamicPieChartProps = {
  * - showLegend?: boolean - Show/hide legend (optional, default: true)
  * - showLabel?: boolean - Show labels on segments (optional, default: false)
  * - isLoading?: boolean - Show skeleton loader (optional, default: false)
+ * - maxItems?: number - Max segments before grouping extras into "기타" (optional, default: 6)
  * - normalizeKey?: (key: string) => string - Key normalization for color lookup (optional)
  *
  * @designTokens
@@ -1242,6 +1248,7 @@ export function DynamicPieChart({
   showLegend = true,
   showLabel = false,
   isLoading = false,
+  maxItems = 6,
   normalizeKey,
   queryId,
   queryContent,
@@ -1258,23 +1265,41 @@ export function DynamicPieChart({
     }));
   }, [data]);
 
+  const limitedData = useMemo(() => {
+    if (safeData.length <= maxItems) return safeData;
+
+    const sorted = [...safeData].sort((a, b) => b.value - a.value);
+    const topItems = sorted.slice(0, maxItems - 1);
+    const otherItems = sorted.slice(maxItems - 1);
+    const otherSum = otherItems.reduce((sum, item) => sum + item.value, 0);
+
+    return [...topItems, { name: "기타", value: otherSum }];
+  }, [safeData, maxItems]);
+
   // Build color map with case-insensitive lookup (name may be number from API e.g. promotion_id)
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    safeData.forEach((entry, index) => {
+    limitedData.forEach((entry, index) => {
       const raw = entry?.name;
       const name = raw != null ? String(raw) : "";
-      const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
-      map[key] = colors[index % colors.length];
+      if (name === "기타") {
+        map["기타"] = PIE_OTHER_COLOR;
+      } else {
+        const key = normalizeKey ? normalizeKey(name) : name.toLowerCase();
+        map[key] = colors[index % colors.length];
+      }
     });
     return map;
-  }, [safeData, colors, normalizeKey]);
+  }, [limitedData, colors, normalizeKey]);
 
   const getColor = (name: string | number, index: number): string => {
     const safeName = name != null ? String(name) : "";
+    if (safeName === "기타") return PIE_OTHER_COLOR;
     const key = normalizeKey ? normalizeKey(safeName) : safeName.toLowerCase();
     return colorMap[key] || colors[index % colors.length];
   };
+
+  const shouldShowLegend = showLegend && limitedData.length <= LEGEND_AUTO_HIDE_THRESHOLD;
 
   if (isLoading) {
     return (
@@ -1321,7 +1346,7 @@ export function DynamicPieChart({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={safeData}
+                data={limitedData}
                 cx="50%"
                 cy="50%"
                 innerRadius={innerRadius}
@@ -1331,7 +1356,7 @@ export function DynamicPieChart({
                 nameKey="name"
                 label={showLabel}
               >
-                {safeData.map((entry, index) => (
+                {limitedData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={getColor(entry?.name ?? "", index)}
@@ -1339,7 +1364,7 @@ export function DynamicPieChart({
                 ))}
               </Pie>
               <RechartsTooltip />
-              {showLegend && (
+              {shouldShowLegend && (
                 <Legend
                   verticalAlign="bottom"
                   height={36}

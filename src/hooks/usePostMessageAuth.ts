@@ -52,7 +52,10 @@ function createTokenCache() {
  * 모든 훅 인스턴스가 이 상태를 공유합니다.
  */
 const globalTokenCache = createTokenCache();
-const globalPendingRequests = new Map<string, (token: string) => void>();
+const globalPendingRequests = new Map<
+  string,
+  { resolve: (token: string) => void; reject: (reason: Error) => void }
+>();
 
 /**
  * PostMessage 기반 인증 훅
@@ -79,7 +82,7 @@ export function usePostMessageAuth() {
       }
 
       // 요청 저장 (응답 대기)
-      globalPendingRequests.set(nonce, resolve);
+      globalPendingRequests.set(nonce, { resolve, reject });
 
       // 타임아웃 설정 (5초)
       setTimeout(() => {
@@ -199,9 +202,9 @@ export function usePostMessageAuth() {
         }
 
         // 7. 대기 중인 요청 해결
-        const resolver = globalPendingRequests.get(payload.nonce);
-        if (resolver) {
-          resolver(payload.token);
+        const pending = globalPendingRequests.get(payload.nonce);
+        if (pending) {
+          pending.resolve(payload.token);
           globalPendingRequests.delete(payload.nonce);
         }
 
@@ -221,8 +224,8 @@ export function usePostMessageAuth() {
         setAuthState({ status: AuthStatus.FAILED, error });
 
         // 대기 중인 모든 요청 거부
-        globalPendingRequests.forEach((reject) => {
-          reject("");
+        globalPendingRequests.forEach(({ reject: rejectFn }) => {
+          rejectFn(new Error(error));
         });
         globalPendingRequests.clear();
       }

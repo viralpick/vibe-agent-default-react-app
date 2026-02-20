@@ -46,6 +46,10 @@ export const useEnableEditMode = () => {
   React.useEffect(() => {
     if (!isE2B) return;
     injectEditModeStyles();
+    return () => {
+      const style = document.getElementById(EDIT_MODE_STYLE_ID);
+      if (style) document.head.removeChild(style);
+    };
   }, [isE2B]);
 
   // 편집 모드에서 클릭 처리
