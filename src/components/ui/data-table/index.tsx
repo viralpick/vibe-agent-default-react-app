@@ -65,6 +65,7 @@ type DataTableProps<TData, TValue> = {
   showSearch?: boolean;
   showOptions?: boolean;
   showFilter?: boolean;
+  showDownload?: boolean;
   pageSizeOptions?: number[];
   searchKeys?: (keyof TData)[];
   searchPlaceholder?: string;
@@ -183,6 +184,7 @@ function DataTable<TData, TValue>({
   showSearch = false,
   showOptions = false,
   showFilter = false,
+  showDownload = false,
   classNames,
   customToolbar,
   onDownload,
@@ -380,9 +382,48 @@ function DataTable<TData, TValue>({
       ? onPageSizeChange
       : (value: number) => table.setPageSize(value);
 
+  const handleBuiltInDownload = React.useCallback(() => {
+    const visibleColumns = table.getVisibleLeafColumns();
+    const rows = table.getRowModel().rows;
+
+    const escapeCsv = (val: unknown): string => {
+      const str = val == null ? "" : String(val);
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = visibleColumns.map(
+      (col) => escapeCsv((col.columnDef.meta?.title as string) ?? col.id)
+    );
+
+    const dataRows = rows.map((row) =>
+      visibleColumns.map((col) => escapeCsv(row.getValue(col.id))).join(",")
+    );
+
+    const csv = [headers.join(","), ...dataRows].join("\n");
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+
+    const titleStr =
+      typeof title === "string" ? title : "data";
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `${titleStr}-${date}.csv`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [table, title]);
+
   return (
     <div className="flex flex-col gap-1">
-      {(title || showSearch || showOptions || onDownload || customToolbar) && (
+      {(title || showSearch || showOptions || onDownload || showDownload || customToolbar) && (
         <div className="w-full flex items-center justify-between">
           {title && (
             <div className="flex gap-0.5 items-center">
@@ -398,7 +439,7 @@ function DataTable<TData, TValue>({
             classNames={classNames}
             showSearch={showSearch}
             showOptions={showOptions}
-            onDownload={onDownload}
+            onDownload={onDownload ?? (showDownload ? handleBuiltInDownload : undefined)}
             customToolbar={customToolbar}
             onSearch={onSearch}
             controlsOnLeft={toolbarControlsAlign === "right"}
