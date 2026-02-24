@@ -43,9 +43,8 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "@/components/ui/card";
-
-import { Skeleton } from "@/components/ui/skeleton";
+  Skeleton,
+} from "@viralpick/synapse";
 import { normalizeNumericValue } from "./data-utils";
 import { format } from "date-fns";
 

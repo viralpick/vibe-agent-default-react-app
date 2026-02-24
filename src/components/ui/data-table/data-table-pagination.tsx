@@ -9,8 +9,7 @@ import {
   ChevronsRight,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/dropdown";
+import { Button, Select } from "@viralpick/synapse";
 import { useTranslation } from "@/hooks/useTranslation";
 
 type DataTablePaginationProps<TData> = {

@@ -7,16 +7,8 @@ import type {
 import React from "react";
 import { Filter as FilterIcon, Plus, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Separator } from "@/components/ui/seperator";
+import { Button, Popover, PopoverContent, PopoverTrigger, Separator, Select, Input } from "@viralpick/synapse";
 import { filterOperators } from "@/components/ui/data-table/types";
-import { Select } from "@/components/ui/dropdown";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/commerce-sdk";
 import { useTranslation } from "@/hooks/useTranslation";
 

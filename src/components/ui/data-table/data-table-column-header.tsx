@@ -4,13 +4,7 @@ import { ArrowDown, ArrowUp, EyeOff, Info } from "lucide-react";
 
 import { cn } from "@/lib/commerce-sdk";
 
-import { Select } from "@/components/ui/dropdown";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { Select, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@viralpick/synapse";
 import { nl2br } from "@/utils/nl2br";
 import { useTranslation } from "@/hooks/useTranslation";
 
@@ -31,14 +25,14 @@ type DataTableColumnHeaderProps<TData, TValue> = Omit<
 
 function DataTableColumnHeader<TData, TValue>({
   column,
-  prefix,
+  prefix: _prefix,
   size,
   title,
   tooltip,
   tooltipIcon,
   className,
   textAlign = "left",
-  disableSort = false,
+  disableSort: _disableSort = false,
   disableHiding = false,
 }: DataTableColumnHeaderProps<TData, TValue>): React.JSX.Element {
   const t = useTranslation();

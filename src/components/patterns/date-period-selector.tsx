@@ -4,18 +4,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/commerce-sdk";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/dropdown";
 import {
+  Button,
+  Select,
   DatePickerProvider,
   DatePickerCalendar,
-} from "@/components/ui/date-picker";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@viralpick/synapse";
 import { useTranslation } from "@/hooks/useTranslation";
 
 /**
@@ -310,10 +308,6 @@ export function DatePeriodSelector({
         });
       }
     }
-  };
-
-  const handleCalendarSelect = (range: DateRange | undefined) => {
-    setCalendarRange(range);
   };
 
   const handleCalendarApply = () => {

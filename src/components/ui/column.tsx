@@ -20,12 +20,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn, parseArrayString } from "@/lib/commerce-sdk";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@viralpick/synapse";
 
 type ColumnNoneProps = {
   className?: string;

@@ -7,9 +7,7 @@ import React from "react";
 
 import { cn } from "@/lib/commerce-sdk";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { MultiSelect } from "../dropdown";
+import { Button, Input, MultiSelect } from "@viralpick/synapse";
 import { useTranslation } from "@/hooks/useTranslation";
 
 type DataTableToolbarProps<TData> = {

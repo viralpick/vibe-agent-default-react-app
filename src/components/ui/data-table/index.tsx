@@ -29,15 +29,7 @@ import {
 
 import { cn } from "@/lib/commerce-sdk";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Spinner } from "@viralpick/synapse";
 import { DataTableColumnHeader } from "@/components/ui/data-table/data-table-column-header";
 import { DataTableFilter } from "@/components/ui/data-table/data-table-filter";
 import { DataTableToolbar } from "@/components/ui/data-table/data-table-toolbar";

@@ -1,12 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle, Progress, Skeleton } from "@viralpick/synapse";
 import * as LucideIcons from "lucide-react";
 import { StarIcon } from "lucide-react";
 import React from "react";
 
 import { useTranslation } from "@/hooks/useTranslation";
 import { cn, getColorClass } from "@/lib/commerce-sdk";
-import { Skeleton } from "../ui/skeleton";
 
 /**
  * @component StatusCard

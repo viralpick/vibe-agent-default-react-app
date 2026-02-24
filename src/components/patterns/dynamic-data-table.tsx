@@ -15,8 +15,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { cn, getColorClass } from "@/lib/commerce-sdk";
 
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Badge, Progress } from "@viralpick/synapse";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   ColumnDate,
@@ -162,7 +161,11 @@ export const DynamicDataTable = ({
       const normalizedRow: Record<string, string | number | boolean> = {};
       for (const [key, value] of Object.entries(row)) {
         // If value is an object (not null, not array), extract numeric value
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
           normalizedRow[key] = normalizeNumericValue(value);
         } else {
           normalizedRow[key] = value as string | number | boolean;
@@ -177,7 +180,7 @@ export const DynamicDataTable = ({
       new Intl.NumberFormat("ko-KR", {
         maximumFractionDigits: 2,
       }),
-    []
+    [],
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,36 +209,43 @@ export const DynamicDataTable = ({
       cell: ({ row }) => {
         const value = row.original[col.key];
 
-          if (
-            col.type === "progress" &&
-            typeof value === "number" &&
-            col.progress
-          ) {
-            return (
-              <div className={cn("flex items-center gap-0.5", alignClass)}>
-                <Progress value={value} className="w-[56px] flex-row items-center gap-1">
-                  <Progress.Bar
-                    indicatorClassName={col.progress.color ? getColorClass(col.progress.color) : "bg-[#2a9d90]"}
-                  />
-                </Progress>
-                {col.showValue && (
-                  <span
-                    className={cn("text-sm", size === "sm" && "text-xs")}
-                    style={{
-                      color: col.progress.color || "#2a9d90",
-                    }}
-                  >
-                    {col.valueFormat === "percent"
-                      ? `${value.toFixed(1)}%`
-                      : col.valueFormat === "currency"
-                      ? value.toLocaleString()
-                      : value}
-                    {col.unit ?? ""}
-                  </span>
-                )}
-              </div>
-            );
-          }
+        if (
+          col.type === "progress" &&
+          typeof value === "number" &&
+          col.progress
+        ) {
+          return (
+            <div className={cn("flex items-center gap-0.5", alignClass)}>
+              <Progress
+                value={value}
+                className="w-[56px] flex-row items-center gap-1"
+              >
+                <Progress.Bar
+                  indicatorClassName={
+                    col.progress.color
+                      ? getColorClass(col.progress.color)
+                      : "bg-[#2a9d90]"
+                  }
+                />
+              </Progress>
+              {col.showValue && (
+                <span
+                  className={cn("text-sm", size === "sm" && "text-xs")}
+                  style={{
+                    color: col.progress.color || "#2a9d90",
+                  }}
+                >
+                  {col.valueFormat === "percent"
+                    ? `${value.toFixed(1)}%`
+                    : col.valueFormat === "currency"
+                    ? value.toLocaleString()
+                    : value}
+                  {col.unit ?? ""}
+                </span>
+              )}
+            </div>
+          );
+        }
 
         if (col.type === "badge" && col.badgeMap) {
           const badge = col.badgeMap[value as string] ?? {
@@ -246,7 +256,7 @@ export const DynamicDataTable = ({
             <div className={cn("flex items-center", alignClass)}>
               <Badge
                 className={cn("text-sm", size === "sm" && "text-xs")}
-                style={{ backgroundColor: badge.color }}
+                color={badge.color}
               >
                 {badge.label}
               </Badge>
