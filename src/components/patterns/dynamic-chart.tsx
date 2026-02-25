@@ -1364,18 +1364,22 @@ export function DynamicPieChart({
                 ))}
               </Pie>
               <RechartsTooltip />
-              {shouldShowLegend && (
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  formatter={(value: string) => (
-                    <span className="text-sm text-gray-600">{value}</span>
-                  )}
-                />
-              )}
             </PieChart>
           </ResponsiveContainer>
         </div>
+        {shouldShowLegend && (
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-3">
+            {limitedData.map((entry, index) => (
+              <div key={entry.name} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                  style={{ backgroundColor: getColor(entry?.name ?? "", index) }}
+                />
+                <span className="text-sm text-gray-600">{entry.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
