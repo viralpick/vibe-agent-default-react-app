@@ -83,6 +83,8 @@ export type DynamicDataTableProps = {
   showOptions?: boolean;
   searchKeys?: string[];
   searchPlaceholder?: string;
+  /** Show built-in CSV download button */
+  showDownload?: boolean;
   /** Query ID for query edit mode (optional) */
   queryId?: string;
   /** Query content for query edit mode (optional) */
@@ -349,6 +351,7 @@ export const DynamicDataTable = ({
       searchKeys={searchKeys}
       searchPlaceholder={searchPlaceholder}
       showOptions={showOptions}
+      showDownload
       queryId={queryId}
       queryContent={queryContent}
     />
