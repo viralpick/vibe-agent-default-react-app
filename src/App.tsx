@@ -1,6 +1,13 @@
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
+import {
+  DynamicLineChart,
+  DynamicAreaChart,
+  DynamicBarChart,
+  DynamicComposedChart,
+  DynamicPieChart,
+} from "@/components/patterns/dynamic-chart";
 
 type User = {
   id: number;
@@ -10,6 +17,39 @@ type User = {
   status: string;
   joinedAt: string;
 };
+
+// ---------------------------------------------------------------------------
+// Chart sample data
+// ---------------------------------------------------------------------------
+
+const monthlySalesData = [
+  { month: "2025-01-01", revenue: 4200, orders: 320, target: 4000 },
+  { month: "2025-02-01", revenue: 3800, orders: 280, target: 4100 },
+  { month: "2025-03-01", revenue: 5100, orders: 410, target: 4200 },
+  { month: "2025-04-01", revenue: 4700, orders: 350, target: 4300 },
+  { month: "2025-05-01", revenue: 5600, orders: 480, target: 4500 },
+  { month: "2025-06-01", revenue: 6200, orders: 520, target: 4700 },
+  { month: "2025-07-01", revenue: 5900, orders: 490, target: 4800 },
+  { month: "2025-08-01", revenue: 6800, orders: 560, target: 5000 },
+];
+
+const categoryData = [
+  { category: "Electronics", sales: 12400 },
+  { category: "Clothing", sales: 8200 },
+  { category: "Food", sales: 6800 },
+  { category: "Books", sales: 4300 },
+  { category: "Sports", sales: 3100 },
+];
+
+const sentimentData = [
+  { name: "POSITIVE", value: 2437 },
+  { name: "NEUTRAL", value: 456 },
+  { name: "NEGATIVE", value: 189 },
+];
+
+// ---------------------------------------------------------------------------
+// DataTable sample data
+// ---------------------------------------------------------------------------
 
 const sampleData: User[] = [
   {
@@ -183,6 +223,69 @@ function App() {
           <DataTable.Body />
           <DataTable.Pagination />
         </DataTable>
+      </section>
+
+      <section>
+        <h1 className="text-2xl font-bold mb-6">Chart Demo</h1>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <DynamicLineChart
+            title="Monthly Revenue Trend"
+            description="Revenue & orders over time"
+            xAxisKey="month"
+            data={monthlySalesData}
+            config={{
+              revenue: { label: "Revenue", color: "#8884d8" },
+              orders: { label: "Orders", color: "#82ca9d" },
+            }}
+          />
+
+          <DynamicAreaChart
+            title="Revenue Accumulation"
+            xAxisKey="month"
+            data={monthlySalesData}
+            config={{
+              revenue: { label: "Revenue", color: "#3b82f6" },
+            }}
+          />
+
+          <DynamicBarChart
+            title="Sales by Category"
+            xAxisKey="category"
+            data={categoryData}
+            config={{
+              sales: { label: "Sales", color: "#f59e0b" },
+            }}
+          />
+
+          <DynamicBarChart
+            title="Category Ranking"
+            layout="horizontal"
+            xAxisKey="sales"
+            yAxisKey="category"
+            data={categoryData}
+            config={{
+              sales: { label: "Sales", color: "#8b5cf6" },
+            }}
+          />
+
+          <DynamicComposedChart
+            title="Revenue vs Target"
+            description="Bar = Revenue, Line = Target"
+            xAxisKey="month"
+            data={monthlySalesData}
+            config={{
+              revenue: { label: "Revenue", color: "#3b82f6", type: "bar", yAxisId: "left" },
+              target: { label: "Target", color: "#ef4444", type: "line", yAxisId: "left" },
+            }}
+          />
+
+          <DynamicPieChart
+            title="Sentiment Distribution"
+            data={sentimentData}
+            colors={["#22c55e", "#94a3b8", "#ef4444"]}
+            innerRadius={50}
+          />
+        </div>
       </section>
     </main>
   );

@@ -2,7 +2,7 @@
 
 /**
  * @fileoverview Dynamic Chart Components for data visualization.
- * Provides Line, Area, Bar, and Composed chart types with consistent styling.
+ * Provides Line, Area, Bar, Composed, and Pie chart types with consistent styling.
  *
  * @module patterns/dynamic-chart
  */
@@ -22,9 +22,6 @@ import {
   ComposedChart,
   PieChart,
   Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
   Brush,
 } from "recharts";
 
@@ -50,16 +47,26 @@ import { format } from "date-fns";
 
 const DEFAULT_CHART_HEIGHT = 300;
 
+// ---------------------------------------------------------------------------
+// Shared utilities
+// ---------------------------------------------------------------------------
+
 /**
  * Normalizes chart data by converting object values to numbers.
  * Handles GraphQL response patterns where numeric values are wrapped in objects.
  */
-const normalizeChartData = (data: Record<string, unknown>[]): Record<string, unknown>[] => {
+const normalizeChartData = (
+  data: Record<string, unknown>[],
+): Record<string, unknown>[] => {
   if (!Array.isArray(data)) return [];
   return data.map((item) => {
     const normalized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(item)) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
         normalized[key] = normalizeNumericValue(value);
       } else {
         normalized[key] = value;
@@ -71,8 +78,6 @@ const normalizeChartData = (data: Record<string, unknown>[]): Record<string, unk
 
 /**
  * Formats large numbers with K/M/B suffixes for better readability on axes
- * @param value - The numeric value to format
- * @returns Formatted string with appropriate suffix
  */
 const formatAxisNumber = (value: number): string => {
   if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
@@ -83,14 +88,11 @@ const formatAxisNumber = (value: number): string => {
 
 /**
  * Formats brush tick values - converts dates to yyyy-MM-dd format if possible
- * @param value - The tick value to format
- * @returns Formatted string
  */
 const formatBrushTick = (value: unknown): string => {
   if (value == null) return "";
   const strValue = String(value);
-  
-  // Try to parse as date
+
   const date = new Date(strValue);
   if (!isNaN(date.getTime()) && strValue.length > 6) {
     const year = date.getFullYear();
@@ -98,27 +100,24 @@ const formatBrushTick = (value: unknown): string => {
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
-  
+
   return strValue;
 };
 
 /**
  * Formats date values to M/D format for display
- * @param value - The date value to format
- * @returns Formatted string in M/D format or original value if not a date
  */
 const formatDateShort = (value: unknown): string => {
   if (value == null) return "";
   const strValue = String(value);
-  
-  // Check if it looks like an ISO date (YYYY-MM-DD...)
+
   if (/^\d{4}-\d{2}-\d{2}/.test(strValue)) {
     const date = new Date(strValue);
     if (!isNaN(date.getTime())) {
       return `${date.getMonth() + 1}/${date.getDate()}`;
     }
   }
-  
+
   return strValue;
 };
 
@@ -126,21 +125,117 @@ const formatDateShort = (value: unknown): string => {
  * Checks if a value looks like an ISO date string
  */
 const isISODateString = (value: unknown): boolean => {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== "string") return false;
   return /^\d{4}-\d{2}-\d{2}/.test(value);
 };
+
+// ---------------------------------------------------------------------------
+// ChartCardWrapper — shared Card + Header + Loading skeleton
+// ---------------------------------------------------------------------------
+
+function ChartCardWrapper({
+  title,
+  description,
+  height,
+  isLoading = false,
+  queryId,
+  queryContent,
+  className,
+  children,
+}: {
+  title?: string | React.ReactNode;
+  description?: string;
+  height: number;
+  isLoading?: boolean;
+  queryId?: string;
+  queryContent?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card
+      className={cn("gap-1.5 h-full", className)}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      {(title || description) && (
+        <CardHeader>
+          {title && <CardTitle className="w-fit">{title}</CardTitle>}
+          {description ? (
+            <CardDescription>{description}</CardDescription>
+          ) : (
+            <CardDescription hidden />
+          )}
+        </CardHeader>
+      )}
+      <CardContent className="flex-1 min-h-0">
+        {isLoading ? (
+          <Skeleton className="w-full" style={{ minHeight: height }} />
+        ) : (
+          children
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// useDateFormatters — shared date auto-detection + formatting hook
+// ---------------------------------------------------------------------------
+
+function useDateFormatters(
+  normalizedData: Record<string, unknown>[],
+  xAxisKey: string,
+  tickFormatter?: (value: string) => string,
+) {
+  const autoTickFormatter = useMemo(() => {
+    if (tickFormatter) return tickFormatter;
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      return formatDateShort;
+    }
+    return undefined;
+  }, [tickFormatter, normalizedData, xAxisKey]);
+
+  const tooltipLabelFormatter = useMemo(() => {
+    const firstValue = normalizedData[0]?.[xAxisKey];
+    if (isISODateString(firstValue)) {
+      // Check if all data points share the same HH:mm:ss — if so, omit time
+      const uniqueTimes = new Set(
+        normalizedData
+          .map((item) => {
+            const value = item[xAxisKey];
+            if (!isISODateString(value)) return null;
+            const date = new Date(String(value));
+            return `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+          })
+          .filter((time) => time !== null),
+      );
+      const allSameTime = uniqueTimes.size <= 1;
+      const dateFormat = allSameTime ? "yyyy-MM-dd" : "yyyy-MM-dd HH:mm:ss";
+
+      return (value: unknown) => {
+        const strValue = String(value ?? "");
+        const date = new Date(strValue);
+        if (!isNaN(date.getTime())) {
+          return format(date, dateFormat);
+        }
+        return strValue;
+      };
+    }
+    return undefined;
+  }, [normalizedData, xAxisKey]);
+
+  return { autoTickFormatter, tooltipLabelFormatter };
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type SeriesType = "line" | "bar" | "area";
 type YAxisSide = "left" | "right";
 
-/**
- * Configuration for a series in ComposedChart
- * @property label - Display label for legend
- * @property color - Hex color code for the series
- * @property type - Chart type: "line" | "bar" | "area"
- * @property yAxisId - Which Y axis to use: "left" | "right"
- * @property stackId - Stack identifier for stacked charts
- */
 type ComposedSeriesConfig = {
   label: string;
   color: string;
@@ -149,9 +244,6 @@ type ComposedSeriesConfig = {
   stackId?: string;
 };
 
-/**
- * Base props shared by all dynamic chart components
- */
 type ChartSeriesConfig = Record<
   string,
   {
@@ -181,9 +273,12 @@ export type BaseDynamicChartProps = {
   queryContent?: string;
 };
 
+// ---------------------------------------------------------------------------
+// DynamicAreaChart
+// ---------------------------------------------------------------------------
+
 export type DynamicAreaChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
-  /** Show loading skeleton */
   isLoading?: boolean;
 };
 
@@ -247,149 +342,106 @@ export function DynamicAreaChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  
-  // Auto-determine brush and x-axis labels based on data count
-  const showBrush = dataCount > 5;
+  const showBrush = dataCount > 7;
   const hideXAxisLabels = dataCount >= 30;
-
-  // Auto-detect date format and apply formatting
-  const autoTickFormatter = useMemo(() => {
-    if (tickFormatter) return tickFormatter;
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      return formatDateShort;
-    }
-    return undefined;
-  }, [tickFormatter, normalizedData, xAxisKey]);
-
-  // Format tooltip labels for dates
-  const tooltipLabelFormatter = useMemo(() => {
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      return (value: unknown) => {
-        const strValue = String(value ?? '');
-        const date = new Date(strValue);
-        if (!isNaN(date.getTime())) {
-          return format(date,'yyyy-MM-dd')
-        }
-        return strValue;
-      };
-    }
-    return undefined;
-  }, [normalizedData, xAxisKey]);
-
-  if (isLoading) {
-    return (
-      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-        {(title || description) && (
-          <CardHeader>
-            {title && <CardTitle className="w-fit">{title}</CardTitle>}
-            {description ? (
-              <CardDescription>{description}</CardDescription>
-            ) : (
-              <CardDescription hidden />
-            )}
-          </CardHeader>
-        )}
-        <CardContent className="px-4">
-          <Skeleton className="w-full" style={{ height: chartHeight }} />
-        </CardContent>
-      </Card>
-    );
-  }
+  const { autoTickFormatter, tooltipLabelFormatter } = useDateFormatters(
+    normalizedData,
+    xAxisKey,
+    tickFormatter,
+  );
 
   return (
-    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-      {(title || description) && (
-        <CardHeader>
-          {title && (
-            <CardTitle className="w-fit">
-              {title}
-            </CardTitle>
-          )}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : (
-            <CardDescription hidden />
-          )}
-        </CardHeader>
-      )}
-      <CardContent>
-        <ChartContainer
-          config={effectiveConfig}
-          className="w-full"
-          style={{ height: chartHeight }}
+    <ChartCardWrapper
+      title={title}
+      description={description}
+      height={chartHeight}
+      isLoading={isLoading}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      <ChartContainer
+        config={effectiveConfig}
+        className="w-full h-full"
+        style={{ minHeight: chartHeight }}
+      >
+        <AreaChart
+          accessibilityLayer
+          data={normalizedData}
+          height={chartHeight}
+          margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
         >
-          <AreaChart
-            accessibilityLayer
-            data={normalizedData}
-            height={chartHeight}
-            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
-          >
-            <CartesianGrid vertical={false} stroke="#ebebeb" />
-            <XAxis
-              dataKey={xAxisKey}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={5}
-              tickFormatter={autoTickFormatter}
-              fontSize={10}
-              interval={showBrush ? "preserveStartEnd" : 0}
-              tick={hideXAxisLabels ? false : undefined}
-              dx={10}
-              dy={0}
-            />
-            <YAxis
-              dataKey={yAxisKey}
-              fontSize={12}
-              tickLine={false}
-              tickMargin={8}
-              axisLine={false}
-              tickFormatter={formatAxisNumber}
-            />
-            {tooltipIndicator !== false && (
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
-              />
-            )}
-            {showLegend && <Legend content={<ChartLegendContent />} />}
-            {keys.map((key) => {
-              const color = effectiveConfig[key]?.color || "#000000";
-              return (
-                <Area
-                  key={key}
-                  type={variant}
-                  dataKey={key}
-                  stroke={color}
-                  fill={color}
-                  fillOpacity={0.4}
-                  strokeWidth={2}
-                  connectNulls
-                  dot={false}
+          <CartesianGrid vertical={false} stroke="#ebebeb" />
+          <XAxis
+            dataKey={xAxisKey}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={5}
+            tickFormatter={autoTickFormatter}
+            fontSize={10}
+            interval={showBrush ? "preserveStartEnd" : 0}
+            tick={hideXAxisLabels ? false : undefined}
+            dx={10}
+            dy={0}
+          />
+          <YAxis
+            dataKey={yAxisKey}
+            fontSize={12}
+            tickLine={false}
+            tickMargin={8}
+            axisLine={false}
+            tickFormatter={formatAxisNumber}
+          />
+          {tooltipIndicator !== false && (
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  indicator={tooltipIndicator}
+                  labelFormatter={tooltipLabelFormatter}
                 />
-              );
-            })}
-            {showBrush && (
-              <Brush
-                dataKey={xAxisKey}
-                height={10}
-                stroke="#d1d5db"
-                startIndex={0}
-                endIndex={Math.min(4, dataCount - 1)}
-                tickFormatter={formatBrushTick}
+              }
+            />
+          )}
+          {showLegend && <Legend content={<ChartLegendContent />} />}
+          {keys.map((key) => {
+            const color = effectiveConfig[key]?.color || "#000000";
+            return (
+              <Area
+                key={key}
+                type={variant}
+                dataKey={key}
+                stroke={color}
+                fill={color}
+                fillOpacity={0.4}
+                strokeWidth={2}
+                connectNulls
+                dot={false}
               />
-            )}
-          </AreaChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+            );
+          })}
+          {showBrush && (
+            <Brush
+              dataKey={xAxisKey}
+              height={10}
+              gap={8}
+              stroke="#d1d5db"
+              startIndex={0}
+              endIndex={Math.min(4, dataCount - 1)}
+              tickFormatter={formatBrushTick}
+            />
+          )}
+        </AreaChart>
+      </ChartContainer>
+    </ChartCardWrapper>
   );
 }
 
+// ---------------------------------------------------------------------------
+// DynamicLineChart
+// ---------------------------------------------------------------------------
+
 export type DynamicLineChartProps = BaseDynamicChartProps & {
   variant?: "monotone" | "linear" | "natural" | "step";
-  /** Show loading skeleton */
   isLoading?: boolean;
 };
 
@@ -454,159 +506,105 @@ export function DynamicLineChart({
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  
-  // Auto-determine brush and x-axis labels based on data count
-  const showBrush = dataCount > 5;
+  const showBrush = dataCount > 15;
   const hideXAxisLabels = dataCount >= 30;
-
-  // Auto-detect date format and apply formatting
-  const autoTickFormatter = useMemo(() => {
-    if (tickFormatter) return tickFormatter;
-    // Check first data item for ISO date format
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      return formatDateShort;
-    }
-    return undefined;
-  }, [tickFormatter, normalizedData, xAxisKey]);
-
-  // Format tooltip labels for dates
-  const tooltipLabelFormatter = useMemo(() => {
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      // 모든 데이터의 시간(HH:mm:ss) 부분이 동일한지 체크
-      const uniqueTimes = new Set(
-        normalizedData.map((item) => {
-          const value = item[xAxisKey];
-          if (!isISODateString(value)) return null;
-          const date = new Date(String(value));
-          return `${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
-        }).filter((time) => time !== null)
-      );
-      const allSameTime = uniqueTimes.size <= 1;
-      const dateFormat = allSameTime ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss';
-
-      return (value: unknown) => {
-        const strValue = String(value ?? '');
-        const date = new Date(strValue);
-        if (!isNaN(date.getTime())) {
-          return format(date, dateFormat);
-        }
-        return strValue;
-      };
-    }
-    return undefined;
-  }, [normalizedData, xAxisKey]);
-
-  if (isLoading) {
-    return (
-      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-        {(title || description) && (
-          <CardHeader>
-            {title && <CardTitle className="w-fit">{title}</CardTitle>}
-            {description ? (
-              <CardDescription>{description}</CardDescription>
-            ) : (
-              <CardDescription hidden />
-            )}
-          </CardHeader>
-        )}
-        <CardContent className="px-4">
-          <Skeleton className="w-full" style={{ height: chartHeight }} />
-        </CardContent>
-      </Card>
-    );
-  }
+  const { autoTickFormatter, tooltipLabelFormatter } = useDateFormatters(
+    normalizedData,
+    xAxisKey,
+    tickFormatter,
+  );
 
   return (
-    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-      {(title || description) && (
-        <CardHeader>
-          {title && (
-            <CardTitle className="w-fit">
-              {title}
-            </CardTitle>
-          )}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : (
-            <CardDescription hidden />
-          )}
-        </CardHeader>
-      )}
-      <CardContent>
-        <ChartContainer
-          config={effectiveConfig}
-          className="w-full"
-          style={{ height: chartHeight }}
+    <ChartCardWrapper
+      title={title}
+      description={description}
+      height={chartHeight}
+      isLoading={isLoading}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      <ChartContainer
+        config={effectiveConfig}
+        className="w-full h-full"
+        style={{ minHeight: chartHeight }}
+      >
+        <LineChart
+          accessibilityLayer
+          data={normalizedData}
+          height={chartHeight}
+          margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
         >
-          <LineChart
-            accessibilityLayer
-            data={normalizedData}
-            height={chartHeight}
-            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
-          >
-            <CartesianGrid vertical={false} stroke="#ebebeb" />
-            <XAxis
-              dataKey={xAxisKey}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={5}
-              tickFormatter={autoTickFormatter}
-              fontSize={10}
-              interval={showBrush ? "preserveStartEnd" : 0}
-              tick={hideXAxisLabels ? false : undefined}
-              dx={10}
-              dy={0}
-            />
-            <YAxis
-              dataKey={yAxisKey}
-              fontSize={12}
-              tickLine={false}
-              tickMargin={8}
-              axisLine={false}
-              tickFormatter={formatAxisNumber}
-            />
-            {tooltipIndicator !== false && (
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
-              />
-            )}
-            {showLegend && <Legend content={<ChartLegendContent />} />}
-            {keys.map((key) => {
-              const color = effectiveConfig[key]?.color || "#000000";
-              return (
-                <Line
-                  key={key}
-                  dataKey={key}
-                  stroke={color}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  type={variant}
+          <CartesianGrid vertical={false} stroke="#ebebeb" />
+          <XAxis
+            dataKey={xAxisKey}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={5}
+            tickFormatter={autoTickFormatter}
+            fontSize={10}
+            interval={showBrush ? "preserveStartEnd" : 0}
+            tick={hideXAxisLabels ? false : undefined}
+            dx={10}
+            dy={0}
+          />
+          <YAxis
+            dataKey={yAxisKey}
+            fontSize={12}
+            tickLine={false}
+            tickMargin={8}
+            axisLine={false}
+            tickFormatter={formatAxisNumber}
+          />
+          {tooltipIndicator !== false && (
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  indicator={tooltipIndicator}
+                  labelFormatter={tooltipLabelFormatter}
                 />
-              );
-            })}
-            {showBrush && (
-              <Brush
-                dataKey={xAxisKey}
-                height={10}
-                stroke="#d1d5db"
-                startIndex={0}
-                endIndex={Math.min(4, dataCount - 1)}
-                tickFormatter={formatBrushTick}
+              }
+            />
+          )}
+          {showLegend && <Legend content={<ChartLegendContent />} />}
+          {keys.map((key) => {
+            const color = effectiveConfig[key]?.color || "#000000";
+            return (
+              <Line
+                key={key}
+                dataKey={key}
+                stroke={color}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                type={variant}
               />
-            )}
-          </LineChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+            );
+          })}
+          {showBrush && (
+            <Brush
+              dataKey={xAxisKey}
+              height={10}
+              gap={8}
+              stroke="#d1d5db"
+              startIndex={0}
+              endIndex={Math.min(4, dataCount - 1)}
+              tickFormatter={formatBrushTick}
+            />
+          )}
+        </LineChart>
+      </ChartContainer>
+    </ChartCardWrapper>
   );
 }
 
+// ---------------------------------------------------------------------------
+// DynamicBarChart
+// ---------------------------------------------------------------------------
+
 export type DynamicBarChartProps = BaseDynamicChartProps & {
   layout?: "vertical" | "horizontal";
+  isLoading?: boolean;
 };
 
 /**
@@ -670,62 +668,34 @@ export function DynamicBarChart({
   isLoading = false,
   queryId,
   queryContent,
-}: DynamicBarChartProps & {
-  isLoading?: boolean;
-}): React.ReactNode {
+}: DynamicBarChartProps): React.ReactNode {
   const effectiveConfig = series ?? config ?? {};
   const keys = Object.keys(effectiveConfig);
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
 
-  // For horizontal layout, calculate height based on data count
-  const barHeight = 36; // height per bar item
+  const barHeight = 36;
   const dataCount = normalizedData.length;
 
-  // Auto-determine brush and x-axis labels based on data count (vertical layout only)
-  const showBrush = layout === "vertical" && dataCount > 5;
+  const showBrush = layout === "vertical" && dataCount > 15;
   const hideXAxisLabels = layout === "vertical" && dataCount >= 30;
-
-  // Auto-detect date format and apply formatting
-  const autoTickFormatter = useMemo(() => {
-    if (tickFormatter) return tickFormatter;
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      return formatDateShort;
-    }
-    return undefined;
-  }, [tickFormatter, normalizedData, xAxisKey]);
-
-  // Format tooltip labels for dates
-  const tooltipLabelFormatter = useMemo(() => {
-    const firstValue = normalizedData[0]?.[xAxisKey];
-    if (isISODateString(firstValue)) {
-      return (value: unknown) => {
-        const strValue = String(value ?? '');
-        const date = new Date(strValue);
-        if (!isNaN(date.getTime())) {
-          return format(date,'yyyy-MM-dd')
-        }
-        return strValue;
-      };
-    }
-    return undefined;
-  }, [normalizedData, xAxisKey]);
+  const { autoTickFormatter, tooltipLabelFormatter } = useDateFormatters(
+    normalizedData,
+    xAxisKey,
+    tickFormatter,
+  );
 
   const chartHeight = useMemo(() => {
     if (layout !== "horizontal") return baseHeight;
-    // Calculate dynamic height based on data count
-    const calculatedHeight = dataCount * barHeight + 40; // 40px for padding
+    const calculatedHeight = dataCount * barHeight + 40;
     return Math.max(baseHeight, calculatedHeight);
   }, [layout, dataCount, baseHeight]);
 
-  // Actual chart height (for scrollable content)
   const actualChartHeight = useMemo(() => {
     if (layout !== "horizontal") return chartHeight;
     return dataCount * barHeight + 40;
   }, [layout, dataCount, chartHeight]);
 
-  // Whether scrolling is needed (horizontal layout only)
   const needsScroll =
     layout === "horizontal" && actualChartHeight > chartHeight;
 
@@ -756,7 +726,7 @@ export function DynamicBarChart({
     const formatted = tickFormatter ? tickFormatter(raw) : raw;
     const maxChars = Math.max(
       1,
-      Math.floor(((autoYAxisWidth ?? maxWidth) - 6) / charWidth)
+      Math.floor(((autoYAxisWidth ?? maxWidth) - 6) / charWidth),
     );
     const text =
       formatted.length > maxChars
@@ -769,157 +739,134 @@ export function DynamicBarChart({
     );
   };
 
-  if (isLoading) {
-    return (
-      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-        {(title || description) && (
-          <CardHeader>
-            {title && (
-              <CardTitle className="w-fit">
-                {title}
-              </CardTitle>
-            )}
-            {description ? (
-              <CardDescription>{description}</CardDescription>
-            ) : (
-              <CardDescription hidden />
-            )}
-          </CardHeader>
-        )}
-        <CardContent className="px-4">
-          <Skeleton className="w-full" style={{ height: chartHeight }} />
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-      {(title || description) && (
-        <CardHeader>
-          {title && (
-            <CardTitle className="w-fit">
-              {title}
-            </CardTitle>
-          )}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : (
-            <CardDescription hidden />
-          )}
-        </CardHeader>
-      )}
-      <CardContent>
-        <div
-          className={cn("w-full", needsScroll && "overflow-y-auto")}
-          style={{ height: chartHeight, maxHeight: chartHeight }}
+    <ChartCardWrapper
+      title={title}
+      description={description}
+      height={chartHeight}
+      isLoading={isLoading}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      <div
+        className={cn("w-full h-full", needsScroll && "overflow-y-auto")}
+        style={{
+          minHeight: chartHeight,
+          maxHeight: needsScroll ? chartHeight : undefined,
+        }}
+      >
+        <ChartContainer
+          config={effectiveConfig}
+          className="w-full h-full"
+          style={{ minHeight: actualChartHeight }}
         >
-          <ChartContainer
-            config={effectiveConfig}
-            className="w-full"
-            style={{ height: actualChartHeight, minHeight: actualChartHeight }}
+          <BarChart
+            accessibilityLayer
+            data={normalizedData}
+            layout={layout === "horizontal" ? "vertical" : undefined}
+            height={actualChartHeight}
+            margin={
+              layout === "horizontal"
+                ? { top: 0, right: 15, bottom: 0, left: 5 }
+                : {
+                    top: 0,
+                    right: 25,
+                    bottom: showBrush ? 30 : 0,
+                    left: 15,
+                  }
+            }
           >
-            <BarChart
-              accessibilityLayer
-              data={normalizedData}
-              layout={layout === "horizontal" ? "vertical" : undefined}
-              height={actualChartHeight}
-              margin={
-                layout === "horizontal"
-                  ? { top: 0, right: 15, bottom: 0, left: 40 }
-                  : {
-                      top: 0,
-                      right: 25,
-                      bottom: showBrush ? 30 : 0,
-                      left: 15,
-                    }
-              }
-            >
-              <CartesianGrid
-                stroke="#ebebeb"
-                strokeDasharray="3 3"
-                horizontal={layout === "vertical"}
-                vertical={layout === "horizontal"}
+            <CartesianGrid
+              stroke="#ebebeb"
+              strokeDasharray="3 3"
+              horizontal={layout === "vertical"}
+              vertical={layout === "horizontal"}
+            />
+            {layout === "vertical" ? (
+              <XAxis
+                type="category"
+                dataKey={xAxisKey}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={10}
+                tickFormatter={autoTickFormatter}
+                interval={showBrush ? "preserveStartEnd" : 0}
+                tick={hideXAxisLabels ? false : undefined}
               />
-              {layout === "vertical" ? (
-                <XAxis
-                  type="category"
-                  dataKey={xAxisKey}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={10}
-                  tickFormatter={autoTickFormatter}
-                  interval={showBrush ? "preserveStartEnd" : 0}
-                  tick={hideXAxisLabels ? false : undefined}
-                />
-              ) : (
-                <XAxis type="number" dataKey={xAxisKey} hide />
-              )}
-              {layout === "horizontal" ? (
-                <YAxis
-                  type="category"
-                  dataKey={yAxisKey}
-                  width={autoYAxisWidth ?? maxWidth}
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={10}
-                  tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
-                />
-              ) : (
-                <YAxis
-                  dataKey={yAxisKey}
-                  fontSize={12}
-                  tickLine={false}
-                  tickMargin={8}
-                  axisLine={false}
-                  tickFormatter={formatAxisNumber}
-                />
-              )}
-              {tooltipIndicator !== false && (
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator={tooltipIndicator} labelFormatter={tooltipLabelFormatter} />}
-                />
-              )}
-              {showLegend && <Legend content={<ChartLegendContent />} />}
-              {keys.map((key) => {
-                const color = effectiveConfig[key]?.color || "#000000";
-                return (
-                  <Bar
-                    key={key}
-                    dataKey={key}
-                    fill={color}
-                    maxBarSize={layout === "horizontal" ? 28 : 32}
-                    radius={
-                      layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]
-                    }
+            ) : (
+              <XAxis type="number" dataKey={xAxisKey} hide />
+            )}
+            {layout === "horizontal" ? (
+              <YAxis
+                type="category"
+                dataKey={yAxisKey}
+                width={autoYAxisWidth ?? maxWidth}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={10}
+                tick={<AutoTick x={0} y={0} payload={{ value: "" }} />}
+              />
+            ) : (
+              <YAxis
+                dataKey={yAxisKey}
+                fontSize={12}
+                tickLine={false}
+                tickMargin={8}
+                axisLine={false}
+                tickFormatter={formatAxisNumber}
+              />
+            )}
+            {tooltipIndicator !== false && (
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    indicator={tooltipIndicator}
+                    labelFormatter={tooltipLabelFormatter}
                   />
-                );
-              })}
-              {showBrush && (
-                <Brush
-                  dataKey={xAxisKey}
-                  height={10}
-                  stroke="#d1d5db"
-                  startIndex={0}
-                  endIndex={Math.min(4, dataCount - 1)}
-                  tickFormatter={formatBrushTick}
+                }
+              />
+            )}
+            {showLegend && <Legend content={<ChartLegendContent />} />}
+            {keys.map((key) => {
+              const color = effectiveConfig[key]?.color || "#000000";
+              return (
+                <Bar
+                  key={key}
+                  dataKey={key}
+                  fill={color}
+                  maxBarSize={layout === "horizontal" ? 28 : 32}
+                  radius={layout === "horizontal" ? [0, 4, 4, 0] : [4, 4, 0, 0]}
                 />
-              )}
-            </BarChart>
-          </ChartContainer>
-        </div>
-      </CardContent>
-    </Card>
+              );
+            })}
+            {showBrush && (
+              <Brush
+                dataKey={xAxisKey}
+                height={10}
+                gap={8}
+                stroke="#d1d5db"
+                startIndex={0}
+                endIndex={Math.min(4, dataCount - 1)}
+                tickFormatter={formatBrushTick}
+              />
+            )}
+          </BarChart>
+        </ChartContainer>
+      </div>
+    </ChartCardWrapper>
   );
 }
+
+// ---------------------------------------------------------------------------
+// DynamicComposedChart
+// ---------------------------------------------------------------------------
 
 export type DynamicComposedChartProps = Omit<
   BaseDynamicChartProps,
   "config" | "series"
 > & {
   config?: Record<string, ComposedSeriesConfig>;
-  /** Alias for config */
   series?: Record<string, ComposedSeriesConfig>;
   yAxisRightKey?: string;
   variant?: "monotone" | "linear" | "natural" | "step";
@@ -993,157 +940,147 @@ export function DynamicComposedChart({
   const effectiveConfig = series ?? config ?? {};
   const keys = order && order.length ? order : Object.keys(effectiveConfig);
   const hasRight = keys.some(
-    (k) => (effectiveConfig[k]?.yAxisId ?? "left") === "right"
+    (k) => (effectiveConfig[k]?.yAxisId ?? "left") === "right",
   );
   const legendConfig = Object.fromEntries(
     Object.entries(effectiveConfig).map(([k, v]) => [
       k,
       { label: v.label, color: v.color },
-    ])
+    ]),
   );
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
   const dataCount = normalizedData.length;
-  
-  // Auto-determine brush based on data count
-  const showBrush = dataCount > 5;
+  const showBrush = dataCount > 15;
 
   return (
-    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-      {(title || description) && (
-        <CardHeader>
-          {title && (
-            <CardTitle className="w-fit">
-              {title}
-            </CardTitle>
-          )}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : (
-            <CardDescription hidden />
-          )}
-        </CardHeader>
-      )}
-      <CardContent>
-        <ChartContainer
-          config={legendConfig}
-          className="w-full"
-          style={{ height }}
+    <ChartCardWrapper
+      title={title}
+      description={description}
+      height={height}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      <ChartContainer
+        config={legendConfig}
+        className="w-full h-full"
+        style={{ minHeight: height }}
+      >
+        <ComposedChart
+          accessibilityLayer
+          data={normalizedData}
+          height={height}
+          margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
         >
-          <ComposedChart
-            accessibilityLayer
-            data={normalizedData}
-            height={height}
-            margin={{ top: 0, right: 25, bottom: showBrush ? 30 : 0, left: 15 }}
-          >
-            <CartesianGrid vertical={false} stroke="#ebebeb" />
-            <XAxis
-              dataKey={xAxisKey}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={5}
-              tickFormatter={tickFormatter}
-              fontSize={10}
-              interval={showBrush ? "preserveStartEnd" : 0}
-              dx={10}
-              dy={0}
-            />
+          <CartesianGrid vertical={false} stroke="#ebebeb" />
+          <XAxis
+            dataKey={xAxisKey}
+            tickLine={false}
+            axisLine={false}
+            tickMargin={5}
+            tickFormatter={tickFormatter}
+            fontSize={10}
+            interval={showBrush ? "preserveStartEnd" : 0}
+            dx={10}
+            dy={0}
+          />
+          <YAxis
+            yAxisId="left"
+            dataKey={yAxisKey}
+            fontSize={12}
+            tickLine={false}
+            tickMargin={8}
+            axisLine={false}
+            tickFormatter={formatAxisNumber}
+          />
+          {hasRight && (
             <YAxis
-              yAxisId="left"
-              dataKey={yAxisKey}
+              yAxisId="right"
+              orientation="right"
+              dataKey={yAxisRightKey}
               fontSize={12}
               tickLine={false}
               tickMargin={8}
               axisLine={false}
               tickFormatter={formatAxisNumber}
             />
-            {hasRight && (
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                dataKey={yAxisRightKey}
-                fontSize={12}
-                tickLine={false}
-                tickMargin={8}
-                axisLine={false}
-                tickFormatter={formatAxisNumber}
-              />
-            )}
-            {tooltipIndicator !== false && (
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent indicator={tooltipIndicator} />}
-              />
-            )}
-            {showLegend && <Legend content={<ChartLegendContent />} />}
-            {keys.map((key) => {
-              const c = effectiveConfig[key];
-              if (!c) return null;
-              const type: SeriesType = c.type ?? "line";
-              const yAxisId: YAxisSide = c.yAxisId ?? "left";
-              const color = c.color;
-              if (type === "bar") {
-                return (
-                  <Bar
-                    key={key}
-                    yAxisId={yAxisId}
-                    dataKey={key}
-                    fill={color}
-                    maxBarSize={barMaxBarSize}
-                    radius={[4, 4, 0, 0]}
-                    stackId={c.stackId}
-                  />
-                );
-              }
-              if (type === "area") {
-                return (
-                  <Area
-                    key={key}
-                    yAxisId={yAxisId}
-                    type={variant}
-                    dataKey={key}
-                    stroke={color}
-                    fill={color}
-                    fillOpacity={areaFillOpacity}
-                    strokeWidth={2}
-                    connectNulls
-                    dot={false}
-                    stackId={c.stackId}
-                  />
-                );
-              }
+          )}
+          {tooltipIndicator !== false && (
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent indicator={tooltipIndicator} />}
+            />
+          )}
+          {showLegend && <Legend content={<ChartLegendContent />} />}
+          {keys.map((key) => {
+            const c = effectiveConfig[key];
+            if (!c) return null;
+            const type: SeriesType = c.type ?? "line";
+            const yAxisId: YAxisSide = c.yAxisId ?? "left";
+            const color = c.color;
+            if (type === "bar") {
               return (
-                <Line
+                <Bar
                   key={key}
                   yAxisId={yAxisId}
                   dataKey={key}
-                  stroke={color}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  type={variant}
+                  fill={color}
+                  maxBarSize={barMaxBarSize}
+                  radius={[4, 4, 0, 0]}
+                  stackId={c.stackId}
                 />
               );
-            })}
-            {showBrush && (
-              <Brush
-                dataKey={xAxisKey}
-                height={10}
-                stroke="#d1d5db"
-                startIndex={0}
-                endIndex={Math.min(4, dataCount - 1)}
-                tickFormatter={formatBrushTick}
+            }
+            if (type === "area") {
+              return (
+                <Area
+                  key={key}
+                  yAxisId={yAxisId}
+                  type={variant}
+                  dataKey={key}
+                  stroke={color}
+                  fill={color}
+                  fillOpacity={areaFillOpacity}
+                  strokeWidth={2}
+                  connectNulls
+                  dot={false}
+                  stackId={c.stackId}
+                />
+              );
+            }
+            return (
+              <Line
+                key={key}
+                yAxisId={yAxisId}
+                dataKey={key}
+                stroke={color}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                type={variant}
               />
-            )}
-          </ComposedChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+            );
+          })}
+          {showBrush && (
+            <Brush
+              dataKey={xAxisKey}
+              height={10}
+              gap={8}
+              stroke="#d1d5db"
+              startIndex={0}
+              endIndex={Math.min(4, dataCount - 1)}
+              tickFormatter={formatBrushTick}
+            />
+          )}
+        </ComposedChart>
+      </ChartContainer>
+    </ChartCardWrapper>
   );
 }
 
-/**
- * Default color palette for pie/donut charts
- */
+// ---------------------------------------------------------------------------
+// DynamicPieChart
+// ---------------------------------------------------------------------------
+
 const PIE_CHART_COLORS = [
   "#3b82f6", // blue-500
   "#22c55e", // green-500
@@ -1160,9 +1097,6 @@ const PIE_CHART_COLORS = [
 const PIE_OTHER_COLOR = "#9ca3af"; // gray-400
 const LEGEND_AUTO_HIDE_THRESHOLD = 10;
 
-/**
- * Props for DynamicPieChart component
- */
 export type DynamicPieChartProps = {
   title?: string | React.ReactNode;
   description?: string;
@@ -1242,7 +1176,7 @@ export function DynamicPieChart({
   data,
   colors = PIE_CHART_COLORS,
   innerRadius = 0,
-  outerRadius = 100,
+  outerRadius = 80,
   height = DEFAULT_CHART_HEIGHT,
   showLegend = true,
   showLabel = false,
@@ -1253,14 +1187,18 @@ export function DynamicPieChart({
   queryContent,
 }: DynamicPieChartProps): React.ReactNode {
   const chartHeight = height ?? DEFAULT_CHART_HEIGHT;
+
   // Normalize pie data: ensure value is a number (handle object form like { review_id: 4 })
   const safeData = useMemo(() => {
     if (!Array.isArray(data)) return [];
     return data.map((item) => ({
       name: item?.name ?? "",
-      value: typeof item?.value === 'object' && item?.value !== null
-        ? normalizeNumericValue(item.value)
-        : (typeof item?.value === 'number' ? item.value : 0),
+      value:
+        typeof item?.value === "object" && item?.value !== null
+          ? normalizeNumericValue(item.value)
+          : typeof item?.value === "number"
+            ? item.value
+            : 0,
     }));
   }, [data]);
 
@@ -1275,7 +1213,7 @@ export function DynamicPieChart({
     return [...topItems, { name: "기타", value: otherSum }];
   }, [safeData, maxItems]);
 
-  // Build color map with case-insensitive lookup (name may be number from API e.g. promotion_id)
+  // Build color map with case-insensitive lookup
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     limitedData.forEach((entry, index) => {
@@ -1298,88 +1236,74 @@ export function DynamicPieChart({
     return colorMap[key] || colors[index % colors.length];
   };
 
-  const shouldShowLegend = showLegend && limitedData.length <= LEGEND_AUTO_HIDE_THRESHOLD;
+  // Add fill color directly to data items (replaces deprecated Cell component)
+  const coloredData = useMemo(
+    () =>
+      limitedData.map((entry, idx) => ({
+        ...entry,
+        fill: getColor(entry?.name ?? "", idx),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [limitedData, colorMap],
+  );
 
-  if (isLoading) {
-    return (
-      <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-        {(title || description) && (
-          <CardHeader>
-            {title && (
-              <CardTitle className="w-fit">
-                {title}
-              </CardTitle>
-            )}
-            {description ? (
-              <CardDescription>{description}</CardDescription>
-            ) : (
-              <CardDescription hidden />
-            )}
-          </CardHeader>
-        )}
-        <CardContent className="px-4">
-          <Skeleton className="w-full" style={{ height: chartHeight }} />
-        </CardContent>
-      </Card>
-    );
-  }
+  // Build ChartConfig for ChartContainer/ChartTooltip integration
+  const chartConfig = useMemo(
+    () =>
+      Object.fromEntries(
+        coloredData.map((entry) => [
+          entry.name,
+          { label: entry.name, color: entry.fill },
+        ]),
+      ),
+    [coloredData],
+  );
+
+  const shouldShowLegend =
+    showLegend && limitedData.length <= LEGEND_AUTO_HIDE_THRESHOLD;
 
   return (
-    <Card className="gap-1.5" queryId={queryId} queryContent={queryContent}>
-      {(title || description) && (
-        <CardHeader>
-          {title && (
-            <CardTitle className="w-fit">
-              {title}
-            </CardTitle>
-          )}
-          {description ? (
-            <CardDescription>{description}</CardDescription>
-          ) : (
-            <CardDescription hidden />
-          )}
-        </CardHeader>
-      )}
-      <CardContent>
-        <div className="w-full" style={{ height: chartHeight }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={limitedData}
-                cx="50%"
-                cy="50%"
-                innerRadius={innerRadius}
-                outerRadius={outerRadius}
-                paddingAngle={innerRadius > 0 ? 2 : 0}
-                dataKey="value"
-                nameKey="name"
-                label={showLabel}
-              >
-                {limitedData.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={getColor(entry?.name ?? "", index)}
-                  />
-                ))}
-              </Pie>
-              <RechartsTooltip />
-            </PieChart>
-          </ResponsiveContainer>
+    <ChartCardWrapper
+      title={title}
+      description={description}
+      height={chartHeight}
+      isLoading={isLoading}
+      queryId={queryId}
+      queryContent={queryContent}
+    >
+      <ChartContainer
+        config={chartConfig}
+        className="w-full h-full"
+        style={{ minHeight: chartHeight }}
+      >
+        <PieChart>
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <Pie
+            data={coloredData}
+            cx="50%"
+            cy="50%"
+            innerRadius={innerRadius > 0 ? `${innerRadius}%` : 0}
+            outerRadius={`${outerRadius}%`}
+            paddingAngle={innerRadius > 0 ? 2 : 0}
+            dataKey="value"
+            nameKey="name"
+            label={showLabel}
+          />
+        </PieChart>
+      </ChartContainer>
+      {shouldShowLegend && (
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-3">
+          {coloredData.map((entry) => (
+            <div key={entry.name} className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                style={{ backgroundColor: entry.fill }}
+              />
+              <span className="text-sm text-gray-600">{entry.name}</span>
+            </div>
+          ))}
         </div>
-        {shouldShowLegend && (
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-3">
-            {limitedData.map((entry, index) => (
-              <div key={entry.name} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-sm"
-                  style={{ backgroundColor: getColor(entry?.name ?? "", index) }}
-                />
-                <span className="text-sm text-gray-600">{entry.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </ChartCardWrapper>
   );
 }
