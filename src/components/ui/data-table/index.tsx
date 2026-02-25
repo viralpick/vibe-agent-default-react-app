@@ -11,12 +11,13 @@
  *   <DataTable.Toolbar>
  *     <DataTable.Toolbar.Left>
  *       <DataTable.Search placeholder="Search..." />
+ *     </DataTable.Toolbar.Left>
+ *     <DataTable.Toolbar.Right>
  *       <DataTable.ColumnVisibility />
  *       <DataTable.Download />
- *     </DataTable.Toolbar.Left>
+ *     </DataTable.Toolbar.Right>
  *   </DataTable.Toolbar>
  *   <DataTable.Body />
- *   <DataTable.Filter />
  *   <DataTable.Pagination showPageSize />
  * </DataTable>
  * ```
