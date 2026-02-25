@@ -41,4 +41,7 @@ export const ko: Translations = {
     sortDesc: "내림차순",
     hide: "숨기기",
   },
+  column: {
+    checkStatusSkipTooltip: "개인정보 처리 검사는 현재 네이버 플랫폼만 지원합니다.",
+  },
 };

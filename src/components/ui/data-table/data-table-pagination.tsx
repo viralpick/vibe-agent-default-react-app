@@ -1,6 +1,5 @@
 "use client";
 
-import type { Table } from "@tanstack/react-table";
 import React from "react";
 import {
   ChevronLeft,
@@ -9,42 +8,42 @@ import {
   ChevronsRight,
 } from "lucide-react";
 
-import { Button, Select } from "@viralpick/synapse";
+import { Button, Select } from "@enhans/synapse";
+import { useDataTableContext } from "./data-table-context";
 import { useTranslation } from "@/hooks/useTranslation";
 
-type DataTablePaginationProps<TData> = {
-  table: Table<TData>;
-  onPageSizeChange: (pageSize: number) => void;
+type DataTablePaginationProps = {
   showPageSize?: boolean;
   pageSizeOptions?: number[];
+  className?: string;
 };
 
-function DataTablePagination<TData>({
-  table,
-  onPageSizeChange,
-  showPageSize = true,
+function DataTablePagination({
+  showPageSize = false,
   pageSizeOptions = [10, 20, 50, 100],
-}: DataTablePaginationProps<TData>): React.JSX.Element | null {
-  "use no memo";
+  className,
+}: DataTablePaginationProps): React.JSX.Element | null {
   const t = useTranslation();
+  const { table, handlePageSizeChange } = useDataTableContext();
 
-  if (table.getPageCount() <= 1) {
+  if (table.getPageCount() <= 1 && !showPageSize) {
     return null;
   }
 
   return (
-    <div className="flex gap-1.5">
+    <div className={className ?? "flex gap-1.5 ml-auto"}>
       {showPageSize && (
         <div className="flex items-center gap-2">
-          <span className="text-sm">{t.dataTable.rowsPerPage}</span>
+          <span className="text-caption-1">{t.dataTable.rowsPerPage}</span>
           <Select
+            size="sm"
             className="min-w-8"
             value={String(table.getState().pagination.pageSize)}
             options={pageSizeOptions.map((option) => ({
               label: String(option),
               value: String(option),
             }))}
-            onValueChange={(value) => onPageSizeChange(Number(value))}
+            onValueChange={(value) => handlePageSizeChange(Number(value))}
           />
         </div>
       )}
@@ -54,7 +53,7 @@ function DataTablePagination<TData>({
           <div className="flex-1 text-caption-1 text-text-secondary">
             {t.dataTable.rowsSelected(
               table.getFilteredSelectedRowModel().rows.length,
-              table.getFilteredRowModel().rows.length
+              table.getFilteredRowModel().rows.length,
             )}
           </div>
         )}
@@ -63,7 +62,7 @@ function DataTablePagination<TData>({
           <div className="flex min-w-[140px] items-center justify-center text-caption-1 text-text-secondary">
             {t.dataTable.pageOf(
               table.getState().pagination.pageIndex + 1,
-              table.getPageCount()
+              table.getPageCount(),
             )}
           </div>
           <div className="flex items-center gap-0.5">
@@ -116,4 +115,7 @@ function DataTablePagination<TData>({
   );
 }
 
+DataTablePagination.displayName = "DataTablePagination";
+
 export { DataTablePagination };
+export type { DataTablePaginationProps };

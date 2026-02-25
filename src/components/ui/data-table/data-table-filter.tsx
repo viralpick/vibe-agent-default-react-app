@@ -1,25 +1,35 @@
-import type { Column, Table } from "@tanstack/react-table";
+"use client";
+
+import type { Column } from "@tanstack/react-table";
 import type { ColumnFiltersState } from "@tanstack/react-table";
-import type {
-  FilterOperator,
-  FilterValue,
-} from "@/components/ui/data-table/types";
+import type { FilterOperator, FilterValue } from "./types";
 import React from "react";
 import { Filter as FilterIcon, Plus, X } from "lucide-react";
 
-import { Button, Popover, PopoverContent, PopoverTrigger, Separator, Select, Input } from "@viralpick/synapse";
-import { filterOperators } from "@/components/ui/data-table/types";
 import { cn } from "@/lib/commerce-sdk";
+
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Separator,
+  Select,
+  Input,
+} from "@enhans/synapse";
+import { filterOperators } from "./types";
+import { useDataTableContext } from "./data-table-context";
 import { useTranslation } from "@/hooks/useTranslation";
 
-type DataTableFilterProps<TData> = {
-  table: Table<TData>;
+type DataTableFilterProps = {
+  className?: string;
 };
 
-function DataTableFilter<TData>({
-  table,
-}: DataTableFilterProps<TData>): React.JSX.Element {
+function DataTableFilter({
+  className,
+}: DataTableFilterProps): React.JSX.Element {
   const t = useTranslation();
+  const { table } = useDataTableContext();
   const [open, setOpen] = React.useState(false);
   const filters = table.getState().columnFilters;
 
@@ -47,18 +57,21 @@ function DataTableFilter<TData>({
 
   const handleUpdateFilter = (
     index: number,
-    updatedItem: { id: string; operator: FilterOperator; value: string }
+    updatedItem: { id: string; operator: FilterOperator; value: string },
   ) => {
     setFilters((prev) =>
       prev.map((filter, i) => {
         if (i === index) {
           return {
             id: updatedItem.id,
-            value: { operator: updatedItem.operator, value: updatedItem.value },
+            value: {
+              operator: updatedItem.operator,
+              value: updatedItem.value,
+            },
           };
         }
         return filter;
-      })
+      }),
     );
   };
 
@@ -69,16 +82,16 @@ function DataTableFilter<TData>({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button buttonStyle="secondary" buttonType="icon" size="sm">
+        <Button
+          buttonStyle="secondary"
+          buttonType="icon"
+          size="sm"
+          className={className}
+        >
           <FilterIcon className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[520px]"
-        align="start"
-        side="bottom"
-        sideOffset={8}
-      >
+      <PopoverContent className="w-[520px]" sideOffset={8}>
         <div className="p-1 flex flex-col gap-1">
           {filters.map((filter, index) => (
             <DataTableFilterItem
@@ -105,12 +118,12 @@ function DataTableFilter<TData>({
         </div>
         <Separator />
         <div className="p-0.5 flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-text-secondary">
             {t.dataTable.results(table.getFilteredRowModel().rows.length)}
           </p>
           <Button
             buttonStyle="tertiary"
-            className="text-destructive hover:text-destructive"
+            className="text-text-error hover:text-text-error"
             onClick={() => table.resetColumnFilters()}
           >
             {t.dataTable.resetFilters}
@@ -121,25 +134,27 @@ function DataTableFilter<TData>({
   );
 }
 
+DataTableFilter.displayName = "DataTableFilter";
+
 type FilterItemProps = {
   id: string;
   operator: FilterOperator;
   value: string;
 };
 
-type DataTableFilterItemProps<TData> = {
+type DataTableFilterItemProps = {
   item: FilterItemProps;
   onUpdate: (item: FilterItemProps) => void;
   onRemove: () => void;
-  filterableColumns: Column<TData, unknown>[];
+  filterableColumns: Column<unknown, unknown>[];
 };
 
-function DataTableFilterItem<TData>({
+function DataTableFilterItem({
   item,
   onUpdate,
   onRemove,
   filterableColumns,
-}: DataTableFilterItemProps<TData>): React.JSX.Element {
+}: DataTableFilterItemProps): React.JSX.Element {
   const t = useTranslation();
   const handleColumnChange = (id: string) => {
     onUpdate({ ...item, id });
@@ -157,14 +172,15 @@ function DataTableFilterItem<TData>({
 
   return (
     <div className="flex items-center gap-0.5 py-0.25">
-      <span className="text-sm text-muted-foreground">{t.dataTable.where}</span>
+      <span className="text-sm text-text-secondary">{t.dataTable.where}</span>
       <Select
         value={item.id}
         onValueChange={handleColumnChange}
         className="w-[150px]"
         options={filterableColumns.map((col) => ({
           value: col.id,
-          label: (col.columnDef.meta?.filterLabel as string) ??
+          label:
+            (col.columnDef.meta?.filterLabel as string) ??
             (typeof col.columnDef.header === "string"
               ? col.columnDef.header
               : col.id),
@@ -179,13 +195,20 @@ function DataTableFilterItem<TData>({
           label: op.label,
         }))}
       />
-      <Input
-        placeholder={t.dataTable.enterValue}
-        value={item.value}
-        onChange={handleValueChange}
-        className={cn("w-[150px] h-3", !showInput && "invisible")}
-      />
-      <Button buttonStyle="ghost" buttonType="icon" size="sm" onClick={onRemove}>
+      {showInput && (
+        <Input
+          placeholder={t.dataTable.enterValue}
+          value={item.value}
+          onChange={handleValueChange}
+          className={cn("w-[150px] h-3")}
+        />
+      )}
+      <Button
+        buttonStyle="ghost"
+        buttonType="icon"
+        size="sm"
+        onClick={onRemove}
+      >
         <X className="h-4 w-4" />
       </Button>
     </div>
@@ -193,3 +216,4 @@ function DataTableFilterItem<TData>({
 }
 
 export { DataTableFilter };
+export type { DataTableFilterProps };

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, Progress, Skeleton } from "@viralpick/synapse";
+import { Card, CardContent, CardHeader, CardTitle, Progress, Skeleton } from "@enhans/synapse";
 import * as LucideIcons from "lucide-react";
 import { StarIcon } from "lucide-react";
 import React from "react";
@@ -238,7 +238,7 @@ export function StatusCard({
       <CardContent>
         <div className="flex flex-col gap-2 px-5">
           {renderMainValue(value, maxValue, format, t.statusCard.ratingSuffix)}
-          {note && <p className="text-xs text-muted-foreground">{note}</p>}
+          {note && <p className="text-xs text-text-secondary">{note}</p>}
           {progress && (
             <div>
               <Progress value={progress.current} max={progress.max}>
@@ -250,7 +250,7 @@ export function StatusCard({
                   }
                 />
               </Progress>
-              <p className="flex text-xs text-muted-foreground mt-0.25 justify-between">
+              <p className="flex text-xs text-text-secondary mt-0.25 justify-between">
                 <span>0</span>
                 <span>{progress.max}</span>
               </p>
@@ -270,7 +270,7 @@ export function StatusCard({
             </div>
           )}
           {metrics && (
-            <div className="text-xs text-muted-foreground flex gap-1 flex-wrap">
+            <div className="text-xs text-text-secondary flex gap-1 flex-wrap">
               {metrics.mom !== undefined && (
                 <span className="flex gap-0.5">
                   MoM

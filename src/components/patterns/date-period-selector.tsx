@@ -13,7 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@viralpick/synapse";
+} from "@enhans/synapse";
 import { useTranslation } from "@/hooks/useTranslation";
 
 /**
@@ -60,7 +60,9 @@ function toDate(value: Date | string): Date {
  * Normalizes a DatePeriodInputValue to DatePeriodValue
  * Converts string dates to Date objects
  */
-function normalizeDatePeriodValue(value: DatePeriodInputValue): DatePeriodValue {
+function normalizeDatePeriodValue(
+  value: DatePeriodInputValue,
+): DatePeriodValue {
   return {
     type: value.type,
     from: toDate(value.from),
@@ -86,7 +88,9 @@ export type DatePeriodSelectorProps = {
 /**
  * Creates default presets with translated labels
  */
-function createDefaultPresets(t: ReturnType<typeof useTranslation>["datePeriod"]): DatePresetOption[] {
+function createDefaultPresets(
+  t: ReturnType<typeof useTranslation>["datePeriod"],
+): DatePresetOption[] {
   return [
     { id: "today", label: t.today, days: 0 },
     { id: "7days", label: t.last7Days, days: 7 },
@@ -101,7 +105,15 @@ function createDefaultPresets(t: ReturnType<typeof useTranslation>["datePeriod"]
  */
 export function getDefaultDatePeriod(): DatePeriodValue {
   const today = new Date();
-  const to = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+  const to = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
   const from = new Date(today);
   from.setDate(today.getDate() - 30);
   from.setHours(0, 0, 0, 0);
@@ -119,7 +131,7 @@ export function getDefaultDatePeriod(): DatePeriodValue {
  */
 function getMonthOptions(
   count: number,
-  monthFormat: (year: number, month: number) => string
+  monthFormat: (year: number, month: number) => string,
 ): { id: string; label: string; from: Date; to: Date }[] {
   const options: { id: string; label: string; from: Date; to: Date }[] = [];
   const today = new Date();
@@ -147,7 +159,7 @@ function getMonthOptions(
 function formatDateRange(from: Date, to: Date): string {
   const formatDate = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
-      d.getDate()
+      d.getDate(),
     ).padStart(2, "0")}`;
   return `${formatDate(from)} - ${formatDate(to)}`;
 }
@@ -229,14 +241,14 @@ export function DatePeriodSelector({
   // Use custom presets if provided, otherwise use translated defaults
   const presets = useMemo(
     () => customPresets ?? createDefaultPresets(t.datePeriod),
-    [customPresets, t.datePeriod]
+    [customPresets, t.datePeriod],
   );
 
   const placeholder = customPlaceholder ?? t.datePeriod.placeholder;
 
   const monthOptions = useMemo(
     () => getMonthOptions(monthsCount, t.datePeriod.monthFormat),
-    [monthsCount, t.datePeriod.monthFormat]
+    [monthsCount, t.datePeriod.monthFormat],
   );
 
   // Normalize value to ensure from/to are Date objects
@@ -259,7 +271,7 @@ export function DatePeriodSelector({
     }
     if (normalizedValue.type === "month") {
       const monthId = `${normalizedValue.from.getFullYear()}-${String(
-        normalizedValue.from.getMonth() + 1
+        normalizedValue.from.getMonth() + 1,
       ).padStart(2, "0")}`;
       return `month:${monthId}`;
     }
@@ -284,7 +296,7 @@ export function DatePeriodSelector({
           today.getDate(),
           23,
           59,
-          59
+          59,
         );
         const from = new Date(today);
         from.setDate(today.getDate() - preset.days);
@@ -384,17 +396,14 @@ export function DatePeriodSelector({
               }
               onRangeValueChange={(range) =>
                 setCalendarRange(
-                  range ? { from: range.start, to: range.end } : undefined
+                  range ? { from: range.start, to: range.end } : undefined,
                 )
               }
             >
               <DatePickerCalendar size="md" />
             </DatePickerProvider>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-100">
-              <Button
-                buttonStyle="secondary"                
-                onClick={handleCalendarCancel}
-              >
+              <Button buttonStyle="secondary" onClick={handleCalendarCancel}>
                 {t.datePeriod.cancel}
               </Button>
               <Button
@@ -428,7 +437,9 @@ function isValidDate(value: unknown): boolean {
 /**
  * Validates if a value is a valid DatePeriodValue or DatePeriodInputValue
  */
-function isValidDatePeriodValue(value: unknown): value is DatePeriodValue | DatePeriodInputValue {
+function isValidDatePeriodValue(
+  value: unknown,
+): value is DatePeriodValue | DatePeriodInputValue {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
@@ -455,7 +466,9 @@ function isValidDatePeriodValue(value: unknown): value is DatePeriodValue | Date
  *   .replace(/"{{DATE_TO}}"/g, `"${to}"`);
  * ```
  */
-export function getDateRangeFromPeriod(period?: DatePeriodValue | DatePeriodInputValue | unknown): {
+export function getDateRangeFromPeriod(
+  period?: DatePeriodValue | DatePeriodInputValue | unknown,
+): {
   from: string;
   to: string;
 } {
@@ -492,7 +505,7 @@ export function getDateRangeFromPeriod(period?: DatePeriodValue | DatePeriodInpu
  */
 export function injectDateFilters(
   queryTemplate: string,
-  period?: DatePeriodValue | DatePeriodInputValue | unknown
+  period?: DatePeriodValue | DatePeriodInputValue | unknown,
 ): string {
   const { from, to } = getDateRangeFromPeriod(period);
   return queryTemplate

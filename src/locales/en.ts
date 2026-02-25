@@ -46,4 +46,7 @@ export const en: Translations = {
     sortDesc: "Desc",
     hide: "Hide",
   },
+  column: {
+    checkStatusSkipTooltip: "Privacy check is currently only supported for the Naver platform.",
+  },
 };

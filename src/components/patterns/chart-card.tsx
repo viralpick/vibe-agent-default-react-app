@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@viralpick/synapse";
+import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@enhans/synapse";
 
 /**
  * @component ChartCard

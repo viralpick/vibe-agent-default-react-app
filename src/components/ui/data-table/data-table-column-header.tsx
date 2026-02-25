@@ -1,20 +1,32 @@
+"use client";
+
 import type { Column } from "@tanstack/react-table";
 import React from "react";
-import { ArrowDown, ArrowUp, EyeOff, Info } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, EyeOff, Info } from "lucide-react";
 
 import { cn } from "@/lib/commerce-sdk";
 
-import { Select, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@viralpick/synapse";
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@enhans/synapse";
 import { nl2br } from "@/utils/nl2br";
 import { useTranslation } from "@/hooks/useTranslation";
+
+import type { DataTableSize } from "./types";
 
 type DataTableColumnHeaderProps<TData, TValue> = Omit<
   React.ComponentProps<"div">,
   "prefix"
 > & {
   column: Column<TData, TValue>;
-  prefix?: React.JSX.Element;
-  size?: "default" | "sm" | "xs";
+  size?: DataTableSize;
   title: string;
   tooltip?: string;
   tooltipIcon?: React.JSX.Element;
@@ -25,83 +37,97 @@ type DataTableColumnHeaderProps<TData, TValue> = Omit<
 
 function DataTableColumnHeader<TData, TValue>({
   column,
-  prefix: _prefix,
   size,
   title,
   tooltip,
   tooltipIcon,
   className,
   textAlign = "left",
-  disableSort: _disableSort = false,
+  disableSort = false,
   disableHiding = false,
 }: DataTableColumnHeaderProps<TData, TValue>): React.JSX.Element {
   const t = useTranslation();
+  const sorted = column.getIsSorted();
 
   if (!column.getCanSort()) {
-    return <div className={cn("flex w-full text-xs", className)}>{nl2br(title)}</div>;
+    return (
+      <div className={cn("flex w-full text-xs", className)}>{nl2br(title)}</div>
+    );
   }
+
+  const SortIcon =
+    sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ChevronsUpDown;
 
   return (
     <div
       className={cn(
-        "flex w-full gap-0.5 py-1",
+        "flex w-full items-center gap-0.5",
         size === "sm" && "text-xs",
-        className
+        textAlign === "right" && "justify-end",
+        textAlign === "center" && "justify-center",
+        className,
       )}
     >
-      <Select
-        className={cn("w-full", textAlign === "right" && "justify-end", textAlign === "center" && "justify-center", textAlign === "left" && "justify-start")}
-        variant="inline"
-        size={size === "sm" ? "sm" : "md"}
-        side="left"
-        placeholder={title}
-        options={[
-          {
-            value: "asc",
-            label: t.dataTable.sortAsc,
-            leadIcon: <ArrowUp className="size-4" />,
-          },
-          {
-            value: "desc",
-            label: t.dataTable.sortDesc,
-            leadIcon: <ArrowDown className="size-4" />,
-          },
-          ...(!disableHiding
-            ? [
-                {
-                  value: "hide",
-                  label: t.dataTable.hide,
-                  leadIcon: <EyeOff className="size-4" />,
-                },
-              ]
-            : []),
-        ]}
-        value={column.getIsSorted() || ""}
-        onValueChange={(val) => {
-          if (val === "asc") {
-            if (column.getIsSorted() === "asc") {
-              column.clearSorting();
-            } else {
-              column.toggleSorting(false);
-            }
-          } else if (val === "desc") {
-            if (column.getIsSorted() === "desc") {
-              column.clearSorting();
-            } else {
-              column.toggleSorting(true);
-            }
-          } else if (val === "hide") {
-            column.toggleVisibility(false);
-          }
-        }}
-      />
+      {!disableSort && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                "flex items-center gap-1 hover:text-text-primary transition-colors -ml-1 px-1 py-0.5 rounded-sm hover:bg-background-100",
+                sorted && "text-text-primary",
+              )}
+            >
+              <span className="text-xs font-medium">{title}</span>
+              <SortIcon className="size-3.5 shrink-0 text-text-secondary" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0.5" sideOffset={4}>
+            <div className="flex flex-col gap-0.5">
+              <Button
+                buttonStyle="ghost"
+                size="sm"
+                className="flex items-center justify-between"
+                tailIcon={<ArrowUp />}
+                onClick={() => {
+                  if (sorted === "asc") column.clearSorting();
+                  else column.toggleSorting(false);
+                }}
+              >
+                {t.dataTable.sortAsc}
+              </Button>
+              <Button
+                buttonStyle="ghost"
+                size="sm"
+                className="flex items-center justify-between"
+                tailIcon={<ArrowDown />}
+                onClick={() => {
+                  if (sorted === "desc") column.clearSorting();
+                  else column.toggleSorting(true);
+                }}
+              >
+                {t.dataTable.sortDesc}
+              </Button>
+              {!disableHiding && (
+                <Button
+                  buttonStyle="ghost"
+                  size="sm"
+                  className="flex items-center justify-between"
+                  tailIcon={<EyeOff />}
+                  onClick={() => column.toggleVisibility(false)}
+                >
+                  {t.dataTable.hide}
+                </Button>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
       {tooltip && (
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
-                {tooltipIcon && tooltipIcon}
-                {!tooltipIcon && (
+                {tooltipIcon ?? (
                   <Info className={cn("size-3", size === "sm" && "size-2")} />
                 )}
               </span>
@@ -114,4 +140,7 @@ function DataTableColumnHeader<TData, TValue>({
   );
 }
 
+DataTableColumnHeader.displayName = "DataTableColumnHeader";
+
 export { DataTableColumnHeader };
+export type { DataTableColumnHeaderProps };

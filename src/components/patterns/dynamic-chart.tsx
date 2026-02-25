@@ -44,7 +44,7 @@ import {
   CardDescription,
   CardContent,
   Skeleton,
-} from "@viralpick/synapse";
+} from "@enhans/synapse";
 import { normalizeNumericValue } from "./data-utils";
 import { format } from "date-fns";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@viralpick/synapse";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@enhans/synapse";
 
 /**
  * Tab item definition

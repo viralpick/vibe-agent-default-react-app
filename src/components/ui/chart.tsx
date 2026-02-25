@@ -296,7 +296,7 @@ function ChartTooltipContent({
               <div
                 key={item.dataKey}
                 className={cn(
-                  "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-8 [&>svg]:h-10 [&>svg]:w-10",
+                  "[&>svg]:text-text-secondary flex w-full flex-wrap items-stretch gap-8 [&>svg]:h-10 [&>svg]:w-10",
                   indicator === "dot" && "items-center"
                 )}
               >
@@ -335,12 +335,12 @@ function ChartTooltipContent({
                           />
                         )
                       )}
-                      <span className="text-muted-foreground">
+                      <span className="text-text-secondary">
                         {itemConfig?.label || item.name}
                       </span>
                     </div>
                     {item.value !== undefined && (
-                      <span className="text-foreground font-mono font-medium tabular-nums">
+                      <span className="text-text-primary font-mono font-medium tabular-nums">
                         {item.value.toLocaleString()}
                       </span>
                     )}
@@ -412,7 +412,7 @@ function ChartLegendContent({
             <div
               key={item.value}
               className={cn(
-                "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
+                "[&>svg]:text-text-secondary flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
               )}
             >
               {itemConfig?.icon && !hideIcon ? (
