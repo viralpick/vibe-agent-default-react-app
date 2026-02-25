@@ -15,8 +15,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { cn, getColorClass } from "@/lib/commerce-sdk";
 
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Badge, Progress } from "@enhans/synapse";
 import { DataTable, DataTableColumnHeader } from "@/components/ui/data-table";
 import {
   ColumnDate,
@@ -95,50 +94,7 @@ export type DynamicDataTableProps = {
 /**
  * @component DynamicDataTable
  * @description A data table that automatically renders cells based on column metadata.
- * Supports various data types including text, numbers, currency, dates, badges, and progress bars.
- *
- * @dataStructure
- * - columns: ColumnMeta[] - Column definitions with type information (required)
- *   - key: string - Field key in data objects
- *   - label?: string - Header display text
- *   - type?: "text" | "number" | "currency" | "percent" | "date" | "url" | "badge" | "progress" | "status"
- *   - align?: "left" | "center" | "right"
- *   - width?: number, minWidth?: number, maxWidth?: number
- *   - badgeMap?: { [value]: { label, color } } - For badge type
- *   - progress?: { color } - For progress type
- *   - currency?: string - Currency code for currency type
- *   - dateFormat?: string - Date format string
- * - data: Record<string, string | number | boolean>[] - Row data array (required)
- * - title: string - Table title (required)
- * - searchKeys?: string[] - Fields to include in search
- * - pageSize?: number - Rows per page (default: 10)
- *
- * @useCase
- * - Order/transaction lists with status badges
- * - Product inventory with progress indicators
- * - User management tables
- * - Any tabular data with mixed column types
- *
- * @example
- * ```tsx
- * <DynamicDataTable
- *   title="Orders"
- *   columns={[
- *     { key: "id", label: "ID", type: "text" },
- *     { key: "amount", label: "Amount", type: "currency", align: "right" },
- *     { key: "date", label: "Date", type: "date" },
- *     { key: "status", label: "Status", type: "badge", badgeMap: {
- *       completed: { label: "Completed", color: "#22c55e" },
- *       pending: { label: "Pending", color: "#f59e0b" }
- *     }}
- *   ]}
- *   data={[
- *     { id: "ORD-001", amount: 15000, date: "2024-01-15", status: "completed" }
- *   ]}
- *   showSearch
- *   searchKeys={["id"]}
- * />
- * ```
+ * Uses the DataTable composition API internally.
  */
 export const DynamicDataTable = ({
   title,
@@ -163,7 +119,6 @@ export const DynamicDataTable = ({
     return data.map((row) => {
       const normalizedRow: Record<string, string | number | boolean> = {};
       for (const [key, value] of Object.entries(row)) {
-        // If value is an object (not null, not array), extract numeric value
         if (
           value !== null &&
           typeof value === "object" &&
@@ -183,7 +138,7 @@ export const DynamicDataTable = ({
       new Intl.NumberFormat("ko-KR", {
         maximumFractionDigits: 2,
       }),
-    [],
+    []
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,7 +214,7 @@ export const DynamicDataTable = ({
             <div className={cn("flex items-center", alignClass)}>
               <Badge
                 className={cn("text-sm", size === "sm" && "text-xs")}
-                style={{ backgroundColor: badge.color }}
+                color={badge.color}
               >
                 {badge.label}
               </Badge>
@@ -339,22 +294,31 @@ export const DynamicDataTable = ({
     };
   });
 
+  const fileNamePrefix = typeof title === "string" ? title : "data";
+
   return (
     <DataTable
-      title={title}
-      overline={overline}
-      size={size}
       data={safeData}
       columns={columnDefs}
       pageSize={pageSize}
-      showPageSize={showPageSize}
-      showSearch={showSearch}
-      searchKeys={searchKeys}
-      searchPlaceholder={searchPlaceholder}
-      showOptions={showOptions}
-      showDownload
+      searchKeys={searchKeys as (keyof Record<string, unknown>)[]}
+      size={size}
       queryId={queryId}
       queryContent={queryContent}
-    />
+    >
+      {title && <DataTable.Header title={title} overline={overline} />}
+      <DataTable.Toolbar>
+        <DataTable.Toolbar.Left>
+          {showSearch && (
+            <DataTable.Search placeholder={searchPlaceholder} />
+          )}
+          <DataTable.Filter />
+          {showOptions && <DataTable.ColumnVisibility />}
+          <DataTable.Download fileNamePrefix={fileNamePrefix} />
+        </DataTable.Toolbar.Left>
+      </DataTable.Toolbar>
+      <DataTable.Body />
+      <DataTable.Pagination showPageSize={showPageSize} />
+    </DataTable>
   );
 };

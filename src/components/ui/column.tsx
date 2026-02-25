@@ -20,12 +20,8 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn, parseArrayString } from "@/lib/commerce-sdk";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@enhans/synapse";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type ColumnNoneProps = {
   className?: string;
@@ -72,17 +68,19 @@ function ColumnValue({
   const [isTruncated, setIsTruncated] = React.useState(false);
   const textRef = React.useRef<HTMLSpanElement>(null);
 
-  const checkTruncation = React.useCallback(() => {
-    if (textRef.current) {
-      setIsTruncated(textRef.current.scrollWidth > textRef.current.clientWidth);
-    }
-  }, []);
-
   React.useEffect(() => {
-    checkTruncation();
-    window.addEventListener("resize", checkTruncation);
-    return () => window.removeEventListener("resize", checkTruncation);
-  }, [value, checkTruncation]);
+    const el = textRef.current;
+    if (!el) return;
+
+    const check = () => {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    };
+    check();
+
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [value]);
 
   if (value === null || value === undefined) {
     return <ColumnNone className={className} />;
@@ -286,7 +284,7 @@ function ColumnNumber({
   className,
   unit,
 }: ColumnNumberProps): React.JSX.Element {
-  if (!value) {
+  if (value == null) {
     return <ColumnNone className={cn("text-right", className)} />;
   }
   return (
@@ -320,7 +318,7 @@ function ColumnPercentage({
   value,
   className,
 }: ColumnPercentageProps): React.JSX.Element {
-  if (!value) {
+  if (value == null) {
     return <ColumnNone className={cn("text-right", className)} />;
   }
 
@@ -443,19 +441,20 @@ type ColumnCheckStatusProps = {
 function ColumnCheckStatus({
   status,
 }: ColumnCheckStatusProps): React.JSX.Element {
+  const t = useTranslation();
   if (status === null) {
     return (
       <div className="flex justify-center items-center">
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="flex items-center text-muted-foreground gap-1">
+              <p className="flex items-center text-text-secondary gap-1">
                 <span className="text-xs">Skip</span>
                 <Info size={12} />
               </p>
             </TooltipTrigger>
             <TooltipContent>
-              개인정보 처리 검사는 현재 네이버 플랫폼만 지원합니다.
+              {t.column.checkStatusSkipTooltip}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

@@ -1,5 +1,7 @@
 import type { Row } from "@tanstack/react-table";
 
+export type DataTableSize = "default" | "sm" | "xs";
+
 export const filterOperators = [
   { value: "includes", label: "includes" },
   { value: "is", label: "is" },

@@ -39,4 +39,7 @@ export interface Translations {
     sortDesc: string;
     hide: string;
   };
+  column: {
+    checkStatusSkipTooltip: string;
+  };
 }
