@@ -66,10 +66,14 @@ function toDate(value: Date | string): Date {
 function normalizeDatePeriodValue(
   value: DatePeriodInputValue,
 ): DatePeriodValue {
+  const from = toDate(value.from);
+  from.setHours(0, 0, 0, 0);
+  const to = toDate(value.to);
+  to.setHours(23, 59, 59, 999);
   return {
     type: value.type,
-    from: toDate(value.from),
-    to: toDate(value.to),
+    from,
+    to,
     label: value.label,
   };
 }
@@ -470,13 +474,19 @@ function isValidDatePeriodValue(
  * ```
  */
 /**
- * Formats a Date as a local ISO string without UTC conversion.
- * Prevents timezone offset from shifting dates (e.g., KST 00:00 → UTC previous day 15:00).
+ * Converts a local Date to a UTC ISO string preserving the local date values.
+ * Uses the date's local year/month/day to create a UTC Date, preventing timezone shifts.
+ * @param date - The date to convert
+ * @param endOfDay - If true, sets time to 23:59:59.999Z; otherwise 00:00:00.000Z
  */
-function toLocalISOString(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const pad3 = (n: number) => String(n).padStart(3, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad3(date.getMilliseconds())}`;
+function toUTCISOString(date: Date, endOfDay: boolean): string {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const d = date.getDate();
+  if (endOfDay) {
+    return new Date(Date.UTC(y, m, d, 23, 59, 59, 999)).toISOString();
+  }
+  return new Date(Date.UTC(y, m, d, 0, 0, 0, 0)).toISOString();
 }
 
 export function getDateRangeFromPeriod(
@@ -489,16 +499,16 @@ export function getDateRangeFromPeriod(
   if (!isValidDatePeriodValue(period)) {
     const defaultPeriod = getDefaultDatePeriod();
     return {
-      from: toLocalISOString(defaultPeriod.from),
-      to: toLocalISOString(defaultPeriod.to),
+      from: toUTCISOString(defaultPeriod.from, false),
+      to: toUTCISOString(defaultPeriod.to, true),
     };
   }
 
   // Normalize to ensure Date objects
   const normalized = normalizeDatePeriodValue(period);
   return {
-    from: toLocalISOString(normalized.from),
-    to: toLocalISOString(normalized.to),
+    from: toUTCISOString(normalized.from, false),
+    to: toUTCISOString(normalized.to, true),
   };
 }
 
