@@ -105,6 +105,48 @@ const formatBrushTick = (value: unknown): string => {
 };
 
 /**
+ * Computes x-axis display strategy based on data count and label length.
+ * Returns flags for brush, rotation, and label hiding.
+ */
+function computeXAxisStrategy(
+  data: Record<string, unknown>[],
+  xAxisKey: string,
+): { showBrush: boolean; rotateLabels: boolean; hideLabels: boolean } {
+  const count = data.length;
+  if (count === 0) return { showBrush: false, rotateLabels: false, hideLabels: false };
+
+  const labels = data.map((d) => String(d[xAxisKey] ?? ""));
+  const maxLen = Math.max(...labels.map((l) => l.length), 0);
+  const avgLen = labels.reduce((s, l) => s + l.length, 0) / count;
+  const density = count * avgLen;
+
+  const hideLabels = count >= 30;
+  const showBrush = count > 15 || density > 150 || (count > 5 && maxLen > 20);
+  const rotateLabels = !hideLabels && (avgLen > 10 || (count > 8 && avgLen > 6));
+
+  return { showBrush, rotateLabels, hideLabels };
+}
+
+/**
+ * Computes the initial brush end index based on average label length.
+ * Longer labels → fewer visible items in the brush window.
+ */
+function computeBrushEndIndex(
+  data: Record<string, unknown>[],
+  xAxisKey: string,
+): number {
+  const count = data.length;
+  if (count === 0) return 0;
+
+  const labels = data.map((d) => String(d[xAxisKey] ?? ""));
+  const avgLen = labels.reduce((s, l) => s + l.length, 0) / count;
+
+  if (avgLen > 20) return Math.min(2, count - 1);
+  if (avgLen > 12) return Math.min(3, count - 1);
+  return Math.min(4, count - 1);
+}
+
+/**
  * Formats date values to M/D format for display
  */
 const formatDateShort = (value: unknown): string => {
@@ -677,8 +719,25 @@ export function DynamicBarChart({
   const barHeight = 36;
   const dataCount = normalizedData.length;
 
-  const showBrush = layout === "vertical" && dataCount > 15;
-  const hideXAxisLabels = layout === "vertical" && dataCount >= 30;
+  const xAxisStrategy = useMemo(
+    () =>
+      layout === "vertical"
+        ? computeXAxisStrategy(normalizedData as Record<string, unknown>[], xAxisKey)
+        : { showBrush: false, rotateLabels: false, hideLabels: false },
+    [layout, normalizedData, xAxisKey],
+  );
+  const showBrush = xAxisStrategy.showBrush;
+  const hideXAxisLabels = xAxisStrategy.hideLabels;
+  const rotateLabels = xAxisStrategy.rotateLabels;
+
+  const brushEndIndex = useMemo(
+    () =>
+      showBrush
+        ? computeBrushEndIndex(normalizedData as Record<string, unknown>[], xAxisKey)
+        : 0,
+    [showBrush, normalizedData, xAxisKey],
+  );
+
   const { autoTickFormatter, tooltipLabelFormatter } = useDateFormatters(
     normalizedData,
     xAxisKey,
@@ -739,6 +798,39 @@ export function DynamicBarChart({
     );
   };
 
+  const RotatedXTick = ({
+    x,
+    y,
+    payload,
+  }: {
+    x: number;
+    y: number;
+    payload: { value: unknown };
+  }) => {
+    const maxChars = 12;
+    const raw = String(payload?.value ?? "");
+    const formatted = autoTickFormatter ? autoTickFormatter(raw) : raw;
+    const text =
+      formatted.length > maxChars
+        ? formatted.slice(0, maxChars - 1) + "…"
+        : formatted;
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={0}
+          y={0}
+          dy={12}
+          textAnchor="end"
+          fill="currentColor"
+          fontSize={10}
+          transform="rotate(-45)"
+        >
+          {text}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <ChartCardWrapper
       title={title}
@@ -771,7 +863,7 @@ export function DynamicBarChart({
                 : {
                     top: 0,
                     right: 25,
-                    bottom: showBrush ? 30 : 0,
+                    bottom: showBrush && rotateLabels ? 70 : showBrush ? 30 : rotateLabels ? 50 : 0,
                     left: 15,
                   }
             }
@@ -789,9 +881,16 @@ export function DynamicBarChart({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={10}
-                tickFormatter={autoTickFormatter}
+                tickFormatter={!rotateLabels ? autoTickFormatter : undefined}
                 interval={showBrush ? "preserveStartEnd" : 0}
-                tick={hideXAxisLabels ? false : undefined}
+                tick={
+                  hideXAxisLabels
+                    ? false
+                    : rotateLabels
+                      ? <RotatedXTick x={0} y={0} payload={{ value: "" }} />
+                      : undefined
+                }
+                height={rotateLabels ? 80 : undefined}
               />
             ) : (
               <XAxis type="number" dataKey={xAxisKey} hide />
@@ -847,7 +946,7 @@ export function DynamicBarChart({
                 gap={8}
                 stroke="#d1d5db"
                 startIndex={0}
-                endIndex={Math.min(4, dataCount - 1)}
+                endIndex={brushEndIndex}
                 tickFormatter={formatBrushTick}
               />
             )}
@@ -1271,39 +1370,40 @@ export function DynamicPieChart({
       queryId={queryId}
       queryContent={queryContent}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="w-full h-full"
-        style={{ minHeight: chartHeight }}
-      >
-        <PieChart>
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Pie
-            data={coloredData}
-            cx="50%"
-            cy="50%"
-            innerRadius={innerRadius > 0 ? `${innerRadius}%` : 0}
-            outerRadius={`${outerRadius}%`}
-            paddingAngle={innerRadius > 0 ? 2 : 0}
-            dataKey="value"
-            nameKey="name"
-            label={showLabel}
-          />
-        </PieChart>
-      </ChartContainer>
-      {shouldShowLegend && (
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-3">
-          {coloredData.map((entry) => (
-            <div key={entry.name} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-3 w-3 shrink-0 rounded-sm"
-                style={{ backgroundColor: entry.fill }}
-              />
-              <span className="text-sm text-gray-600">{entry.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col h-full min-h-0" style={{ minHeight: chartHeight }}>
+        <ChartContainer
+          config={chartConfig}
+          className="w-full flex-1 min-h-0"
+        >
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Pie
+              data={coloredData}
+              cx="50%"
+              cy="50%"
+              innerRadius={innerRadius > 0 ? `${innerRadius}%` : 0}
+              outerRadius={`${outerRadius}%`}
+              paddingAngle={innerRadius > 0 ? 2 : 0}
+              dataKey="value"
+              nameKey="name"
+              label={showLabel}
+            />
+          </PieChart>
+        </ChartContainer>
+        {shouldShowLegend && (
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-3 shrink-0 max-h-20 overflow-y-auto">
+            {coloredData.map((entry) => (
+              <div key={entry.name} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                  style={{ backgroundColor: entry.fill }}
+                />
+                <span className="text-sm text-gray-600">{entry.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </ChartCardWrapper>
   );
 }

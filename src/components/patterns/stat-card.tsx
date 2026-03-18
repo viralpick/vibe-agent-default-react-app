@@ -68,8 +68,8 @@ export function StatCard({
         </CardTitle>
         {Icon && <Icon className="size-4 text-icon-secondary" />}
       </CardHeader>
-      <CardContent className="px-5 pt-0 flex flex-col gap-1">
-        <div className="text-h3 font-bold text-text-primary">{value}</div>
+      <CardContent className="px-5 pt-0 flex flex-col gap-1 min-w-0">
+        <div className="text-h3 font-bold text-text-primary truncate" title={typeof value === 'string' ? value : undefined}>{value}</div>
       </CardContent>
     </Card>
   );
