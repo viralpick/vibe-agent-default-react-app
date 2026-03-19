@@ -7,7 +7,7 @@
  * @module patterns/dynamic-chart
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -105,41 +105,101 @@ const formatBrushTick = (value: unknown): string => {
 };
 
 /**
- * Computes x-axis display strategy based on data count and label length.
- * Returns flags for brush, rotation, and label hiding.
+ * Measures the actual rendered width of a container element via ResizeObserver.
+ */
+function useContainerWidth(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Set initial width immediately from clientWidth
+    setWidth(el.clientWidth);
+    const observer = new ResizeObserver(() => {
+      // Use clientWidth — contentRect.width can be 0 for flex/grid children
+      setWidth(el.clientWidth);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, width];
+}
+
+/**
+ * Computes x-axis display strategy based on data count, label length,
+ * and actual container width (when available).
  */
 function computeXAxisStrategy(
   data: Record<string, unknown>[],
   xAxisKey: string,
-): { showBrush: boolean; rotateLabels: boolean; hideLabels: boolean } {
+  containerWidth?: number,
+): { showBrush: boolean; hideLabels: boolean; needsAngle: boolean } {
   const count = data.length;
-  if (count === 0) return { showBrush: false, rotateLabels: false, hideLabels: false };
+  if (count === 0) return { showBrush: false, hideLabels: false, needsAngle: false };
 
   const labels = data.map((d) => String(d[xAxisKey] ?? ""));
-  const maxLen = Math.max(...labels.map((l) => l.length), 0);
-  const avgLen = labels.reduce((s, l) => s + l.length, 0) / count;
-  const density = count * avgLen;
+
+  // Estimate pixel width per label accounting for CJK/wide characters (~12px)
+  // vs Latin/narrow characters (~7px). Font size is typically 12px for axis ticks.
+  const estimateLabelPx = (label: string): number => {
+    let px = 0;
+    for (const ch of label) {
+      px += /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(ch) ? 12 : 7;
+    }
+    return px;
+  };
+
+  const labelWidths = labels.map(estimateLabelPx);
+  const maxLabelPx = Math.max(...labelWidths, 0);
+  const avgLabelPx = labelWidths.reduce((s, w) => s + w, 0) / count;
 
   const hideLabels = count >= 30;
-  const showBrush = count > 15 || density > 150 || (count > 5 && maxLen > 20);
-  const rotateLabels = !hideLabels && (avgLen > 10 || (count > 8 && avgLen > 6));
 
-  return { showBrush, rotateLabels, hideLabels };
+  // Container-width-aware strategy
+  if (containerWidth && containerWidth > 0 && count > 0) {
+    const pixelsPerLabel = containerWidth / count;
+
+    // Very dense: brush to reduce visible items
+    if (pixelsPerLabel < 25) {
+      return { showBrush: count > 3, hideLabels, needsAngle: true };
+    }
+    // Labels would overlap: angle them at -45°
+    if (pixelsPerLabel < avgLabelPx * 1.2) {
+      return { showBrush: count > 15, hideLabels, needsAngle: true };
+    }
+    return { showBrush: false, hideLabels, needsAngle: false };
+  }
+
+  // Fallback: data-only heuristics (before first paint / width=0)
+  const density = count * avgLabelPx;
+  const showBrush = count > 15 || density > 2000 || (count > 5 && maxLabelPx > 140);
+  const needsAngle = avgLabelPx > 40 && count > 3;
+
+  return { showBrush, hideLabels, needsAngle };
 }
 
 /**
- * Computes the initial brush end index based on average label length.
- * Longer labels → fewer visible items in the brush window.
+ * Computes the initial brush end index based on average label length
+ * and container width (when available).
  */
 function computeBrushEndIndex(
   data: Record<string, unknown>[],
   xAxisKey: string,
+  containerWidth?: number,
 ): number {
   const count = data.length;
   if (count === 0) return 0;
 
   const labels = data.map((d) => String(d[xAxisKey] ?? ""));
   const avgLen = labels.reduce((s, l) => s + l.length, 0) / count;
+
+  // Narrow containers show fewer items
+  if (containerWidth && containerWidth > 0) {
+    if (containerWidth < 400) return Math.min(2, count - 1);
+    if (containerWidth < 600) return Math.min(3, count - 1);
+  }
 
   if (avgLen > 20) return Math.min(2, count - 1);
   if (avgLen > 12) return Math.min(3, count - 1);
@@ -716,26 +776,28 @@ export function DynamicBarChart({
   const baseHeight = height ?? DEFAULT_CHART_HEIGHT;
   const normalizedData = useMemo(() => normalizeChartData(data ?? []), [data]);
 
+  const [containerRef, containerWidth] = useContainerWidth();
+
   const barHeight = 36;
   const dataCount = normalizedData.length;
 
   const xAxisStrategy = useMemo(
     () =>
       layout === "vertical"
-        ? computeXAxisStrategy(normalizedData as Record<string, unknown>[], xAxisKey)
-        : { showBrush: false, rotateLabels: false, hideLabels: false },
-    [layout, normalizedData, xAxisKey],
+        ? computeXAxisStrategy(normalizedData as Record<string, unknown>[], xAxisKey, containerWidth)
+        : { showBrush: false, hideLabels: false, needsAngle: false },
+    [layout, normalizedData, xAxisKey, containerWidth],
   );
   const showBrush = xAxisStrategy.showBrush;
   const hideXAxisLabels = xAxisStrategy.hideLabels;
-  const rotateLabels = xAxisStrategy.rotateLabels;
+  const needsAngle = xAxisStrategy.needsAngle;
 
   const brushEndIndex = useMemo(
     () =>
       showBrush
-        ? computeBrushEndIndex(normalizedData as Record<string, unknown>[], xAxisKey)
+        ? computeBrushEndIndex(normalizedData as Record<string, unknown>[], xAxisKey, containerWidth)
         : 0,
-    [showBrush, normalizedData, xAxisKey],
+    [showBrush, normalizedData, xAxisKey, containerWidth],
   );
 
   const { autoTickFormatter, tooltipLabelFormatter } = useDateFormatters(
@@ -798,39 +860,6 @@ export function DynamicBarChart({
     );
   };
 
-  const RotatedXTick = ({
-    x,
-    y,
-    payload,
-  }: {
-    x: number;
-    y: number;
-    payload: { value: unknown };
-  }) => {
-    const maxChars = 12;
-    const raw = String(payload?.value ?? "");
-    const formatted = autoTickFormatter ? autoTickFormatter(raw) : raw;
-    const text =
-      formatted.length > maxChars
-        ? formatted.slice(0, maxChars - 1) + "…"
-        : formatted;
-    return (
-      <g transform={`translate(${x},${y})`}>
-        <text
-          x={0}
-          y={0}
-          dy={12}
-          textAnchor="end"
-          fill="currentColor"
-          fontSize={10}
-          transform="rotate(-45)"
-        >
-          {text}
-        </text>
-      </g>
-    );
-  };
-
   return (
     <ChartCardWrapper
       title={title}
@@ -841,6 +870,7 @@ export function DynamicBarChart({
       queryContent={queryContent}
     >
       <div
+        ref={containerRef}
         className={cn("w-full h-full", needsScroll && "overflow-y-auto")}
         style={{
           minHeight: chartHeight,
@@ -863,7 +893,7 @@ export function DynamicBarChart({
                 : {
                     top: 0,
                     right: 25,
-                    bottom: showBrush && rotateLabels ? 70 : showBrush ? 30 : rotateLabels ? 50 : 0,
+                    bottom: showBrush ? 30 : 0,
                     left: 15,
                   }
             }
@@ -880,17 +910,14 @@ export function DynamicBarChart({
                 dataKey={xAxisKey}
                 tickLine={false}
                 axisLine={false}
-                tickMargin={10}
-                tickFormatter={!rotateLabels ? autoTickFormatter : undefined}
+                tickMargin={8}
+                tickFormatter={autoTickFormatter}
                 interval={showBrush ? "preserveStartEnd" : 0}
-                tick={
-                  hideXAxisLabels
-                    ? false
-                    : rotateLabels
-                      ? <RotatedXTick x={0} y={0} payload={{ value: "" }} />
-                      : undefined
-                }
-                height={rotateLabels ? 80 : undefined}
+                tick={hideXAxisLabels ? false : undefined}
+                angle={needsAngle ? -45 : 0}
+                textAnchor={needsAngle ? "end" : "middle"}
+                height={needsAngle ? 80 : undefined}
+                fontSize={needsAngle ? 11 : 12}
               />
             ) : (
               <XAxis type="number" dataKey={xAxisKey} hide />
