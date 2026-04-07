@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3000 --debug hmr",
+    "dev": "vite --port 3000",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -12,7 +12,7 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
-    "@enhans/synapse": "^0.5.3",
+    "@enhans/synapse": "^0.8.1",
     "@hookform/resolvers": "^5.2.2",
     "@tailwindcss/vite": "^4.1.14",
     "@tanstack/react-table": "^8.21.3",
