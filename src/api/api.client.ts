@@ -1,7 +1,7 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
 
-const getBaseURL = (): string => {
+const resolveBaseURL = (): string => {
   // iframe 부모 프레임의 호스트 기반으로 결정
   const parentOrigin = document.referrer
     ? new URL(document.referrer).hostname
@@ -14,8 +14,15 @@ const getBaseURL = (): string => {
   return import.meta.env.VITE_API_BASE_URL_PROD;
 };
 
+/**
+ * Runtime-resolved API base URL.
+ * LLM-generated code can use this instead of import.meta.env.VITE_API_BASE_URL
+ * e.g. `${API_BASE_URL}/ontology-function`
+ */
+export const API_BASE_URL = resolveBaseURL();
+
 export const apiClient = axios.create({
-  baseURL: getBaseURL(),
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
