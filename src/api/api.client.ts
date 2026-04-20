@@ -8,9 +8,10 @@ const getBaseURL = (): string => {
   }
 
   // iframe 부모 프레임의 호스트 기반으로 결정
-  const parentOrigin = document.referrer
-    ? new URL(document.referrer).hostname
-    : window.location.hostname;
+  const parentOrigin =
+    window.location.ancestorOrigins && window.location.ancestorOrigins[0]
+      ? new URL(window.location.ancestorOrigins[0]).hostname
+      : window.location.hostname;
 
   if (parentOrigin.includes("localhost") || parentOrigin.includes("dev")) {
     return import.meta.env.VITE_API_BASE_URL_DEV;
