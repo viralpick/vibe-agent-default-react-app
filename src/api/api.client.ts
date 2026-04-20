@@ -1,8 +1,9 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
 
-const resolveBaseURL = (): string => {
-  // iframe 부모 프레임의 호스트 기반으로 결정
+const LOCAL_API = "http://localhost:8080";
+
+const getFallbackURL = (): string => {
   const parentOrigin = document.referrer
     ? new URL(document.referrer).hostname
     : window.location.hostname;
@@ -14,19 +15,42 @@ const resolveBaseURL = (): string => {
   return import.meta.env.VITE_API_BASE_URL_PROD;
 };
 
+const pingLocal = async (): Promise<boolean> => {
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 1000);
+    await fetch(`${LOCAL_API}`, {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
- * Runtime-resolved API base URL.
- * LLM-generated code can use this instead of import.meta.env.VITE_API_BASE_URL
- * e.g. `${API_BASE_URL}/ontology-function`
+ * Async base URL resolution.
+ * localhost:8080 ping → 성공하면 로컬, 실패하면 환경별 remote URL 사용.
  */
-export const API_BASE_URL = resolveBaseURL();
+const baseURLReady: Promise<string> = pingLocal().then((alive) => {
+  const url = alive ? LOCAL_API : getFallbackURL();
+  console.log(`[API] Base URL resolved: ${url}`);
+  return url;
+});
 
 export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+/** Resolved after ping completes — use for direct URL construction */
+export let API_BASE_URL = getFallbackURL();
+baseURLReady.then((url) => {
+  API_BASE_URL = url;
+  apiClient.defaults.baseURL = url;
 });
 
 type GetTokenFn = () => Promise<string>;
@@ -51,6 +75,11 @@ export function setStaticToken(token: string | null) {
 
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    // baseURL이 아직 resolve 안 됐으면 대기
+    if (!config.baseURL) {
+      config.baseURL = await baseURLReady;
+    }
+
     try {
       // URL token이 있으면 우선 사용
       if (staticToken) {
