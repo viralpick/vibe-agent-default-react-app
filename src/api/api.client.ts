@@ -2,17 +2,16 @@ import axios, { type InternalAxiosRequestConfig } from "axios";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
 
 const getBaseURL = (): string => {
-  // 환경 변수가 설정되어 있으면 우선 사용
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
+  // iframe 부모 프레임의 호스트 기반으로 결정
+  const parentOrigin = document.referrer
+    ? new URL(document.referrer).hostname
+    : window.location.hostname;
+
+  if (parentOrigin.includes("localhost") || parentOrigin.includes("dev")) {
+    return import.meta.env.VITE_API_BASE_URL_DEV;
   }
 
-  // Fallback logic (optional)
-  const hostname = window.location.hostname;
-  if (hostname.includes("dev")) {
-    return "https://app-api-v2-dev.commerceos.ai";
-  }
-  return "https://app-api-v2.commerceos.ai";
+  return import.meta.env.VITE_API_BASE_URL_PROD;
 };
 
 export const apiClient = axios.create({
