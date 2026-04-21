@@ -8,7 +8,7 @@ import { LocaleProvider } from "./contexts/LocaleContext.tsx";
 import { useHeartbeat } from "./hooks/useHeartbeat.ts";
 
 function AppWithHooks() {
-  useHeartbeat();
+  // useHeartbeat();
   // useEnableEditMode();
   usePostMessageFileContent();
   usePostMessageAuth(); // locale 동기화 AUTH_TOKEN 에서 합니다
