@@ -7,9 +7,9 @@
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
-        script-src 'self' http://localhost:8080 https://dapi.kakao.com https://t1.daumcdn.net https://openapi.map.naver.com;
+        script-src 'self' http://localhost:8080 http://dapi.kakao.com http://t1.daumcdn.net https://openapi.map.naver.com;
         style-src 'self' 'unsafe-inline';
-        img-src 'self' data: https:;
+        img-src 'self' http://*.daumcdn.net data: https:;
         font-src 'self' data:;
         connect-src 'self' http://localhost:8080 https://app-api-v2-dev.commerceos.ai https://app-api-v2.commerceos.ai https://*.kakao.com https://*.daumcdn.net https://*.naver.com;
         base-uri 'self';
