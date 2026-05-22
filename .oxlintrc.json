@@ -1,0 +1,60 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  "plugins": [
+    "react",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import"
+  ],
+
+  "categories": {
+    "correctness": "error"
+  },
+
+  "env": {
+    "builtin": true,
+    "browser": true,
+    "es2022": true
+  },
+
+  "rules": {
+    "no-unused-vars": "off",
+    "typescript/no-unused-vars": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/components/patterns",
+              "@/components/patterns/*",
+              "@/components/ui",
+              "@/components/ui/*"
+            ],
+            "message": "GUIDE.md §5.3 — 존재하지 않는 경로. @enhans/synapse 사용"
+          },
+          {
+            "group": ["@/lib/api", "@/lib/commerce-sdk"],
+            "message": "GUIDE.md §5.2 — useApiClient는 @/api/api.client에서만"
+          },
+          {
+            "group": ["antd", "@mui/*", "@chakra-ui/*", "react-bootstrap"],
+            "message": "GUIDE.md §5.7 — 허용 라이브러리 외 사용 금지 (@enhans/synapse 만 허용)"
+          }
+        ]
+      }
+    ]
+  },
+
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    "build",
+    "trace_reports",
+    ".cos",
+    "src/test"
+  ]
+}
