@@ -20,8 +20,6 @@
   },
 
   "rules": {
-    "no-unused-vars": "off",
-    "typescript/no-unused-vars": "off",
     "no-restricted-imports": [
       "error",
       {
@@ -45,7 +43,50 @@
           }
         ]
       }
-    ]
+    ],
+
+    "no-unused-vars": "off",
+    "typescript/no-unused-vars": "off",
+
+    "no-debugger": "off",
+    "no-empty-static-block": "off",
+    "no-extra-boolean-cast": "off",
+    "no-irregular-whitespace": "off",
+    "no-nonoctal-decimal-escape": "off",
+    "no-new-native-nonconstructor": "off",
+    "no-obj-calls": "off",
+    "no-unused-expressions": "off",
+    "no-unused-labels": "off",
+    "no-unused-private-class-members": "off",
+    "no-useless-catch": "off",
+    "no-useless-rename": "off",
+    "no-useless-escape": "off",
+
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-this-alias": "off",
+    "typescript/no-unnecessary-parameter-property-assignment": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/no-useless-empty-export": "off",
+    "typescript/no-wrapper-object-types": "off",
+    "typescript/prefer-as-const": "off",
+    "typescript/prefer-namespace-keyword": "off",
+    "typescript/triple-slash-reference": "off",
+    "typescript/unbound-method": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-single-promise-in-promise-methods": "off",
+    "unicorn/no-unnecessary-await": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-length-check": "off",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/prefer-set-size": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
+
+    "react/no-did-mount-set-state": "off",
+    "react/no-did-update-set-state": "off",
+    "react/no-will-update-set-state": "off"
   },
 
   "ignorePatterns": [
