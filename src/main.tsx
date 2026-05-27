@@ -5,11 +5,10 @@ import { usePostMessageFileContent } from "./hooks/usePostMessageFileContent.ts"
 import { usePostMessageAuth } from "./hooks/usePostMessageAuth.ts";
 import { useUrlToken } from "./hooks/useUrlToken.ts";
 import { LocaleProvider } from "./contexts/LocaleContext.tsx";
-import { useHeartbeat } from "./hooks/useHeartbeat.ts";
+import { useEnableEditMode } from "./hooks/useEnableEditMode.ts";
 
 function AppWithHooks() {
-  // useHeartbeat();
-  // useEnableEditMode();
+  useEnableEditMode();
   usePostMessageFileContent();
   usePostMessageAuth(); // locale 동기화 AUTH_TOKEN 에서 합니다
   useUrlToken();

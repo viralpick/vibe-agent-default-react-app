@@ -2,3 +2,24 @@
 @import "tw-animate-css";
 @import "@enhans/synapse/styles.css";
 @source "../node_modules/@enhans/synapse/dist/index.js";
+
+/* synapse 의 --font-sans 가 "Pretendard Variable" 을 참조하지만 폰트 로드 선언은
+   없어 fallback(system-ui)으로 떨어졌다. public/fonts 에 번들된 Variable 폰트를
+   직접 로드한다. Variable 폰트라 한 파일로 100~900 weight 를 모두 커버한다.
+   CSP(font-src 'self') 를 준수하도록 로컬 경로만 사용. */
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/PretendardVariable.woff2") format("woff2");
+}
+
+/* synapse 는 --font-sans 토큰만 정의하고 body 에 적용하진 않는다.
+   생성 앱이 font-sans 클래스를 명시하지 않아도 Pretendard 가 기본 적용되도록
+   body 의 기본 폰트를 --font-sans 로 지정한다. */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+}
