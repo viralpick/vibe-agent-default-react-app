@@ -1,28 +1,28 @@
 import React from "react";
-import { extractCodeFromViteRaw } from "../utils/extract-code-from-vite-raw";
-
-type EditTextMetaData = {
-  elementId: string | null;
-  currentText: string;
-  filePath: string | null;
-  lineNumber: string | null;
-  position: { x: number; y: number };
-  /** The prop name being edited (e.g., "title", "description") */
-  propName: string | null;
-};
-
 
 const isE2BSandbox = () => {
   if (typeof window === "undefined") return false;
   const result = window.location.hostname.endsWith(".e2b.app");
-  console.log('[useEnableEditMode] isE2BSandbox check:', {
+  console.log("[useEnableEditMode] isE2BSandbox check:", {
     hostname: window.location.hostname,
-    isE2B: result
+    isE2B: result,
   });
   return result;
 };
 
-// Hover 스타일을 CSS로 주입 (Tailwind JIT 문제 해결)
+// PascalCase 라벨 fallback: data-aos-name 이 없을 때 kebab id 를 변환.
+// "sales-chart" → "SalesChart"
+const toPascalCase = (kebab: string): string =>
+  kebab
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+
+// 컴포넌트 선택 / Diff 표시용 스타일.
+// - hover: 회색 점선 (선택 가능 표시)
+// - data-aos-selected: 파란 실선 (선택됨)
+// - data-aos-diff: 변경 종류별 outline (Diff 모드, after iframe 전용)
 const EDIT_MODE_STYLE_ID = "edit-mode-styles";
 const injectEditModeStyles = () => {
   if (document.getElementById(EDIT_MODE_STYLE_ID)) return;
@@ -30,18 +30,47 @@ const injectEditModeStyles = () => {
   const style = document.createElement("style");
   style.id = EDIT_MODE_STYLE_ID;
   style.textContent = `
-    [data-editable="true"] {
+    [data-aos-id] {
       cursor: pointer;
     }
-    [data-editable="true"]:hover {
-      background-color: rgba(0, 178, 70, 0.2); 
+    [data-aos-id]:hover {
+      outline: 2px dashed rgba(120, 120, 120, 0.8);
+      outline-offset: 2px;
+    }
+    [data-aos-selected="true"] {
+      outline: 2px solid rgba(37, 99, 235, 0.9);
+      outline-offset: 2px;
+    }
+    [data-aos-diff="modified"] {
+      outline: 2px dashed rgba(234, 179, 8, 0.95);
+      outline-offset: 2px;
+    }
+    [data-aos-diff="added"] {
+      outline: 2px solid rgba(34, 197, 94, 0.95);
+      outline-offset: 2px;
     }
   `;
   document.head.appendChild(style);
 };
 
+const DIFF_OUTLINE_ATTR = "data-aos-diff";
+
+/**
+ * 미리보기에서 data-aos-id 가 박힌 컴포넌트를 클릭으로 선택하게 한다.
+ *
+ * 이 기능이 켜진 sandbox 에서는 기존 텍스트(EDIT_REQUEST) / 쿼리(QUERY_CLICK)
+ * 인라인 편집을 전면 중단한다 — 호스트가 "미리보기 클릭 = 컴포넌트 선택"
+ * 이라는 단일 인터랙션을 기대하기 때문이다.
+ *
+ * 통신:
+ * - emit  COMPONENT_TOGGLE { id, displayName }  (부모로)
+ * - recv  CLEAR_SELECTION                        (선택 해제)
+ * - recv  SHOW_DIFF { modified, added }          (diff outline, 클릭 비활성)
+ * - recv  HIDE_DIFF                              (diff outline 제거, 클릭 복귀)
+ */
 export const useEnableEditMode = () => {
   const isE2B = isE2BSandbox();
+  const isDiffModeRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
     if (!isE2B) return;
@@ -52,210 +81,103 @@ export const useEnableEditMode = () => {
     };
   }, [isE2B]);
 
-  // 편집 모드에서 클릭 처리
+  // 컴포넌트 단위 선택 클릭 처리
   React.useEffect(() => {
-    console.log('[useEnableEditMode] Edit mode click handler setup, isE2B:', isE2B);
-    if (!isE2B) {
-      console.log('[useEnableEditMode] Skipping click handler - not in E2B sandbox');
-      return;
-    }
-    console.log('[useEnableEditMode] Registering click event listener for editable text');
+    if (!isE2B) return;
 
     const handleClick = (e: MouseEvent) => {
+      if (isDiffModeRef.current) return;
+
       const target = e.target as HTMLElement;
-      
-      console.log('[useEnableEditMode] Click detected:', {
-        tagName: target.tagName,
-        hasDataEditable: target.hasAttribute("data-editable"),
-        dataEditable: target.getAttribute("data-editable"),
-        textContent: target.textContent?.substring(0, 50)
-      });
+      const componentEl = target.closest("[data-aos-id]") as HTMLElement | null;
+      if (!componentEl) return;
 
-      if (target.hasAttribute("data-editable")) {
-        e.stopPropagation();
-        e.preventDefault();
-
-        // Extract prop name from data-prop attribute
-        const propName = target.getAttribute("data-prop");
-        
-        // Fallback: use data-prop as element-id if data-element-id is not set
-        const elementId =
-          target.getAttribute("data-element-id") || propName || null;
-        
-        // Default file path to src/App.tsx if not specified
-        const filePath =
-          target.getAttribute("data-file-path") || "src/App.tsx";
-
-        const metadata: EditTextMetaData = {
-          elementId,
-          currentText: target.textContent ?? "",
-          filePath,
-          lineNumber: target.getAttribute("data-line-number"),
-          position: { x: e.clientX, y: e.clientY },
-          propName,
-        };
-
-        console.log('[useEnableEditMode] Sending EDIT_REQUEST:', metadata);
-        
-        window.parent.postMessage(
-          {
-            type: "EDIT_REQUEST",
-            payload: metadata,
-          },
-          "*"
-        );
-        
-        console.log('[useEnableEditMode] EDIT_REQUEST sent successfully');
-      }
-    };
-
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, [isE2B]);
-
-  // 쿼리 편집 모드에서 클릭 처리
-  React.useEffect(() => {
-    if (!isE2B) return;
-
-    const handleChartClick = async (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-
-      // 차트/테이블 요소 찾기 (Card 또는 ChartContainer)
-      const chartElement =
-        target.closest('[data-slot="card"]') as HTMLElement ||
-        target.closest('[data-chart]') as HTMLElement;
-
-      if (!chartElement) {
-        return;
-      }
-
-      // 편집 가능한 요소(data-editable)는 제외
-      if (target.hasAttribute("data-editable") || target.closest('[data-editable]')) {
-        return;
-      }
-
-      e.preventDefault();
       e.stopPropagation();
+      e.preventDefault();
 
-      try {
-        // 클릭한 차트/테이블의 title 추출
-        const cardTitle = chartElement.querySelector('[data-slot="card-title"]')?.textContent?.trim();
+      const id = componentEl.getAttribute("data-aos-id");
+      if (!id) return;
+      const displayName =
+        componentEl.getAttribute("data-aos-name") || toPascalCase(id);
 
-        // src/App.tsx 파일 내용 가져오기
-        const response = await fetch('/src/App.tsx?raw');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch file: ${response.status}`);
-        }
-
-        const rawContent = await response.text();
-
-        // Vite ?raw 응답에서 실제 코드 추출
-        const sourceCode = extractCodeFromViteRaw(rawContent);
-
-        // GraphQL 쿼리와 해당 쿼리를 사용하는 컴포넌트 매핑 분석
-        // 1. 주석에서 query ID와 쿼리 추출
-        // 패턴: // data-query-id="some-query-id"
-        //       (다른 주석들...)
-        //       const xxxQuery = `query Source { ... }`
-        const queries: Array<{ varName: string; queryId: string; content: string }> = [];
-
-        // 전역 regex로 모든 주석 위치 찾기
-        const commentRegex = /\/\/\s*data-query-id=["']([^"']+)["']/g;
-        let commentMatch;
-
-        while ((commentMatch = commentRegex.exec(sourceCode)) !== null) {
-          const queryId = commentMatch[1];
-          const commentIndex = commentMatch.index;
-
-          // 주석 다음 위치부터 쿼리 찾기 (최대 500자 이내)
-          const searchStart = commentIndex + commentMatch[0].length;
-          const searchEnd = Math.min(searchStart + 500, sourceCode.length);
-          const searchArea = sourceCode.substring(searchStart, searchEnd);
-
-          // 쿼리 변수 찾기 - 변수명이 Query 또는 query로 끝나거나 포함하는 경우
-          const queryMatch = searchArea.match(/const\s+(\w*[Qq]uery\w*)\s*=\s*`(query[\s\S]*?)`/);
-
-          if (queryMatch) {
-            const varName = queryMatch[1];
-            const queryContent = queryMatch[2];
-            queries.push({ varName, queryId, content: queryContent });
-          }
-        }
-
-        if (queries.length === 0) {
-          return;
-        }
-
-        // 2. 컴포넌트의 data-query-id prop으로 매칭
-        // 패턴: <StatCard data-query-id="sentiment-analysis-query" title={...긍정 리뷰 비율...}>
-        let matchedQuery = null;
-
-        // 전역 regex로 모든 컴포넌트에서 data-query-id prop 찾기
-        const componentRegex = /<(StatCard|Dynamic(?:Bar|Line|Area|Composed|Pie)Chart|DynamicDataTable)[^>]*data-query-id=["']([^"']+)["'][^>]*>/g;
-        let componentMatch;
-
-        while ((componentMatch = componentRegex.exec(sourceCode)) !== null) {
-          const componentQueryId = componentMatch[2];
-          const componentIndex = componentMatch.index;
-
-          // 해당 query ID와 일치하는 쿼리 찾기
-          const query = queries.find(q => q.queryId === componentQueryId);
-          if (!query) {
-            continue;
-          }
-
-          // 컴포넌트 다음 500자 이내에서 title 찾기
-          const searchArea = sourceCode.substring(componentIndex, componentIndex + 500);
-
-          // title prop의 EditableText에서 텍스트 추출
-          const titleMatch = searchArea.match(/title=\{[^}]*<EditableText[^>]*>\s*([^<]+)\s*<\/EditableText>/);
-
-          if (titleMatch) {
-            const componentTitle = titleMatch[1].trim();
-
-            // title이 클릭한 카드의 title과 일치하는지 확인
-            if (cardTitle && componentTitle.toLowerCase().includes(cardTitle.toLowerCase())) {
-              matchedQuery = query;
-              break;
-            }
-          }
-        }
-
-        // 매칭된 쿼리가 없으면 첫 번째 쿼리 사용
-        const selectedQuery = matchedQuery || queries[0];
-
-        window.parent.postMessage(
-          {
-            type: 'QUERY_CLICK',
-            payload: {
-              queryId: selectedQuery.queryId,
-              queryContent: selectedQuery.content,
-              filePath: 'src/App.tsx',
-              position: { x: e.clientX, y: e.clientY },
-            },
-          },
-          '*'
-        );
-      } catch (error) {
-        console.error('[useEnableEditMode] Error fetching or parsing source code:', error);
+      // 시각 효과 토글
+      const isSelected =
+        componentEl.getAttribute("data-aos-selected") === "true";
+      if (isSelected) {
+        componentEl.removeAttribute("data-aos-selected");
+      } else {
+        componentEl.setAttribute("data-aos-selected", "true");
       }
+
+      window.parent.postMessage(
+        {
+          type: "COMPONENT_TOGGLE",
+          payload: { id, displayName },
+        },
+        "*"
+      );
     };
 
-    document.addEventListener('click', handleChartClick, true);
-    return () => document.removeEventListener('click', handleChartClick, true);
+    // capture phase 로 등록해 sandbox 내부 onClick 보다 먼저 가로챈다.
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, [isE2B]);
 
-  // 파일 업데이트 응답 리스너
+  // 호스트로부터의 메시지 처리: 선택 해제 / Diff outline
   React.useEffect(() => {
     if (!isE2B) return;
 
-    const handleEditResponse = (e: MessageEvent) => {
-      if (e.data.type === "FILE_UPDATED") {
-        // HMR replacement automatically
+    const clearAllSelected = () => {
+      document
+        .querySelectorAll('[data-aos-selected="true"]')
+        .forEach((el) => el.removeAttribute("data-aos-selected"));
+    };
+
+    const clearAllDiff = () => {
+      document
+        .querySelectorAll(`[${DIFF_OUTLINE_ATTR}]`)
+        .forEach((el) => el.removeAttribute(DIFF_OUTLINE_ATTR));
+    };
+
+    const applyDiff = (modified: string[], added: string[]) => {
+      clearAllDiff();
+      const mark = (ids: string[], kind: "modified" | "added") => {
+        ids.forEach((id) => {
+          const el = document.querySelector(`[data-aos-id="${id}"]`);
+          if (el) el.setAttribute(DIFF_OUTLINE_ATTR, kind);
+        });
+      };
+      // after iframe 기준: modified(노랑) + added(초록)만 표시.
+      // removed 는 after 에 존재하지 않아 호스트가 before 이미지에 그린다.
+      mark(modified, "modified");
+      mark(added, "added");
+    };
+
+    const handleMessage = (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || typeof data !== "object" || !data.type) return;
+
+      switch (data.type) {
+        case "CLEAR_SELECTION":
+          clearAllSelected();
+          break;
+        case "SHOW_DIFF": {
+          isDiffModeRef.current = true;
+          clearAllSelected();
+          const { modified = [], added = [] } = data.payload ?? {};
+          applyDiff(modified, added);
+          break;
+        }
+        case "HIDE_DIFF":
+          isDiffModeRef.current = false;
+          clearAllDiff();
+          break;
+        default:
+          break;
       }
     };
 
-    window.addEventListener("message", handleEditResponse);
-    return () => window.removeEventListener("message", handleEditResponse);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, [isE2B]);
 };
