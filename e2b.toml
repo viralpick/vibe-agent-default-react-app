@@ -1,0 +1,18 @@
+# This is a config for E2B sandbox template.
+# You can use template ID (xm8rp64hc8ux2dzh9f9e) or template name (agenthub/appbuilder) to create a sandbox:
+
+# Python SDK
+# from e2b import Sandbox, AsyncSandbox
+# sandbox = Sandbox.create("agenthub/appbuilder") # Sync sandbox
+# sandbox = await AsyncSandbox.create("agenthub/appbuilder") # Async sandbox
+
+# JS SDK
+# import { Sandbox } from 'e2b'
+# const sandbox = await Sandbox.create('agenthub/appbuilder')
+
+team_id = "38a5ee4a-7c12-4d85-bf33-422959fae79c"
+memory_mb = 2_048
+cpu_count = 2
+dockerfile = "e2b.Dockerfile"
+template_name = "agenthub/appbuilder"
+template_id = "xm8rp64hc8ux2dzh9f9e"
