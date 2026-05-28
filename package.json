@@ -61,5 +61,10 @@
     "typescript": "~5.9.3",
     "vite": "^7.1.7",
     "vitest": "^4.0.18"
+  },
+  "optionalDependencies": {
+    "@oxlint/binding-linux-x64-gnu": "1.x.x",
+    "@oxlint/binding-darwin-arm64": "1.x.x",
+    "@oxlint/binding-darwin-x64": "1.x.x"
   }
 }
