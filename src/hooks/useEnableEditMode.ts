@@ -144,9 +144,9 @@ export const useEnableEditMode = () => {
   const isE2B = isE2BSandbox();
   const isDiffModeRef = React.useRef<boolean>(false);
   // 호스트가 TOGGLE_EDIT_MODE { enabled } 로 제어하는 컴포넌트 선택 모드.
-  // 기본값 true — 호스트가 iframe load 시 명시적으로 다시 보내주지만,
-  // 메시지 도착 전 짧은 구간에서도 기존 동작(클릭 가능)을 유지하기 위함.
-  const isEditEnabledRef = React.useRef<boolean>(true);
+  // 기본값 false — Edit 버튼을 명시적으로 눌러야만 컴포넌트 선택 활성.
+  // 호스트는 iframe load 시 현재 store 값(기본 false)을 그대로 보낸다.
+  const isEditEnabledRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
     if (!isE2B) return;
