@@ -1,4 +1,5 @@
 import React from "react";
+import { domToPng } from "modern-screenshot";
 
 const isE2BSandbox = () => {
   if (typeof window === "undefined") return false;
@@ -153,6 +154,59 @@ export const useEnableEditMode = () => {
       mark(added, "added");
     };
 
+    // 현재 화면을 PNG(dataURL) 로 캡처하고 [data-aos-id] 요소들의 좌표를 함께
+    // 수집해 호스트로 돌려준다. 호스트가 before/after 이미지를 직접 확보하는
+    // "스크린샷 API". 캡처 직전 선택/diff outline 은 결과 이미지에 섞이지 않도록 제거.
+    const handleCapture = async (requestId: string) => {
+      clearAllSelected();
+      clearAllDiff();
+      try {
+        const root = document.body;
+        const image = await domToPng(root, {
+          backgroundColor: "#ffffff",
+          // device pixel ratio 2배까지만 — 메모리/전송 크기 균형
+          scale: Math.min(window.devicePixelRatio || 1, 2),
+        });
+        const components = Array.from(
+          document.querySelectorAll<HTMLElement>("[data-aos-id]")
+        ).map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            id: el.getAttribute("data-aos-id") ?? "",
+            name:
+              el.getAttribute("data-aos-name") ||
+              toPascalCase(el.getAttribute("data-aos-id") ?? ""),
+            x: Math.round(r.left + window.scrollX),
+            y: Math.round(r.top + window.scrollY),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+          };
+        });
+        window.parent.postMessage(
+          {
+            type: "SCREENSHOT_RESULT",
+            payload: {
+              requestId,
+              image,
+              width: Math.round(document.documentElement.scrollWidth),
+              height: Math.round(document.documentElement.scrollHeight),
+              components,
+            },
+          },
+          "*"
+        );
+      } catch (error) {
+        console.error("[useEnableEditMode] capture failed:", error);
+        window.parent.postMessage(
+          {
+            type: "SCREENSHOT_RESULT",
+            payload: { requestId, error: String(error) },
+          },
+          "*"
+        );
+      }
+    };
+
     const handleMessage = (e: MessageEvent) => {
       const data = e.data;
       if (!data || typeof data !== "object" || !data.type) return;
@@ -172,6 +226,11 @@ export const useEnableEditMode = () => {
           isDiffModeRef.current = false;
           clearAllDiff();
           break;
+        case "CAPTURE_SCREENSHOT": {
+          const requestId = data.payload?.requestId;
+          if (typeof requestId === "string") handleCapture(requestId);
+          break;
+        }
         default:
           break;
       }
