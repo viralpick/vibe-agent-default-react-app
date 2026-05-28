@@ -56,6 +56,77 @@ const injectEditModeStyles = () => {
 
 const DIFF_OUTLINE_ATTR = "data-aos-diff";
 
+// in-flight fetch/XHR 개수를 추적해 캡처 직전 "network idle" 을 감지한다.
+// 호스트가 CAPTURE_SCREENSHOT 을 보낸 직후엔 보통 React 가 막 마운트되어
+// 데이터 페칭 중 → 그대로 캡처하면 로딩 스피너만 찍힌다. 이 카운터가 일정
+// 시간 0 으로 유지되면 "안정 상태" 로 보고 캡처를 시작한다.
+let inFlightRequests = 0;
+let networkInstrumented = false;
+
+const installNetworkInstrumentation = () => {
+  if (networkInstrumented || typeof window === "undefined") return;
+  networkInstrumented = true;
+
+  const originalFetch = window.fetch;
+  window.fetch = function patchedFetch(...args: Parameters<typeof fetch>) {
+    inFlightRequests += 1;
+    return originalFetch.apply(this, args).finally(() => {
+      inFlightRequests = Math.max(0, inFlightRequests - 1);
+    });
+  };
+
+  const OriginalXHR = window.XMLHttpRequest;
+  // XHR 은 send 시점에 +1, loadend(success/error/abort 통합)에 -1.
+  // open 에서 +1 하면 send 안 부른 인스턴스로 카운터가 새는 케이스가 있다.
+  class PatchedXHR extends OriginalXHR {
+    private __tracked = false;
+    send(...args: Parameters<XMLHttpRequest["send"]>) {
+      if (!this.__tracked) {
+        this.__tracked = true;
+        inFlightRequests += 1;
+        const release = () => {
+          inFlightRequests = Math.max(0, inFlightRequests - 1);
+          this.removeEventListener("loadend", release);
+        };
+        this.addEventListener("loadend", release);
+      }
+      return super.send(...args);
+    }
+  }
+  window.XMLHttpRequest = PatchedXHR as unknown as typeof XMLHttpRequest;
+};
+
+/**
+ * network idle 을 기다린다. in-flight 가 idleMs 동안 0 으로 유지되면 resolve.
+ * maxWaitMs 안에 idle 을 못 보면 강제 resolve (보안용 timeout).
+ */
+const waitForNetworkIdle = (
+  idleMs: number = 800,
+  maxWaitMs: number = 10000
+): Promise<void> => {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    let idleSince: number | null = inFlightRequests === 0 ? start : null;
+    const tick = () => {
+      if (inFlightRequests === 0) {
+        if (idleSince === null) idleSince = Date.now();
+        if (Date.now() - idleSince >= idleMs) {
+          resolve();
+          return;
+        }
+      } else {
+        idleSince = null;
+      }
+      if (Date.now() - start >= maxWaitMs) {
+        resolve();
+        return;
+      }
+      setTimeout(tick, 100);
+    };
+    tick();
+  });
+};
+
 /**
  * 미리보기에서 data-aos-id 가 박힌 컴포넌트를 클릭으로 선택하게 한다.
  *
@@ -76,6 +147,9 @@ export const useEnableEditMode = () => {
   React.useEffect(() => {
     if (!isE2B) return;
     injectEditModeStyles();
+    // 네트워크 idle 감지를 위해 fetch/XHR 패치 (idempotent, 1회만 설치).
+    // 캡처 시점에 React 가 데이터 페칭 중이면 로딩 상태가 캡처되므로 idle 대기 필요.
+    installNetworkInstrumentation();
     return () => {
       const style = document.getElementById(EDIT_MODE_STYLE_ID);
       if (style) document.head.removeChild(style);
@@ -161,6 +235,8 @@ export const useEnableEditMode = () => {
       clearAllSelected();
       clearAllDiff();
       try {
+        // 데이터 페칭 + 차트 렌더가 끝날 때까지 대기. idle 못 보면 10초 후 강제 진행.
+        await waitForNetworkIdle();
         const root = document.body;
         const image = await domToPng(root, {
           backgroundColor: "#ffffff",
