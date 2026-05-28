@@ -25,19 +25,14 @@ const toPascalCase = (kebab: string): string =>
 // - data-aos-selected: 파란 실선 (선택됨)
 // - data-aos-diff: 변경 종류별 outline (Diff 모드, after iframe 전용)
 const EDIT_MODE_STYLE_ID = "edit-mode-styles";
+const EDIT_MODE_INTERACTIVE_STYLE_ID = "edit-mode-interactive-styles";
+
 const injectEditModeStyles = () => {
   if (document.getElementById(EDIT_MODE_STYLE_ID)) return;
 
   const style = document.createElement("style");
   style.id = EDIT_MODE_STYLE_ID;
   style.textContent = `
-    [data-aos-id] {
-      cursor: pointer;
-    }
-    [data-aos-id]:hover {
-      outline: 2px dashed rgba(120, 120, 120, 0.8);
-      outline-offset: 2px;
-    }
     [data-aos-selected="true"] {
       outline: 2px solid rgba(37, 99, 235, 0.9);
       outline-offset: 2px;
@@ -52,6 +47,28 @@ const injectEditModeStyles = () => {
     }
   `;
   document.head.appendChild(style);
+};
+
+const injectInteractiveStyles = () => {
+  if (document.getElementById(EDIT_MODE_INTERACTIVE_STYLE_ID)) return;
+
+  const style = document.createElement("style");
+  style.id = EDIT_MODE_INTERACTIVE_STYLE_ID;
+  style.textContent = `
+    [data-aos-id] {
+      cursor: pointer;
+    }
+    [data-aos-id]:hover {
+      outline: 2px dashed rgba(120, 120, 120, 0.8);
+      outline-offset: 2px;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+const removeInteractiveStyles = () => {
+  const style = document.getElementById(EDIT_MODE_INTERACTIVE_STYLE_ID);
+  if (style) document.head.removeChild(style);
 };
 
 const DIFF_OUTLINE_ATTR = "data-aos-diff";
@@ -157,6 +174,7 @@ export const useEnableEditMode = () => {
     return () => {
       const style = document.getElementById(EDIT_MODE_STYLE_ID);
       if (style) document.head.removeChild(style);
+      removeInteractiveStyles();
     };
   }, [isE2B]);
 
@@ -296,8 +314,12 @@ export const useEnableEditMode = () => {
         case "TOGGLE_EDIT_MODE": {
           const enabled = Boolean(data.payload?.enabled);
           isEditEnabledRef.current = enabled;
-          // 비활성화 시 hover/선택 표시도 함께 제거 (시각 일관성).
-          if (!enabled) clearAllSelected();
+          if (enabled) {
+            injectInteractiveStyles();
+          } else {
+            removeInteractiveStyles();
+            clearAllSelected();
+          }
           break;
         }
         case "CLEAR_SELECTION":
