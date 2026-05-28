@@ -1,0 +1,101 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  "plugins": [
+    "react",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import"
+  ],
+
+  "categories": {
+    "correctness": "error"
+  },
+
+  "env": {
+    "builtin": true,
+    "browser": true,
+    "es2022": true
+  },
+
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/components/patterns",
+              "@/components/patterns/*",
+              "@/components/ui",
+              "@/components/ui/*"
+            ],
+            "message": "GUIDE.md §5.3 — 존재하지 않는 경로. @enhans/synapse 사용"
+          },
+          {
+            "group": ["@/lib/api", "@/lib/commerce-sdk"],
+            "message": "GUIDE.md §5.2 — useApiClient는 @/api/api.client에서만"
+          },
+          {
+            "group": ["antd", "@mui/*", "@chakra-ui/*", "react-bootstrap"],
+            "message": "GUIDE.md §5.7 — 허용 라이브러리 외 사용 금지 (@enhans/synapse 만 허용)"
+          }
+        ]
+      }
+    ],
+
+    "no-unused-vars": "off",
+    "typescript/no-unused-vars": "off",
+
+    "no-debugger": "off",
+    "no-empty-static-block": "off",
+    "no-extra-boolean-cast": "off",
+    "no-irregular-whitespace": "off",
+    "no-nonoctal-decimal-escape": "off",
+    "no-new-native-nonconstructor": "off",
+    "no-obj-calls": "off",
+    "no-unused-expressions": "off",
+    "no-unused-labels": "off",
+    "no-unused-private-class-members": "off",
+    "no-useless-catch": "off",
+    "no-useless-rename": "off",
+    "no-useless-escape": "off",
+
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-this-alias": "off",
+    "typescript/no-unnecessary-parameter-property-assignment": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/no-useless-empty-export": "off",
+    "typescript/no-wrapper-object-types": "off",
+    "typescript/prefer-as-const": "off",
+    "typescript/prefer-namespace-keyword": "off",
+    "typescript/triple-slash-reference": "off",
+    "typescript/unbound-method": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-single-promise-in-promise-methods": "off",
+    "unicorn/no-unnecessary-await": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-length-check": "off",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/prefer-set-size": "off",
+    "unicorn/prefer-string-starts-ends-with": "off",
+
+    "react/no-did-mount-set-state": "off",
+    "react/no-did-update-set-state": "off",
+    "react/no-will-update-set-state": "off"
+  },
+
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    "build",
+    "trace_reports",
+    ".cos",
+    "src/test"
+  ]
+}
