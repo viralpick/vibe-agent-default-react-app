@@ -143,6 +143,10 @@ const waitForNetworkIdle = (
 export const useEnableEditMode = () => {
   const isE2B = isE2BSandbox();
   const isDiffModeRef = React.useRef<boolean>(false);
+  // 호스트가 TOGGLE_EDIT_MODE { enabled } 로 제어하는 컴포넌트 선택 모드.
+  // 기본값 true — 호스트가 iframe load 시 명시적으로 다시 보내주지만,
+  // 메시지 도착 전 짧은 구간에서도 기존 동작(클릭 가능)을 유지하기 위함.
+  const isEditEnabledRef = React.useRef<boolean>(true);
 
   React.useEffect(() => {
     if (!isE2B) return;
@@ -162,6 +166,7 @@ export const useEnableEditMode = () => {
 
     const handleClick = (e: MouseEvent) => {
       if (isDiffModeRef.current) return;
+      if (!isEditEnabledRef.current) return;
 
       const target = e.target as HTMLElement;
       const componentEl = target.closest("[data-aos-id]") as HTMLElement | null;
@@ -288,6 +293,13 @@ export const useEnableEditMode = () => {
       if (!data || typeof data !== "object" || !data.type) return;
 
       switch (data.type) {
+        case "TOGGLE_EDIT_MODE": {
+          const enabled = Boolean(data.payload?.enabled);
+          isEditEnabledRef.current = enabled;
+          // 비활성화 시 hover/선택 표시도 함께 제거 (시각 일관성).
+          if (!enabled) clearAllSelected();
+          break;
+        }
         case "CLEAR_SELECTION":
           clearAllSelected();
           break;
