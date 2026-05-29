@@ -325,6 +325,23 @@ export const useEnableEditMode = () => {
         case "CLEAR_SELECTION":
           clearAllSelected();
           break;
+        case "COMPONENT_TOGGLE": {
+          // 호스트(배지 ×)에서 보낸 토글. 클릭 송신과 대칭으로 data-aos-selected
+          // 를 반전해 선택 outline 을 host 상태와 동기화한다.
+          const id = data.payload?.id;
+          if (typeof id !== "string") break;
+          const el = document.querySelector(
+            `[data-aos-id="${id}"]`
+          ) as HTMLElement | null;
+          if (!el) break;
+          const isSelected = el.getAttribute("data-aos-selected") === "true";
+          if (isSelected) {
+            el.removeAttribute("data-aos-selected");
+          } else {
+            el.setAttribute("data-aos-selected", "true");
+          }
+          break;
+        }
         case "SHOW_DIFF": {
           isDiffModeRef.current = true;
           clearAllSelected();
