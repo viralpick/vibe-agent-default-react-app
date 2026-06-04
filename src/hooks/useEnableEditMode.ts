@@ -36,6 +36,10 @@ const injectEditModeStyles = () => {
     [data-aos-selected="true"] {
       outline: 2px solid rgba(37, 99, 235, 0.9);
       outline-offset: 2px;
+      /* 선택된 컴포넌트 위에 연한 파란 배경 오버레이. 자식의 흰 배경 위에도
+         보이도록 box-shadow inset 으로 덧칠한다(레이아웃에 영향 없음). */
+      background-color: rgba(37, 99, 235, 0.06);
+      box-shadow: inset 0 0 0 9999px rgba(37, 99, 235, 0.06);
     }
     [data-aos-diff="modified"] {
       outline: 2px dashed rgba(234, 179, 8, 0.95);
