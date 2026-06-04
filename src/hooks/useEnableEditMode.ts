@@ -164,6 +164,10 @@ export const useEnableEditMode = () => {
   // 기본값 false — Edit 버튼을 명시적으로 눌러야만 컴포넌트 선택 활성.
   // 호스트는 iframe load 시 현재 store 값(기본 false)을 그대로 보낸다.
   const isEditEnabledRef = React.useRef<boolean>(false);
+  // 단건 선택 모드(SOURCE). true 면 클릭 시 다른 선택을 모두 해제하고 1개만
+  // 하이라이트한다(토글 아님). EDIT(다중 선택)는 false. 호스트가 TOGGLE_EDIT_MODE
+  // { singleSelect } 로 제어한다.
+  const isSingleSelectRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
     if (!isE2B) return;
@@ -197,20 +201,35 @@ export const useEnableEditMode = () => {
       if (!id) return;
       const displayName =
         componentEl.getAttribute("data-aos-name") || toPascalCase(id);
+      // 이 컴포넌트가 데이터를 가져오는 OntologyFunction id 콤마목록 (없으면 null).
+      // host(Source 모드)는 이 값으로 컴포넌트를 inspect 한다.
+      const functions = componentEl.getAttribute("data-aos-functions");
 
-      // 시각 효과 토글
-      const isSelected =
-        componentEl.getAttribute("data-aos-selected") === "true";
-      if (isSelected) {
-        componentEl.removeAttribute("data-aos-selected");
-      } else {
+      if (isSingleSelectRef.current) {
+        // SOURCE 단건 선택: 다른 선택을 모두 해제하고 클릭한 1개만 하이라이트.
+        // 같은 컴포넌트를 다시 클릭해도 토글로 꺼지지 않게 항상 set(host inspect
+        // 패널의 단건 대상과 outline 을 일치시킨다).
+        document
+          .querySelectorAll('[data-aos-selected="true"]')
+          .forEach((el) => {
+            if (el !== componentEl) el.removeAttribute("data-aos-selected");
+          });
         componentEl.setAttribute("data-aos-selected", "true");
+      } else {
+        // EDIT 다중 선택: 토글.
+        const isSelected =
+          componentEl.getAttribute("data-aos-selected") === "true";
+        if (isSelected) {
+          componentEl.removeAttribute("data-aos-selected");
+        } else {
+          componentEl.setAttribute("data-aos-selected", "true");
+        }
       }
 
       window.parent.postMessage(
         {
           type: "COMPONENT_TOGGLE",
-          payload: { id, displayName },
+          payload: { id, displayName, functions },
         },
         "*"
       );
@@ -313,6 +332,8 @@ export const useEnableEditMode = () => {
       switch (data.type) {
         case "TOGGLE_EDIT_MODE": {
           const enabled = Boolean(data.payload?.enabled);
+          // SOURCE(단건 inspect)면 single-select, EDIT(다중)면 false.
+          isSingleSelectRef.current = Boolean(data.payload?.singleSelect);
           isEditEnabledRef.current = enabled;
           if (enabled) {
             injectInteractiveStyles();
