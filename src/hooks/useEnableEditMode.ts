@@ -33,11 +33,17 @@ const injectEditModeStyles = () => {
   const style = document.createElement("style");
   style.id = EDIT_MODE_STYLE_ID;
   style.textContent = `
+    /* EDIT 모드 선택: 아웃라인만. (하위호환: 기존 "true" 값도 동일 처리) */
+    [data-aos-selected="edit"],
     [data-aos-selected="true"] {
       outline: 2px solid rgba(37, 99, 235, 0.9);
       outline-offset: 2px;
-      /* 선택된 컴포넌트 위에 연한 파란 배경 오버레이. 자식의 흰 배경 위에도
-         보이도록 box-shadow inset 으로 덧칠한다(레이아웃에 영향 없음). */
+    }
+    /* INSPECT 모드 선택: 아웃라인 + 연한 파란 배경 오버레이. 자식의 흰 배경 위에도
+       보이도록 box-shadow inset 으로 덧칠한다(레이아웃에 영향 없음). */
+    [data-aos-selected="inspect"] {
+      outline: 2px solid rgba(37, 99, 235, 0.9);
+      outline-offset: 2px;
       background-color: rgba(37, 99, 235, 0.06);
       box-shadow: inset 0 0 0 9999px rgba(37, 99, 235, 0.06);
     }
@@ -210,23 +216,22 @@ export const useEnableEditMode = () => {
       const functions = componentEl.getAttribute("data-aos-functions");
 
       if (isSingleSelectRef.current) {
-        // SOURCE 단건 선택: 다른 선택을 모두 해제하고 클릭한 1개만 하이라이트.
+        // INSPECT 단건 선택: 다른 선택을 모두 해제하고 클릭한 1개만 하이라이트.
         // 같은 컴포넌트를 다시 클릭해도 토글로 꺼지지 않게 항상 set(host inspect
-        // 패널의 단건 대상과 outline 을 일치시킨다).
+        // 패널의 단건 대상과 outline 을 일치시킨다). 값 "inspect" = 아웃라인 + 배경.
         document
-          .querySelectorAll('[data-aos-selected="true"]')
+          .querySelectorAll("[data-aos-selected]")
           .forEach((el) => {
             if (el !== componentEl) el.removeAttribute("data-aos-selected");
           });
-        componentEl.setAttribute("data-aos-selected", "true");
+        componentEl.setAttribute("data-aos-selected", "inspect");
       } else {
-        // EDIT 다중 선택: 토글.
-        const isSelected =
-          componentEl.getAttribute("data-aos-selected") === "true";
+        // EDIT 다중 선택: 토글. 값 "edit" = 아웃라인만.
+        const isSelected = componentEl.hasAttribute("data-aos-selected");
         if (isSelected) {
           componentEl.removeAttribute("data-aos-selected");
         } else {
-          componentEl.setAttribute("data-aos-selected", "true");
+          componentEl.setAttribute("data-aos-selected", "edit");
         }
       }
 
@@ -249,8 +254,9 @@ export const useEnableEditMode = () => {
     if (!isE2B) return;
 
     const clearAllSelected = () => {
+      // 값(edit/inspect/true) 무관하게 모든 선택 표시를 제거한다.
       document
-        .querySelectorAll('[data-aos-selected="true"]')
+        .querySelectorAll("[data-aos-selected]")
         .forEach((el) => el.removeAttribute("data-aos-selected"));
     };
 
@@ -336,11 +342,16 @@ export const useEnableEditMode = () => {
       switch (data.type) {
         case "TOGGLE_EDIT_MODE": {
           const enabled = Boolean(data.payload?.enabled);
-          // SOURCE(단건 inspect)면 single-select, EDIT(다중)면 false.
-          isSingleSelectRef.current = Boolean(data.payload?.singleSelect);
+          // INSPECT(단건 inspect)면 single-select, EDIT(다중)면 false.
+          const nextSingleSelect = Boolean(data.payload?.singleSelect);
+          // 모드(EDIT↔INSPECT)가 바뀌면 두 모드의 선택 스타일이 다르므로
+          // 기존 선택 표시를 모두 초기화한다.
+          const modeChanged = nextSingleSelect !== isSingleSelectRef.current;
+          isSingleSelectRef.current = nextSingleSelect;
           isEditEnabledRef.current = enabled;
           if (enabled) {
             injectInteractiveStyles();
+            if (modeChanged) clearAllSelected();
           } else {
             removeInteractiveStyles();
             clearAllSelected();
@@ -351,19 +362,19 @@ export const useEnableEditMode = () => {
           clearAllSelected();
           break;
         case "COMPONENT_TOGGLE": {
-          // 호스트(배지 ×)에서 보낸 토글. 클릭 송신과 대칭으로 data-aos-selected
-          // 를 반전해 선택 outline 을 host 상태와 동기화한다.
+          // 호스트(배지 ×)에서 보낸 토글 — EDIT 다중 선택 전용. 클릭 송신과 대칭으로
+          // data-aos-selected 를 반전해 선택 outline 을 host 상태와 동기화한다.
           const id = data.payload?.id;
           if (typeof id !== "string") break;
           const el = document.querySelector(
             `[data-aos-id="${id}"]`
           ) as HTMLElement | null;
           if (!el) break;
-          const isSelected = el.getAttribute("data-aos-selected") === "true";
+          const isSelected = el.hasAttribute("data-aos-selected");
           if (isSelected) {
             el.removeAttribute("data-aos-selected");
           } else {
-            el.setAttribute("data-aos-selected", "true");
+            el.setAttribute("data-aos-selected", "edit");
           }
           break;
         }
