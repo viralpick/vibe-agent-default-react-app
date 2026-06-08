@@ -1,7 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "@enhans/synapse/styles.css";
-@source "../node_modules/@enhans/synapse/dist/index.js";
+/* 디자인 테마는 theme.css 로 분리. 앱빌더가 모드별로 theme.css 만 교체한다.
+   index.css 는 폰트 로드와 body 기본 폰트 등 디자인 무관 고정 설정만 둔다. */
+@import "./theme.css";
 
 /* synapse 의 --font-sans 가 "Pretendard Variable" 을 참조하지만 폰트 로드 선언은
    없어 fallback(system-ui)으로 떨어졌다. public/fonts 에 번들된 Variable 폰트를
