@@ -17,6 +17,10 @@ const getBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL_DEV;
   }
 
+  if (parentOrigin.includes("stg")) {
+    return import.meta.env.VITE_API_BASE_URL_STG;
+  }
+
   return import.meta.env.VITE_API_BASE_URL_PROD;
 };
 
