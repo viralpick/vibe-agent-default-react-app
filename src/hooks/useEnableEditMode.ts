@@ -1,16 +1,6 @@
 import React from "react";
 import { domToPng } from "modern-screenshot";
 
-const isE2BSandbox = () => {
-  if (typeof window === "undefined") return false;
-  const result = window.location.hostname.endsWith(".e2b.app");
-  console.log("[useEnableEditMode] isE2BSandbox check:", {
-    hostname: window.location.hostname,
-    isE2B: result,
-  });
-  return result;
-};
-
 // PascalCase 라벨 fallback: data-aos-name 이 없을 때 kebab id 를 변환.
 // "sales-chart" → "SalesChart"
 const toPascalCase = (kebab: string): string =>
@@ -168,7 +158,6 @@ const waitForNetworkIdle = (
  * - recv  HIDE_DIFF                              (diff outline 제거, 클릭 복귀)
  */
 export const useEnableEditMode = () => {
-  const isE2B = isE2BSandbox();
   const isDiffModeRef = React.useRef<boolean>(false);
   // 호스트가 TOGGLE_EDIT_MODE { enabled } 로 제어하는 컴포넌트 선택 모드.
   // 기본값 false — Edit 버튼을 명시적으로 눌러야만 컴포넌트 선택 활성.
@@ -180,22 +169,16 @@ export const useEnableEditMode = () => {
   const isSingleSelectRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
-    if (!isE2B) return;
     injectEditModeStyles();
-    // 네트워크 idle 감지를 위해 fetch/XHR 패치 (idempotent, 1회만 설치).
-    // 캡처 시점에 React 가 데이터 페칭 중이면 로딩 상태가 캡처되므로 idle 대기 필요.
-    installNetworkInstrumentation();
     return () => {
       const style = document.getElementById(EDIT_MODE_STYLE_ID);
       if (style) document.head.removeChild(style);
       removeInteractiveStyles();
     };
-  }, [isE2B]);
+  }, []);
 
   // 컴포넌트 단위 선택 클릭 처리
   React.useEffect(() => {
-    if (!isE2B) return;
-
     const handleClick = (e: MouseEvent) => {
       if (isDiffModeRef.current) return;
       if (!isEditEnabledRef.current) return;
@@ -247,12 +230,10 @@ export const useEnableEditMode = () => {
     // capture phase 로 등록해 sandbox 내부 onClick 보다 먼저 가로챈다.
     document.addEventListener("click", handleClick, true);
     return () => document.removeEventListener("click", handleClick, true);
-  }, [isE2B]);
+  }, []);
 
   // 호스트로부터의 메시지 처리: 선택 해제 / Diff outline
   React.useEffect(() => {
-    if (!isE2B) return;
-
     const clearAllSelected = () => {
       // 값(edit/inspect/true) 무관하게 모든 선택 표시를 제거한다.
       document
@@ -287,6 +268,9 @@ export const useEnableEditMode = () => {
       clearAllSelected();
       clearAllDiff();
       try {
+        // 네트워크 idle 감지를 위한 fetch/XHR 패치는 캡처가 실제로 필요한 시점에만
+        // 설치한다(idempotent). 일반 최종 사용자 배포본에는 monkey-patch 를 깔지 않기 위함.
+        installNetworkInstrumentation();
         // 데이터 페칭 + 차트 렌더가 끝날 때까지 대기. idle 못 보면 10초 후 강제 진행.
         await waitForNetworkIdle();
         const root = document.body;
@@ -401,5 +385,5 @@ export const useEnableEditMode = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isE2B]);
+  }, []);
 };
