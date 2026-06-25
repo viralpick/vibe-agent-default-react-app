@@ -1,10 +1,15 @@
 name: "Sandbox Template (OpenSandbox) Docker Hub Build & Push"
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - opensandbox.Dockerfile
+      - .github/workflows/sandbox-template-docker-hub.yaml
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "이미지 태그 (예: v1.0.0). 비우면 manual-<run_number>"
+        description: "이미지 태그 (예: v1.0.0). 비우면 커밋 sha(sha-<short>)"
         required: false
         default: ""
 
@@ -26,7 +31,13 @@ jobs:
 
       - name: Set image tag
         id: tag
-        run: echo "tag=${{ inputs.image_tag || format('manual-{0}', github.run_number) }}" >> $GITHUB_OUTPUT
+        run: |
+          # workflow_dispatch 에서 image_tag 주면 그걸, 아니면(자동 push/입력 비움) 커밋 sha 사용
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build, tag, and push
         env:
