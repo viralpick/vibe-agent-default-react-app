@@ -1,7 +1,8 @@
-import type { Locale } from "../contexts/LocaleContext";
 import type { Translations } from "./types";
 import { ko } from "./ko";
 import { en } from "./en";
+
+export type Locale = "ko" | "en";
 
 export type { Translations } from "./types";
 
