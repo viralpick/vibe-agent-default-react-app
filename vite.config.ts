@@ -56,6 +56,13 @@ const stripBaseRedirect = (): PluginOption => ({
   },
 });
 
+// path-based proxy(`--base /sandboxes/{id}/proxy/{port}/`) 뒤에서 실행 중인지 판별.
+// stripBaseRedirect 와 동일한 조건(= base 가 "/" 가 아닌 서브패스)으로, CLI 의 `--base`
+// 인자를 보고 결정한다. 이 환경에서만 아래 토큰 검사 우회가 의미를 가진다.
+const baseArgIndex = process.argv.indexOf("--base");
+const baseArg = baseArgIndex >= 0 ? process.argv[baseArgIndex + 1] : undefined;
+const isBehindPathProxy = !!baseArg && baseArg !== "/" && baseArg !== "./";
+
 // https://vite.dev/config/
 export default defineConfig({
   base: "./",
@@ -65,14 +72,17 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // HMR WebSocket 토큰 검사 우회.
+  // HMR WebSocket 토큰 검사 우회 — **path-proxy 환경에서만** 조건부로 켠다.
   //
   // Vite 6+ 는 CSWSH 방어로, Origin 헤더가 있는(=브라우저) WS upgrade 에 대해 URL 의
   // `?token=` 을 서버 토큰과 대조한다. OpenSandbox proxy 를 거치면서 이 토큰 검증이
   // 통과되지 못해 HMR 이 끊긴다. 이 sandbox 의 vite 는 외부 비노출(프록시 경유로만 접근)
   // dev 서버이므로 토큰 검사를 끄는 것이 안전하다.
+  //
+  // 단, e2b 서브도메인/직접 접근(base="/") 에서는 토큰 검사가 정상 동작하므로 끄지 않는다.
+  // → 프록시 환경(isBehindPathProxy)일 때만 우회해 보안 영향을 최소화.
   legacy: {
-    skipWebSocketTokenCheck: true,
+    skipWebSocketTokenCheck: isBehindPathProxy,
   },
   server: {
     host: true,
