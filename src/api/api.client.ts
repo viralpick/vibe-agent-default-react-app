@@ -28,7 +28,10 @@ export const API_BASE_URL = getBaseURL();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  // ontology action execute 등 서버 처리(파일 분석·LLM)가 수십 초 걸리는 요청이
+  // 기본 30초에서 "timeout of 30000ms exceeded" 로 끊기던 문제를 해결.
+  // 실측상 20~40초 소요되므로 여유를 둔 2분으로 상향. 개별 호출에서 override 가능.
+  timeout: 120000,
   headers: {
     "Content-Type": "application/json",
   },
