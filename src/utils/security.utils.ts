@@ -44,10 +44,30 @@ export function validateTimestamp(
 
 /**
  * Nonce 생성
+ *
+ * `crypto.randomUUID()` 는 Secure Context(https / localhost) 에서만 제공된다.
+ * 온프렘처럼 http 로 서빙되는 환경에서는 undefined 라 그대로 호출하면
+ * `TypeError: crypto.randomUUID is not a function` 으로 토큰 획득 전체가 실패한다.
+ * 따라서 사용 가능한 API 를 순서대로 폴백한다.
+ *
  * @returns 고유한 nonce 문자열
  */
 export function generateNonce(): string {
-  return crypto.randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  // getRandomValues 는 Secure Context 밖에서도 노출되는 경우가 많다 — RFC4122 v4 형태로 조립.
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  // 최후 폴백 — 암호학적 보장은 없으나 nonce 의 목적(재사용 방지)은 충족한다.
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
 }
 
 /**
