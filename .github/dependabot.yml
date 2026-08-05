@@ -16,6 +16,13 @@ updates:
     # "@enhans/synapse": "^0.13.6" 은 0.13.x 만 허용하므로(0.x 에서 캐럿은 minor 고정)
     # 0.14.0 이 나오면 range 를 ^0.14.0 으로 올리고, 0.13.7 이면 lock 만 갱신한다.
     versioning-strategy: increase-if-necessary
+    # Dependabot 은 cooldown 을 설정하지 않아도 신규 버전에 기본 3일 유예를 적용한다.
+    # 갓 퍼블리시된 외부 패키지의 supply chain 위험을 피하려는 장치인데,
+    # @enhans/synapse 는 사내(viralpick/synapse)에서 직접 배포하므로 해당하지 않는다.
+    # exclude 는 include 보다 우선하며, 일수는 1~90 만 허용되어 0 으로는 끌 수 없다.
+    cooldown:
+      exclude:
+        - "@enhans/synapse"
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
