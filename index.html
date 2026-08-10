@@ -17,7 +17,11 @@
       "
     />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <link href="/src/index.css" rel="stylesheet" />
+    <!-- index.css 는 main.tsx 에서 import 한다. `<link>` 로 물면 Vite dev 에서
+         CSS 가 JS 모듈 그래프에 들어가지 않아, @import 된 theme.css 변경이
+         `[no modules matched]` 로 무시된다 → 앱빌더가 theme.css 를 교체해도
+         리로드 없이는 화면에 반영되지 않는다. (AOS-3962)
+         본문이 빈 셸(#root)뿐이라 link 를 떼도 FOUC 대상이 없다. -->
     <title>cos-vibe-app-vite</title>
   </head>
   <body>
