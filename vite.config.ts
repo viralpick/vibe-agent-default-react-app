@@ -88,9 +88,28 @@ export default defineConfig({
     host: true,
     port: 3000,
     allowedHosts: true,
+    hmr: {
+      // Vite 기본 에러 오버레이(전체화면 점유)를 끈다. 컴파일/런타임 에러는
+      // usePreviewErrorReporter 가 `vite:error` 로 받아 부모(앱빌더 캔버스)에
+      // postMessage 로 넘기고, 부모가 상태 칩으로 표시한다. iframe 안에서
+      // 전체화면 오버레이가 뜨면 호스트 UI 와 이중으로 겹치고, 사용자는
+      // "기다리면 되는 건지 망가진 건지" 구분할 수 없다. (AOS-3962)
+      overlay: false,
+    },
     watch: {
+      // sandbox 파일시스템(overlayfs)에서 inotify 가 에이전트의 API 경유 쓰기를
+      // 전파하지 못해 폴링이 필요하다.
       usePolling: true,
       interval: 500,
+      // dev_server_agent 가 `npm run dev > dev.log` 로 **프로젝트 루트 안에**
+      // 로그를 쓴다. 이걸 watch 대상에 두면 자기참조 루프가 된다:
+      //   로그 write → 폴링 감지 → (--debug hmr 이면) 로그 3줄 추가 → 다시 감지 …
+      // 실측(AOS-3962 첨부 dev.log): 3분 동안 500ms 마다 영구 반복,
+      // App.tsx 관련 4줄 vs dev.log 노이즈 1,000줄 이상. e2b 템플릿이
+      // cpu_count=1 이라 에이전트 실행 중 CPU 를 계속 먹고, 폴링 tick 을
+      // 점유해 실제 소스 변경 감지를 지연시킨다.
+      // `.cos/*.md`(GUIDE/DESIGN/HISTORY)도 모듈이 아니라 감시 이득이 없다.
+      ignored: ["**/dev.log", "**/.cos/**"],
     },
   },
 });
