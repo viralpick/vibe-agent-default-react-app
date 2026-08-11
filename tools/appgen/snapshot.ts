@@ -35,7 +35,34 @@ import { STATE_DIR, tokenStatus } from './token.ts'
  * `VITE_API_BASE_URL` 이 제품 샌드박스 빌드까지 따라가면 배포된 앱이 우리 로컬/dev 를 가리킨다.
  * 제품 스냅샷에는 원래 이 파일이 없으므로 제외하는 것이 제품과 같아지는 방향이다.
  */
-const TAR_EXCLUDES = ['node_modules', './.git', './dev.log', './.env.local', './.claude'] as const
+const TAR_EXCLUDES = [
+  'node_modules',
+  './.git',
+  './dev.log',
+  './.env.local',
+  './.claude',
+  // macOS AppleDouble 사이드카. 제품을 한 번 경유한 트리에는 이게 실제 파일로 존재한다
+  // (아래 TAR_FLAGS 참조) — 정리하지 않으면 다음 push 에 다시 실려 나간다.
+  '._*',
+] as const
+
+/**
+ * tar 생성 플래그.
+ *
+ * `--no-xattrs` 가 핵심이다. macOS 는 파일에 `com.apple.provenance` 같은 확장 속성을 자동으로
+ * 붙이고, bsdtar 는 그것을 pax 확장 레코드로 아카이브에 담는다 (실측: 로컬 스냅샷 하나에 114개).
+ * 그 아카이브를 **제품 샌드박스의 Linux tar 가 풀면 xattr 을 복원할 수 없어 AppleDouble
+ * 사이드카(`._X`)로 떨어뜨린다.** 그러면 샌드박스에 쓰레기 파일이 생기고 (실측: 24개),
+ * 제품이 다음 스냅샷을 만들 때 그게 그대로 실려 멤버 수가 57 → 89 로 불었다.
+ *
+ * 부작용이 하나 더 있었다. push 직후 pull 이 멱등하지 않았다 — bsdtar 가 `._X` 를 원본 파일의
+ * xattr 로 재합성해 아카이브에서 빼버리므로, 되받은 트리에서 `._X` 가 사라져 스퍼리어스 커밋이
+ * 생겼다. xattr 은 앱 코드에 아무 의미가 없으므로 애초에 담지 않는 것이 맞다.
+ *
+ * `--no-xattrs` 는 bsdtar 와 GNU tar 양쪽에 있다 (bsdtar 전용인 `--no-mac-metadata` 를 쓰면
+ * Linux 에서 깨진다).
+ */
+const TAR_FLAGS = ['--no-xattrs'] as const
 
 /**
  * pull 이 워킹트리를 비울 때 남기는 것.
@@ -157,9 +184,11 @@ function createTar(appDir: string): Uint8Array {
   return withTempDir((tmp) => {
     const out = join(tmp, 'code.tar.gz')
     // 아카이브 루트가 프로젝트 루트여야 한다 (cwd = appDir, 대상 = `.`).
-    execFileSync('tar', [...TAR_EXCLUDES.map((p) => `--exclude=${p}`), '-czf', out, '.'], {
-      cwd: appDir,
-    })
+    execFileSync(
+      'tar',
+      [...TAR_FLAGS, ...TAR_EXCLUDES.map((p) => `--exclude=${p}`), '-czf', out, '.'],
+      { cwd: appDir },
+    )
     return new Uint8Array(readFileSync(out))
   })
 }
