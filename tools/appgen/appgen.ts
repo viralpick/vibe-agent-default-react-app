@@ -13,6 +13,8 @@
  */
 
 import { bootstrap, DEV } from './bootstrap.ts'
+import { buildFqn, getObjectDetail, listActions, listCollections, listFunctions, listLinks, querySql } from './ontology.ts'
+import { formatRemaining, saveTokenFromClipboard, tokenStatus } from './token.ts'
 
 const MODES = [
   'synapse',
@@ -43,6 +45,16 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구 (dev 전용)
 
   appgen modes
       사용 가능한 디자인 모드를 나열한다.
+
+  appgen login [--clear]
+      클립보드의 access token 을 검증해 저장한다. 브라우저 devtools 에서 복사한 뒤 실행한다.
+      토큰 값은 명령줄에 나타나지 않는다. --clear 는 저장 후 클립보드를 비운다.
+
+  appgen token
+      저장된 토큰의 남은 시간을 확인한다. 토큰 값은 출력하지 않는다.
+
+  appgen probe --tenant <id> [--object <id>]
+      읽기 경로를 훑어 접근 가능 여부를 확인한다 (자기점검용).
 
 환경 (고정, 변경 불가)
   app-api      ${DEV.appApi}
@@ -101,6 +113,68 @@ async function runBootstrap(rest: string[]): Promise<void> {
   )
 }
 
+/** 읽기 경로 자기점검. 각 호출의 성공/실패를 한 줄로 보고한다. */
+async function runProbe(rest: string[]): Promise<void> {
+  const { flags } = parseFlags(rest)
+  const tenantId = flags.tenant
+  if (!tenantId) throw new Error('--tenant <회사 id> 가 필요합니다.')
+  const ref = { tenantId }
+
+  const status = tokenStatus()
+  process.stdout.write(`토큰: ${formatRemaining(status.remainingSeconds)}${status.email ? ` (${status.email})` : ''}\n\n`)
+
+  const checks: [string, () => Promise<unknown>][] = [
+    ['컬렉션 목록', () => listCollections(ref)],
+    ['링크 목록', () => listLinks(ref)],
+    ['액션 목록', () => listActions(ref)],
+  ]
+
+  if (flags.object) {
+    const objectId = flags.object
+    checks.push(['객체 상세', () => getObjectDetail(ref, objectId)])
+    checks.push(['펑션 목록', () => listFunctions(ref, objectId)])
+    checks.push([
+      'SELECT 쿼리',
+      async () => {
+        const detail = await getObjectDetail(ref, objectId)
+        const fqn = buildFqn(detail)
+        const columns = Object.keys(detail.structure ?? {}).slice(0, 2)
+        const select = columns.length > 0 ? columns.join(', ') : '*'
+        const result = await querySql(ref, `SELECT ${select} FROM ${fqn} LIMIT 2`)
+        return { fqn, columns: result.columns, rowCount: result.rows.length }
+      },
+    ])
+  }
+
+  let failed = 0
+  for (const [label, run] of checks) {
+    try {
+      const result = await run()
+      const hint = summarize(result)
+      process.stdout.write(`  ✓ ${label.padEnd(12)} ${hint}\n`)
+    } catch (err) {
+      failed++
+      process.stdout.write(`  ✗ ${label.padEnd(12)} ${(err as Error).message.split('\n')[0]}\n`)
+    }
+  }
+  process.stdout.write(`\n실패 ${failed}건\n`)
+  if (failed > 0) process.exitCode = 1
+}
+
+function summarize(value: unknown): string {
+  if (Array.isArray(value)) return `배열 ${value.length}개`
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>)
+    const arrayKey = keys.find((k) => Array.isArray((value as Record<string, unknown>)[k]))
+    if (arrayKey) {
+      const arr = (value as Record<string, unknown>)[arrayKey] as unknown[]
+      return `${arrayKey} ${arr.length}개`
+    }
+    return keys.slice(0, 5).join(', ')
+  }
+  return String(value)
+}
+
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2)
 
@@ -114,6 +188,26 @@ async function main(): Promise<void> {
   }
   if (command === 'bootstrap') {
     await runBootstrap(rest)
+    return
+  }
+  if (command === 'login') {
+    const status = saveTokenFromClipboard({ clear: rest.includes('--clear') })
+    process.stdout.write(
+      `저장했습니다. ${formatRemaining(status.remainingSeconds)}` +
+        `${status.email ? ` (${status.email})` : ''}\n  만료 ${status.expiresAt.toISOString()}\n`,
+    )
+    return
+  }
+  if (command === 'token') {
+    const status = tokenStatus()
+    process.stdout.write(
+      `${formatRemaining(status.remainingSeconds)}${status.email ? ` (${status.email})` : ''}\n` +
+        `  만료 ${status.expiresAt.toISOString()}\n`,
+    )
+    return
+  }
+  if (command === 'probe') {
+    await runProbe(rest)
     return
   }
   throw new Error(`알 수 없는 명령: ${command}\n\n${USAGE}`)
