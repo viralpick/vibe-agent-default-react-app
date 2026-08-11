@@ -89,10 +89,16 @@ export function buildFqn(detail: ObjectDetail): string {
 }
 
 /**
- * 객체의 레코드를 페이지 단위로 본다.
+ * 객체의 **스키마와 레코드를 함께** 본다.
+ *
+ * 응답은 `{name, displayName, properties, records}` 이고 `records` 는 페이지네이션
+ * (`{content, totalElements, size, number, totalPages, hasNext}`) 이다 —
+ * 레코드는 `records.content` 에 있다 (실측).
  *
  * 스키마만 보고 SQL 을 쓰면 값의 실제 형태(빈 문자열 vs null, 숫자가 문자열로 오는지)를 모른다.
  * 집계 컬럼은 숫자로 오지만 원본 컬럼은 대개 문자열이다 (실측: `judge_confidence` = `"0.95"`).
+ *
+ * `size` 는 Spring `Pageable` 파라미터다.
  */
 export function listObjectRecords(
   ref: OntologyRef,

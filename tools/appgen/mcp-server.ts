@@ -142,8 +142,9 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_object_records',
     description:
-      '객체의 실제 레코드를 몇 건 본다. 스키마만 보면 값의 형태를 모른다 — 원본 컬럼은 대개 ' +
-      '문자열로 온다 (예: "0.95").',
+      '객체의 스키마(properties)와 실제 레코드를 함께 본다. 레코드는 `records.content` 에 있다. ' +
+      '스키마만 보면 값의 형태를 모른다 — 원본 컬럼은 대개 문자열로 온다 (예: "0.95"). ' +
+      'SQL 을 쓰기 전에 이걸로 실제 값을 확인하는 편이 빠르다.',
     inputSchema: {
       type: 'object',
       properties: {
