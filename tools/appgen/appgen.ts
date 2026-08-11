@@ -69,7 +69,9 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구
       읽기 경로를 훑어 접근 가능 여부를 확인한다 (자기점검용).
 
   appgen open [--port <n>] [--path <경로>]
-      로컬 dev 서버를 토큰과 함께 브라우저로 연다. 기본 포트 ${DEV_PORT}.
+      로컬 dev 서버를 토큰과 함께 브라우저로 연다.
+      포트는 ${DEV_PORT} 부터 훑어 vite 가 실제로 뜬 곳을 찾는다 — 로컬 FE 가 ${DEV_PORT} 을 쓰면
+      vite 가 ${DEV_PORT + 1} 로 올라가는데, 고정 포트로 열면 토큰이 FE 로 간다.
       토큰을 저장소에서 직접 읽어 URL 을 만들므로 토큰 값이 명령줄에 나타나지 않는다.
 
   appgen push --prompt "<한 줄>" [--chat <id>] [--tenant <id>] [--title "<제목>"]
@@ -198,6 +200,37 @@ async function runProbe(rest: string[]): Promise<void> {
 }
 
 /**
+ * vite dev 서버가 실제로 뜬 포트를 찾는다.
+ *
+ * **왜 필요한가**: 템플릿의 dev 스크립트는 `vite --port 3000` 인데 로컬 FE
+ * (commerceos-application)도 3000 을 쓴다. 점유되어 있으면 vite 가 조용히 3001, 3002 …
+ * 로 올라간다. 고정 포트로 열면 **FE 를 열게 되고, URL 에 붙는 `?token=` 이 FE origin 으로
+ * 간다** — 앱이 아닌 곳의 브라우저 히스토리와 서버 로그에 토큰이 남는다. 동작 오류보다
+ * 이쪽이 문제다.
+ *
+ * 판별은 `/@vite/client` 로 한다. vite dev 서버가 항상 주입하는 스크립트이고 Next.js FE 에는
+ * 없다 (실측). `<title>` 은 앱이 바꿀 수 있어 쓰지 않는다.
+ *
+ * **탐색 요청에는 토큰을 싣지 않는다.** 확인된 포트에만 토큰 URL 을 준다.
+ */
+const PORT_SCAN_COUNT = 10
+
+async function detectVitePort(startPort: number): Promise<number | null> {
+  for (let port = startPort; port < startPort + PORT_SCAN_COUNT; port++) {
+    try {
+      const response = await fetch(`http://localhost:${port}/`, {
+        signal: AbortSignal.timeout(1500),
+      })
+      if (!response.ok) continue
+      if ((await response.text()).includes('/@vite/client')) return port
+    } catch {
+      // 닫힌 포트거나 타임아웃 — 다음 후보로.
+    }
+  }
+  return null
+}
+
+/**
  * dev 서버를 토큰과 함께 브라우저로 연다.
  *
  * URL 을 출력하지 않고 직접 여는 것이 요점이다. 출력하면 토큰이 터미널과(에이전트가
@@ -207,12 +240,27 @@ async function runProbe(rest: string[]): Promise<void> {
  * static token 경로에는 갱신 로직이 없다 (401 인터셉터가 getTokenFn 만 본다). 만료되면
  * 이 명령을 다시 실행해 새 토큰으로 페이지를 열어야 한다.
  */
-function openApp(rest: string[]): void {
+async function openApp(rest: string[]): Promise<void> {
   const { flags } = parseFlags(rest)
-  const port = flags.port ?? String(DEV_PORT)
   const path = flags.path ?? '/'
-
   const env = envForCwd(flags)
+
+  // --port 를 명시했으면 그대로 믿는다. 탐색은 기본값일 때만 한다.
+  let port: number
+  if (flags.port !== undefined) {
+    port = Number.parseInt(flags.port, 10)
+    if (!Number.isInteger(port)) throw new Error(`--port 가 정수가 아닙니다: ${flags.port}`)
+  } else {
+    const detected = await detectVitePort(DEV_PORT)
+    if (detected === null) {
+      throw new Error(
+        `vite dev 서버를 찾지 못했습니다 (${DEV_PORT}~${DEV_PORT + PORT_SCAN_COUNT - 1} 확인).\n` +
+          '앱 디렉토리에서 `npm run dev` 를 먼저 띄우거나 --port 로 지정하세요.',
+      )
+    }
+    port = detected
+  }
+
   const url = new URL(path, `http://localhost:${port}`)
   url.searchParams.set('token', readToken(env.name))
 
@@ -220,8 +268,10 @@ function openApp(rest: string[]): void {
   execFileSync(opener, [url.toString()], { stdio: 'ignore' })
 
   const status = tokenStatus(env.name)
+  const note = port === DEV_PORT ? '' : `  (${DEV_PORT} 이 점유되어 vite 가 ${port} 로 올라갔습니다)\n`
   process.stdout.write(
     `브라우저에서 열었습니다: http://localhost:${port}${path} (토큰 포함, 값은 출력하지 않음)\n` +
+      note +
       `  ${formatRemaining(status.remainingSeconds)}\n`,
   )
 }
@@ -425,7 +475,7 @@ async function main(): Promise<void> {
     return
   }
   if (command === 'open') {
-    openApp(rest)
+    await openApp(rest)
     return
   }
   if (command === 'push') {
