@@ -120,15 +120,27 @@ export interface FunctionParameter {
 }
 
 export interface CreateFunctionInput {
-  ontologyObjectId: number
+  /**
+   * 객체 id. **반드시 문자열로 다룬다.**
+   *
+   * AgentOS 의 id 는 snowflake 계열 64비트 정수라 `Number.MAX_SAFE_INTEGER`
+   * (9007199254740991) 를 넘는다. JS `number` 로 담으면 하위 자릿수가 조용히 뭉개진다
+   * (예: 230378751324585984 → 230378751324586000). 그러면 서버가 "온톨로지를 찾을 수
+   * 없습니다" 로 응답하는데, id 를 눈으로 대조하지 않으면 권한 문제로 오해하기 쉽다
+   * (Tier 2 인스턴스 접근 실패로 403 이 난다).
+   *
+   * Kotlin 쪽 DTO 는 `Long` 이고 Jackson 이 JSON 문자열을 Long 으로 강제 변환하므로
+   * 문자열로 보내면 정밀도 손실 없이 전달된다.
+   */
+  ontologyObjectId: string
   name: string
   displayName: string
   description: string
   /** SELECT / WITH 로 시작해야 한다. FROM 은 서버가 3-part FQN 으로 정규화한다. */
   query: string
   parameters: Record<string, FunctionParameter>
-  /** JOIN 이 참조하는 추가 객체 id. FROM 화이트리스트에 포함된다. */
-  joinObjectIds?: number[]
+  /** JOIN 이 참조하는 추가 객체 id. FROM 화이트리스트에 포함된다. 위와 같은 이유로 문자열. */
+  joinObjectIds?: string[]
 }
 
 /**

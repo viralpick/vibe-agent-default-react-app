@@ -44,7 +44,7 @@
 
 ```
 npm run dev
-http://localhost:5173/?token=<access token>
+http://localhost:3000/?token=<access token>
 ```
 
 토큰은 `appgen open` 이 키체인에서 읽어 URL 을 만들고 브라우저를 띄운다. 토큰 값을 직접 다루지 않는다.

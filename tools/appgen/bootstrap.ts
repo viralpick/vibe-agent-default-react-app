@@ -1,9 +1,12 @@
 /**
  * 앱 작업 디렉토리를 만든다.
  *
- * 작업 디렉토리는 **이 레포 체크아웃이 아니다.** 여기서 직접 앱을 만들면 템플릿이 오염되고,
- * 제품의 restore_code_agent 가 스냅샷 없는 신규 앱 샌드박스를 이 레포 main 으로
- * `git reset --hard` 하므로 오염이 전 신규 앱에 번진다. 그래서 사본을 따로 만든다.
+ * 작업 디렉토리는 템플릿 파일의 **사본**이다. 템플릿 자체를 편집하면 안 된다 — 제품의
+ * restore_code_agent 가 스냅샷 없는 신규 앱 샌드박스를 이 레포 main 으로 `git reset --hard`
+ * 하므로 오염이 전 신규 앱에 번진다.
+ *
+ * 사본의 기본 위치는 레포 안의 `local-apps/` 이지만 `.gitignore` 대상이라 tracked 내용이
+ * 아니다 (`git ls-files` 에 안 잡히고 커밋되지 않는다). 홈 디렉토리에 앱이 쌓이지 않는다.
  *
  * 구조는 샌드박스의 /app/view-gen 과 동일해야 한다. push 가 만드는 tar 의 아카이브 루트가
  * 프로젝트 루트이고, 제품이 그 tar 를 그대로 풀기 때문이다.
@@ -12,7 +15,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,8 +23,26 @@ import { resolvePreset } from './presets.ts'
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url))
 const TEMPLATE_ROOT = resolve(TOOL_DIR, '../..')
 
-/** 이 도구 자신은 작업 디렉토리로 복사하지 않는다 (복사되면 push tar 에 실려 제품으로 넘어간다). */
-const EXCLUDED_PREFIXES = ['tools/']
+/**
+ * 작업 디렉토리로 복사하지 않는 경로.
+ *
+ * `tools/` — 이 도구 자신. 복사되면 push tar 에 실려 제품으로 넘어간다.
+ * `local-apps/` — 앱 작업 디렉토리들. gitignore 대상이라 `git ls-files` 에 잡히지 않지만
+ *   방어적으로 남긴다 (누군가 gitignore 를 손대도 사본이 재귀하지 않게).
+ */
+const EXCLUDED_PREFIXES = ['tools/', 'local-apps/']
+
+/**
+ * 앱 작업 디렉토리의 기본 부모.
+ *
+ * 템플릿 레포 안이지만 `.gitignore` 에 `local-apps/` 가 있어 tracked 내용이 아니다. 따라서
+ * `templateFiles()` 의 `git ls-files` 에 잡히지 않고 템플릿 오염과 무관하다. 홈 디렉토리에
+ * 앱이 쌓이지 않고 레포 하나만 지우면 정리된다는 이점이 있다.
+ *
+ * 주의: 여기서 앱을 만드는 것과 **템플릿 파일을 직접 편집하는 것**은 다르다. 후자는 여전히
+ * 금지다 — 제품이 스냅샷 없는 신규 앱 샌드박스를 이 레포 main 으로 `git reset --hard` 한다.
+ */
+const DEFAULT_APPS_DIR = join(TEMPLATE_ROOT, 'local-apps')
 
 /**
  * dev 고정. 환경 오버라이드를 의도적으로 제공하지 않는다.
@@ -42,7 +62,7 @@ export interface BootstrapOptions {
   name: string
   /** 디자인 모드. 기본 synapse. */
   mode?: string
-  /** 작업 디렉토리 경로. 기본 ~/apps/<name>. */
+  /** 작업 디렉토리 경로. 기본 `<레포>/local-apps/<name>` (gitignore 대상). */
   targetDir?: string
   proxyOrigin?: string
   designResourcesDir?: string
@@ -121,7 +141,7 @@ export async function bootstrap({
   if (!name || !/^[a-z0-9][a-z0-9._-]*$/i.test(name)) {
     throw new Error(`앱 이름이 올바르지 않습니다: ${name} (영숫자로 시작, 영숫자/.-_ 만)`)
   }
-  const dir = targetDir ? resolve(targetDir) : join(homedir(), 'apps', name)
+  const dir = targetDir ? resolve(targetDir) : join(DEFAULT_APPS_DIR, name)
   if (existsSync(dir)) throw new Error(`이미 존재합니다: ${dir}`)
 
   // 프리셋을 먼저 해석한다 — 실패하면 디렉토리를 만들기 전에 멈춘다.

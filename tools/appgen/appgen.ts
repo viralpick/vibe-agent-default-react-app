@@ -12,9 +12,14 @@
  * erasableSyntaxOnly 가 그 제약(enum / namespace / parameter property 금지)을 강제한다.
  */
 
+import { execFileSync } from 'node:child_process'
+
 import { bootstrap, DEV } from './bootstrap.ts'
 import { buildFqn, getObjectDetail, listActions, listCollections, listFunctions, listLinks, querySql } from './ontology.ts'
-import { formatRemaining, saveTokenFromClipboard, tokenStatus } from './token.ts'
+import { formatRemaining, readToken, saveTokenFromClipboard, tokenStatus } from './token.ts'
+
+/** 템플릿의 dev 스크립트가 `vite --port 3000` 이다. */
+const DEV_PORT = 3000
 
 const MODES = [
   'synapse',
@@ -40,7 +45,7 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구 (dev 전용)
 
 사용법
   appgen bootstrap <이름> [--mode <모드>] [--dir <경로>]
-      앱 작업 디렉토리를 만든다. 기본 위치는 ~/apps/<이름>, 기본 모드는 synapse.
+      앱 작업 디렉토리를 만든다. 기본 위치는 <레포>/local-apps/<이름> (gitignore 대상), 기본 모드는 synapse.
       이 레포 안에서 앱을 만들지 말고 반드시 이 명령으로 사본을 만들 것.
 
   appgen modes
@@ -55,6 +60,10 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구 (dev 전용)
 
   appgen probe --tenant <id> [--object <id>]
       읽기 경로를 훑어 접근 가능 여부를 확인한다 (자기점검용).
+
+  appgen open [--port <n>] [--path <경로>]
+      로컬 dev 서버를 토큰과 함께 브라우저로 연다. 기본 포트 ${DEV_PORT}.
+      토큰을 저장소에서 직접 읽어 URL 을 만들므로 토큰 값이 명령줄에 나타나지 않는다.
 
 환경 (고정, 변경 불가)
   app-api      ${DEV.appApi}
@@ -107,7 +116,7 @@ async function runBootstrap(rest: string[]): Promise<void> {
       '  npm run dev',
       '',
       '앱에서 데이터를 쓰려면 브라우저 주소에 토큰을 붙인다:',
-      '  http://localhost:5173/?token=<access token>',
+      '  http://localhost:3000/?token=<access token>  (appgen open 이 대신 열어준다)',
       '',
     ].join('\n'),
   )
@@ -161,6 +170,34 @@ async function runProbe(rest: string[]): Promise<void> {
   if (failed > 0) process.exitCode = 1
 }
 
+/**
+ * dev 서버를 토큰과 함께 브라우저로 연다.
+ *
+ * URL 을 출력하지 않고 직접 여는 것이 요점이다. 출력하면 토큰이 터미널과(에이전트가
+ * 실행했다면) 트랜스크립트에 남는다. 앱은 `?token=` 쿼리를 useUrlToken 훅으로 읽어
+ * setStaticToken 에 넘긴다.
+ *
+ * static token 경로에는 갱신 로직이 없다 (401 인터셉터가 getTokenFn 만 본다). 만료되면
+ * 이 명령을 다시 실행해 새 토큰으로 페이지를 열어야 한다.
+ */
+function openApp(rest: string[]): void {
+  const { flags } = parseFlags(rest)
+  const port = flags.port ?? String(DEV_PORT)
+  const path = flags.path ?? '/'
+
+  const url = new URL(path, `http://localhost:${port}`)
+  url.searchParams.set('token', readToken())
+
+  const opener = process.platform === 'darwin' ? 'open' : 'xdg-open'
+  execFileSync(opener, [url.toString()], { stdio: 'ignore' })
+
+  const status = tokenStatus()
+  process.stdout.write(
+    `브라우저에서 열었습니다: http://localhost:${port}${path} (토큰 포함, 값은 출력하지 않음)\n` +
+      `  ${formatRemaining(status.remainingSeconds)}\n`,
+  )
+}
+
 function summarize(value: unknown): string {
   if (Array.isArray(value)) return `배열 ${value.length}개`
   if (value && typeof value === 'object') {
@@ -208,6 +245,10 @@ async function main(): Promise<void> {
   }
   if (command === 'probe') {
     await runProbe(rest)
+    return
+  }
+  if (command === 'open') {
+    openApp(rest)
     return
   }
   throw new Error(`알 수 없는 명령: ${command}\n\n${USAGE}`)
