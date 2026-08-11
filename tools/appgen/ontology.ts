@@ -16,30 +16,33 @@
  *   LLM 이 된다. 스키마를 보고 직접 SQL 을 쓰는 편이 정확하고 통제 가능하다
  */
 
+import type { Environment } from './env.ts'
 import { apiRequest } from './http.ts'
 
 export interface OntologyRef {
   tenantId: string
+  /** 대상 환경. 생략하면 dev — 앱 메타에 박힌 환경을 넘기는 것이 정상 경로다. */
+  env?: Environment
 }
 
 // ── 카탈로그 탐색 ────────────────────────────────────────────────────────────
 
 export function listCollections(ref: OntologyRef): Promise<unknown> {
-  return apiRequest('/ontology-collections', { tenantId: ref.tenantId })
+  return apiRequest('/ontology-collections', { ...ref })
 }
 
 export function listCollectionEntities(ref: OntologyRef, collectionId: string): Promise<unknown> {
   return apiRequest(`/ontology-collections/${encodeURIComponent(collectionId)}/entities`, {
-    tenantId: ref.tenantId,
+    ...ref,
   })
 }
 
 export function listObjects(ref: OntologyRef): Promise<unknown> {
-  return apiRequest('/ontology-objects', { tenantId: ref.tenantId })
+  return apiRequest('/ontology-objects', { ...ref })
 }
 
 export function listLinks(ref: OntologyRef): Promise<unknown> {
-  return apiRequest('/ontology-links', { tenantId: ref.tenantId })
+  return apiRequest('/ontology-links', { ...ref })
 }
 
 // ── 스키마와 FQN ─────────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ export interface ObjectDetail {
 
 export function getObjectDetail(ref: OntologyRef, objectId: string): Promise<ObjectDetail> {
   return apiRequest<ObjectDetail>(`/ontology-objects/${encodeURIComponent(objectId)}/detail`, {
-    tenantId: ref.tenantId,
+    ...ref,
   })
 }
 
@@ -105,7 +108,7 @@ export interface SqlResult {
 export function querySql(ref: OntologyRef, sql: string): Promise<SqlResult> {
   return apiRequest<SqlResult>('/ontology-objects/query/sql', {
     method: 'POST',
-    tenantId: ref.tenantId,
+    ...ref,
     body: { sql },
   })
 }
@@ -162,7 +165,7 @@ export interface CreateFunctionInput {
 export function createFunction(ref: OntologyRef, input: CreateFunctionInput): Promise<unknown> {
   return apiRequest('/ontology-functions', {
     method: 'POST',
-    tenantId: ref.tenantId,
+    ...ref,
     body: input,
   })
 }
@@ -170,7 +173,7 @@ export function createFunction(ref: OntologyRef, input: CreateFunctionInput): Pr
 /** 특정 객체에 속한 펑션 목록. `ontologyId` 는 필수 쿼리 파라미터다 (없으면 400). */
 export function listFunctions(ref: OntologyRef, ontologyObjectId: string | number): Promise<unknown> {
   return apiRequest('/ontology-functions', {
-    tenantId: ref.tenantId,
+    ...ref,
     query: { ontologyId: String(ontologyObjectId) },
   })
 }
@@ -183,7 +186,7 @@ export function runFunction(
 ): Promise<unknown> {
   return apiRequest(`/ontology-functions/${encodeURIComponent(functionId)}/run`, {
     method: 'POST',
-    tenantId: ref.tenantId,
+    ...ref,
     body: { parameters },
   })
 }
@@ -192,10 +195,10 @@ export function runFunction(
 
 /** 액션 목록. 생성된 앱의 ACTIONS 상수에 박을 UUID 를 여기서 얻는다. */
 export function listActions(ref: OntologyRef): Promise<unknown> {
-  return apiRequest('/ontology-actions', { tenantId: ref.tenantId })
+  return apiRequest('/ontology-actions', { ...ref })
 }
 
 /** 액션 실행 이력. 앱이 액션을 부르고 실패했을 때 원인을 추적한다. */
 export function listActionRuns(ref: OntologyRef): Promise<unknown> {
-  return apiRequest('/ontology-actions/runs', { tenantId: ref.tenantId })
+  return apiRequest('/ontology-actions/runs', { ...ref })
 }

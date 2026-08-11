@@ -20,9 +20,22 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { homedir, platform } from 'node:os'
 import { join } from 'node:path'
 
+import type { EnvName } from './env.ts'
+
 /** 도구 상태 디렉토리. 프로젝트 루트 밖에 둔다 — 루트에 있으면 push tar 에 실려 제품으로 넘어간다. */
 export const STATE_DIR = join(homedir(), '.aos-appgen')
-const TOKEN_PATH = join(STATE_DIR, 'token')
+
+/**
+ * 환경별 토큰 경로.
+ *
+ * 파일 하나로 두면 로컬 Keycloak 토큰으로 로그인하는 순간 dev 토큰이 사라진다. 두 환경을
+ * 번갈아 쓰는 것이 정상 사용이므로 축을 나눈다.
+ *
+ * dev 는 접두사 없는 기존 경로를 유지한다 — 이미 저장해둔 토큰이 그대로 유효해야 한다.
+ */
+function tokenPath(env: EnvName): string {
+  return join(STATE_DIR, env === 'dev' ? 'token' : `token.${env}`)
+}
 
 export interface TokenStatus {
   /** 만료까지 남은 초. 이미 만료면 음수. */
@@ -76,7 +89,10 @@ function readClipboard(): string {
  * 클립보드에 토큰이 아닌 것이 들어 있을 수 있으므로 반드시 형태를 검증한다 — 검증 없이
  * 저장하면 이후 모든 호출이 401 로 실패하고 원인이 드러나지 않는다.
  */
-export function saveTokenFromClipboard({ clear = false }: { clear?: boolean } = {}): TokenStatus {
+export function saveTokenFromClipboard(
+  env: EnvName,
+  { clear = false }: { clear?: boolean } = {},
+): TokenStatus {
   const raw = readClipboard().trim()
   assertJwtShape(raw)
   const status = statusOf(raw)
@@ -84,9 +100,10 @@ export function saveTokenFromClipboard({ clear = false }: { clear?: boolean } = 
     throw new Error(`이미 만료된 토큰입니다 (만료 ${status.expiresAt.toISOString()}). 새로 복사하세요.`)
   }
 
+  const path = tokenPath(env)
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 })
-  writeFileSync(TOKEN_PATH, raw, { encoding: 'utf8', mode: 0o600 })
-  chmodSync(TOKEN_PATH, 0o600)
+  writeFileSync(path, raw, { encoding: 'utf8', mode: 0o600 })
+  chmodSync(path, 0o600)
 
   if (clear) {
     try {
@@ -99,15 +116,19 @@ export function saveTokenFromClipboard({ clear = false }: { clear?: boolean } = 
 }
 
 /** 저장된 토큰을 반환한다. 없거나 만료면 throw. */
-export function readToken(): string {
-  if (!existsSync(TOKEN_PATH)) {
-    throw new Error('저장된 토큰이 없습니다. 브라우저에서 access token 을 복사한 뒤 `appgen login` 을 실행하세요.')
+export function readToken(env: EnvName): string {
+  const path = tokenPath(env)
+  const hint = env === 'dev' ? 'appgen login' : `appgen login --env ${env}`
+  if (!existsSync(path)) {
+    throw new Error(
+      `저장된 ${env} 토큰이 없습니다. 브라우저에서 access token 을 복사한 뒤 \`${hint}\` 를 실행하세요.`,
+    )
   }
-  const token = readFileSync(TOKEN_PATH, 'utf8').trim()
+  const token = readFileSync(path, 'utf8').trim()
   assertJwtShape(token)
   const status = statusOf(token)
   if (status.remainingSeconds <= 0) {
-    throw new Error(`토큰이 만료됐습니다 (${status.expiresAt.toISOString()}). 새로 복사한 뒤 \`appgen login\` 을 실행하세요.`)
+    throw new Error(`${env} 토큰이 만료됐습니다 (${status.expiresAt.toISOString()}). 새로 복사한 뒤 \`${hint}\` 를 실행하세요.`)
   }
   return token
 }
@@ -127,8 +148,8 @@ export function statusOf(token: string): TokenStatus {
 }
 
 /** 저장된 토큰의 상태. 토큰을 반환하지 않는다. */
-export function tokenStatus(): TokenStatus {
-  return statusOf(readToken())
+export function tokenStatus(env: EnvName): TokenStatus {
+  return statusOf(readToken(env))
 }
 
 export function formatRemaining(seconds: number): string {

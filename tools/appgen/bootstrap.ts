@@ -18,6 +18,7 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { resolveEnv, writeMeta, type Environment } from './env.ts'
 import { resolvePreset } from './presets.ts'
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url))
@@ -44,24 +45,18 @@ const EXCLUDED_PREFIXES = ['tools/', 'local-apps/']
  */
 const DEFAULT_APPS_DIR = join(TEMPLATE_ROOT, 'local-apps')
 
-/**
- * dev 고정. 환경 오버라이드를 의도적으로 제공하지 않는다.
- *
- * aos CLI 의 사고 지점이 `production` 기본 프리셋이었다. prod 로 확장할 때는 이 도구를
- * 확장하지 않고 별도 진입점으로 분리한다 — 한 도구에 두 환경을 넣으면 기본값 문제가 생긴다.
- */
-export const DEV = {
-  appApi: 'https://app-api-v2-dev.commerceos.ai',
-  agentApi: 'https://agent-api-dev.commerceos.ai',
-  /** 생성된 앱이 호출할 /fe-bff 프록시 절대 origin. designMd 에 박힌다. */
-  proxyOrigin: 'https://os-dev.enhans.ai',
-} as const
-
 export interface BootstrapOptions {
   /** 앱 이름 (작업 디렉토리 이름). */
   name: string
   /** 디자인 모드. 기본 synapse. */
   mode?: string
+  /**
+   * 대상 환경. 기본 dev.
+   *
+   * **여기서 정한 값이 앱에 박히고 이후 모든 명령이 그것만 쓴다** (`.cos/appgen.json`).
+   * 전역 기본 환경을 두지 않는 이유는 `env.ts` 참조.
+   */
+  env?: string
   /** 작업 디렉토리 경로. 기본 `<레포>/local-apps/<name>` (gitignore 대상). */
   targetDir?: string
   proxyOrigin?: string
@@ -71,6 +66,7 @@ export interface BootstrapOptions {
 export interface BootstrapResult {
   dir: string
   mode: string
+  env: Environment
   /** 템플릿에서 복사한 파일 수. */
   copied: number
 }
@@ -134,20 +130,23 @@ const CLAUDE_SETTINGS = {
 export async function bootstrap({
   name,
   mode = 'synapse',
+  env: envName,
   targetDir,
-  proxyOrigin = DEV.proxyOrigin,
+  proxyOrigin,
   designResourcesDir,
 }: BootstrapOptions): Promise<BootstrapResult> {
   if (!name || !/^[a-z0-9][a-z0-9._-]*$/i.test(name)) {
     throw new Error(`앱 이름이 올바르지 않습니다: ${name} (영숫자로 시작, 영숫자/.-_ 만)`)
   }
+  const env = resolveEnv(envName)
+  const resolvedProxyOrigin = proxyOrigin ?? env.proxyOrigin
   const dir = targetDir ? resolve(targetDir) : join(DEFAULT_APPS_DIR, name)
   if (existsSync(dir)) throw new Error(`이미 존재합니다: ${dir}`)
 
   // 프리셋을 먼저 해석한다 — 실패하면 디렉토리를 만들기 전에 멈춘다.
   const preset = await resolvePreset({
     mode,
-    proxyOrigin,
+    proxyOrigin: resolvedProxyOrigin,
     ...(designResourcesDir ? { designResourcesDir } : {}),
   })
 
@@ -180,20 +179,17 @@ export async function bootstrap({
 
   // getBaseURL() 이 VITE_API_BASE_URL 을 최우선으로 본다. Vite 는 .env 뒤에 .env.local 을
   // 로드하므로 템플릿의 tracked .env 와 무관하게 이 값이 이긴다. *.local 은 gitignore 대상.
-  await writeFile(join(dir, '.env.local'), `VITE_API_BASE_URL=${DEV.appApi}\n`, 'utf8')
+  await writeFile(join(dir, '.env.local'), `VITE_API_BASE_URL=${env.appApi}\n`, 'utf8')
 
   await mkdir(join(dir, '.claude'), { recursive: true })
   await writeFile(join(dir, '.claude/settings.json'), `${JSON.stringify(CLAUDE_SETTINGS, null, 2)}\n`, 'utf8')
 
-  await writeFile(
-    join(dir, '.cos/appgen.json'),
-    `${JSON.stringify({ name, mode, proxyOrigin, env: 'dev' }, null, 2)}\n`,
-    'utf8',
-  )
+  // 앱 메타. 여기 박힌 env 가 이후 모든 명령의 대상 환경이다 (전역 기본값 없음).
+  writeMeta(dir, { name, mode, proxyOrigin: resolvedProxyOrigin, env: env.name })
 
   initGit(dir, mode)
 
-  return { dir, mode, copied }
+  return { dir, mode, env, copied }
 }
 
 /**
