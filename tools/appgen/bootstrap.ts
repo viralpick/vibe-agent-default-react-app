@@ -10,12 +10,13 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { resolvePreset } from './presets.mjs'
+import { resolvePreset } from './presets.ts'
 
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url))
 const TEMPLATE_ROOT = resolve(TOOL_DIR, '../..')
@@ -29,12 +30,30 @@ const EXCLUDED_PREFIXES = ['tools/']
  * aos CLI 의 사고 지점이 `production` 기본 프리셋이었다. prod 로 확장할 때는 이 도구를
  * 확장하지 않고 별도 진입점으로 분리한다 — 한 도구에 두 환경을 넣으면 기본값 문제가 생긴다.
  */
-export const DEV = Object.freeze({
+export const DEV = {
   appApi: 'https://app-api-v2-dev.commerceos.ai',
   agentApi: 'https://agent-api-dev.commerceos.ai',
-  /** 생성된 앱이 호출할 /fe-bff 프록시 절대 origin. design_md 에 박힌다. */
+  /** 생성된 앱이 호출할 /fe-bff 프록시 절대 origin. designMd 에 박힌다. */
   proxyOrigin: 'https://os-dev.enhans.ai',
-})
+} as const
+
+export interface BootstrapOptions {
+  /** 앱 이름 (작업 디렉토리 이름). */
+  name: string
+  /** 디자인 모드. 기본 synapse. */
+  mode?: string
+  /** 작업 디렉토리 경로. 기본 ~/apps/<name>. */
+  targetDir?: string
+  proxyOrigin?: string
+  designResourcesDir?: string
+}
+
+export interface BootstrapResult {
+  dir: string
+  mode: string
+  /** 템플릿에서 복사한 파일 수. */
+  copied: number
+}
 
 /**
  * 템플릿의 tracked 파일 목록을 반환한다.
@@ -43,7 +62,7 @@ export const DEV = Object.freeze({
  * trace_reports/ 등)을 자동으로 배제하고, 제품 샌드박스가 받는 main 내용과 정확히 일치하는
  * 집합을 얻는다. 수동 exclude 목록은 템플릿이 변하면 낡는다.
  */
-function templateFiles() {
+function templateFiles(): string[] {
   const out = execFileSync('git', ['-C', TEMPLATE_ROOT, 'ls-files', '-z'], { encoding: 'utf8' })
   return out
     .split('\0')
@@ -51,7 +70,7 @@ function templateFiles() {
     .filter((p) => !EXCLUDED_PREFIXES.some((prefix) => p.startsWith(prefix)))
 }
 
-async function copyTemplate(targetDir) {
+async function copyTemplate(targetDir: string): Promise<number> {
   const files = templateFiles()
   for (const rel of files) {
     const dest = join(targetDir, rel)
@@ -92,23 +111,25 @@ const CLAUDE_SETTINGS = {
   },
 }
 
-/**
- * @param {object} opts
- * @param {string} opts.name        앱 이름 (작업 디렉토리 이름)
- * @param {string} [opts.mode]      디자인 모드. 기본 synapse
- * @param {string} [opts.targetDir] 작업 디렉토리 경로. 기본 ~/apps/<name>
- * @param {string} [opts.proxyOrigin]
- * @param {string} [opts.designResourcesDir]
- */
-export async function bootstrap({ name, mode = 'synapse', targetDir, proxyOrigin = DEV.proxyOrigin, designResourcesDir }) {
+export async function bootstrap({
+  name,
+  mode = 'synapse',
+  targetDir,
+  proxyOrigin = DEV.proxyOrigin,
+  designResourcesDir,
+}: BootstrapOptions): Promise<BootstrapResult> {
   if (!name || !/^[a-z0-9][a-z0-9._-]*$/i.test(name)) {
     throw new Error(`앱 이름이 올바르지 않습니다: ${name} (영숫자로 시작, 영숫자/.-_ 만)`)
   }
-  const dir = targetDir ? resolve(targetDir) : join(process.env.HOME, 'apps', name)
+  const dir = targetDir ? resolve(targetDir) : join(homedir(), 'apps', name)
   if (existsSync(dir)) throw new Error(`이미 존재합니다: ${dir}`)
 
   // 프리셋을 먼저 해석한다 — 실패하면 디렉토리를 만들기 전에 멈춘다.
-  const preset = await resolvePreset({ mode, proxyOrigin, ...(designResourcesDir ? { designResourcesDir } : {}) })
+  const preset = await resolvePreset({
+    mode,
+    proxyOrigin,
+    ...(designResourcesDir ? { designResourcesDir } : {}),
+  })
 
   await mkdir(dir, { recursive: true })
   const copied = await copyTemplate(dir)
@@ -122,8 +143,17 @@ export async function bootstrap({ name, mode = 'synapse', targetDir, proxyOrigin
   // (LLM 자유 편집이 번호를 꼬는 것이 제품에서 관측된 문제).
   await writeFile(join(dir, '.cos/HISTORY.md'), '', 'utf8')
 
-  // Claude Code 가 규약을 따르도록 GUIDE 를 CLAUDE.md 로도 배치한다.
-  await writeFile(join(dir, 'CLAUDE.md'), guide, 'utf8')
+  // CLAUDE.md = 오버레이 + GUIDE 원문.
+  //
+  // GUIDE 를 그대로 쓰지 않는 이유: 그 문서는 제품 에이전트(샌드박스 파일 툴만 있고 런타임
+  // 검증도 브라우저도 없으며 App.tsx 한 파일에만 쓰는)를 위해 쓰였다. 계약과 하네스 처방이
+  // 섞여 있어서, 문자 그대로 따르면 제품의 천장을 그대로 물려받는다.
+  //
+  // 오버레이가 무효화 목록(§0 탐색 절차, §5.1 단일 파일, §4.1 스켈레톤)과 구속력 있는 계약을
+  // 구분하고, Claude Code 가 추가로 할 일(런타임 검증, 구조화)을 선언한다. 원문은 포크하지 않고
+  // vendor/ 에 그대로 두므로 상류 갱신 시 원문만 교체하면 된다.
+  const overlay = await readFile(join(TOOL_DIR, 'overlay.md'), 'utf8')
+  await writeFile(join(dir, 'CLAUDE.md'), `${overlay}\n${guide}`, 'utf8')
 
   // 디자인 모드 원문. 제품도 FE 가 보낸 tokens_css 로 이 파일을 교체한다.
   await writeFile(join(dir, 'src/theme.css'), preset.tokensCss, 'utf8')
@@ -133,9 +163,13 @@ export async function bootstrap({ name, mode = 'synapse', targetDir, proxyOrigin
   await writeFile(join(dir, '.env.local'), `VITE_API_BASE_URL=${DEV.appApi}\n`, 'utf8')
 
   await mkdir(join(dir, '.claude'), { recursive: true })
-  await writeFile(join(dir, '.claude/settings.json'), JSON.stringify(CLAUDE_SETTINGS, null, 2) + '\n', 'utf8')
+  await writeFile(join(dir, '.claude/settings.json'), `${JSON.stringify(CLAUDE_SETTINGS, null, 2)}\n`, 'utf8')
 
-  await writeFile(join(dir, '.cos/appgen.json'), JSON.stringify({ name, mode, proxyOrigin, env: 'dev' }, null, 2) + '\n', 'utf8')
+  await writeFile(
+    join(dir, '.cos/appgen.json'),
+    `${JSON.stringify({ name, mode, proxyOrigin, env: 'dev' }, null, 2)}\n`,
+    'utf8',
+  )
 
   initGit(dir, mode)
 
@@ -152,8 +186,10 @@ export async function bootstrap({ name, mode = 'synapse', targetDir, proxyOrigin
  * user.name/email 은 repo 로컬로만 설정한다 (없으면 commit 이 거부된다). 사용자 전역 설정은
  * 건드리지 않는다.
  */
-function initGit(dir, mode) {
-  const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' })
+function initGit(dir: string, mode: string): void {
+  const git = (...args: string[]): void => {
+    execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' })
+  }
   git('init', '-q')
   git('config', 'user.name', 'AOS AppGen')
   git('config', 'user.email', 'appgen@local')

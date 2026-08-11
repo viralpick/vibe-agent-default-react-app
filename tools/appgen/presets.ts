@@ -15,7 +15,7 @@
  * FE 는 emit 시점의 window.location.origin 을 쓴다. 로컬에서는 알 수 없으므로 caller 가 준다.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -24,13 +24,28 @@ import { pathToFileURL } from 'node:url'
 export const DEFAULT_FE_DESIGN_RESOURCES =
   '../commerceos-application/src/features/ai/app-builder/model/design-resources'
 
+export interface Preset {
+  mode: string
+  /** .cos/DESIGN.md 에 쓸 본문 (프리셋 원문 + 외부 API 통합 지침). */
+  designMd: string
+  /** src/theme.css 에 쓸 본문. */
+  tokensCss: string
+}
+
+export interface ResolvePresetOptions {
+  mode: string
+  /** 생성된 앱이 호출할 /fe-bff 프록시 절대 origin. designMd 에 박힌다. */
+  proxyOrigin: string
+  designResourcesDir?: string
+}
+
 /**
  * 단일 `.ts` 모듈을 트랜스파일해 import 한다.
  *
  * 대상 모듈들(design-md.ts / tokens-css.ts / external-integrations.ts)은 상수와 순수 함수만
  * export 하고 외부 import 가 없다. 그래서 파일 하나만 번들 없이 변환하면 충분하다.
  */
-async function importTsModule(tsPath) {
+async function importTsModule(tsPath: string): Promise<Record<string, unknown>> {
   const { transform } = await loadEsbuild()
   const source = await readUtf8(tsPath)
   const { code } = await transform(source, { loader: 'ts', format: 'esm' })
@@ -41,50 +56,45 @@ async function importTsModule(tsPath) {
   try {
     const out = join(dir, 'mod.mjs')
     await writeFile(out, code, 'utf8')
-    return await import(pathToFileURL(out).href)
+    return (await import(pathToFileURL(out).href)) as Record<string, unknown>
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 }
 
-async function loadEsbuild() {
+async function loadEsbuild(): Promise<typeof import('esbuild')> {
   try {
     return await import('esbuild')
   } catch {
     throw new Error(
       'esbuild 를 찾을 수 없습니다. vibe 레포 루트에서 `npm install` 을 먼저 실행하세요 ' +
-        '(@tailwindcss/vite 가 esbuild 를 함께 설치합니다).'
+        '(@tailwindcss/vite 가 esbuild 를 함께 설치합니다).',
     )
   }
 }
 
-async function readUtf8(path) {
-  const { readFile } = await import('node:fs/promises')
+async function readUtf8(path: string): Promise<string> {
   try {
     return await readFile(path, 'utf8')
   } catch (err) {
-    if (err.code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new Error(`파일을 찾을 수 없습니다: ${path}`)
     }
     throw err
   }
 }
 
-/**
- * 프리셋 원문을 반환한다.
- *
- * @param {object} opts
- * @param {string} opts.mode          디자인 모드 (synapse / free / apple / notion ...)
- * @param {string} opts.proxyOrigin   /fe-bff 프록시 절대 origin. design_md 에 박힌다
- * @param {string} [opts.designResourcesDir] FE design-resources 경로
- * @returns {Promise<{mode: string, designMd: string, tokensCss: string}>}
- */
-export async function resolvePreset({ mode, proxyOrigin, designResourcesDir = DEFAULT_FE_DESIGN_RESOURCES }) {
+/** 프리셋 원문을 반환한다. */
+export async function resolvePreset({
+  mode,
+  proxyOrigin,
+  designResourcesDir = DEFAULT_FE_DESIGN_RESOURCES,
+}: ResolvePresetOptions): Promise<Preset> {
   if (!mode) throw new Error('mode 는 필수입니다.')
   if (!proxyOrigin) {
     throw new Error(
       'proxyOrigin 은 필수입니다. 생성된 앱이 호출할 /fe-bff 프록시의 절대 origin 이며 ' +
-        '환경마다 다릅니다 (예: https://app.commerceos.ai).'
+        '환경마다 다릅니다 (예: https://app.commerceos.ai).',
     )
   }
   assertAbsoluteOrigin(proxyOrigin)
@@ -100,22 +110,28 @@ export async function resolvePreset({ mode, proxyOrigin, designResourcesDir = DE
   const tokensCss = tokensModule.TOKENS_CSS
   const buildExternal = externalModule.buildExternalIntegrationsMd
 
-  if (typeof designMd !== 'string') throw new Error(`${mode}/design-md.ts 가 DESIGN_MD 문자열을 export 하지 않습니다.`)
-  if (typeof tokensCss !== 'string') throw new Error(`${mode}/tokens-css.ts 가 TOKENS_CSS 문자열을 export 하지 않습니다.`)
+  if (typeof designMd !== 'string') {
+    throw new Error(`${mode}/design-md.ts 가 DESIGN_MD 문자열을 export 하지 않습니다.`)
+  }
+  if (typeof tokensCss !== 'string') {
+    throw new Error(`${mode}/tokens-css.ts 가 TOKENS_CSS 문자열을 export 하지 않습니다.`)
+  }
   if (typeof buildExternal !== 'function') {
     throw new Error('external-integrations.ts 가 buildExternalIntegrationsMd 함수를 export 하지 않습니다.')
   }
 
+  const external = (buildExternal as (origin: string) => string)(proxyOrigin)
+
   return {
     mode,
     // FE resolveDesignSpec 과 동일한 조립 순서를 유지한다.
-    designMd: designMd + buildExternal(proxyOrigin),
+    designMd: designMd + external,
     tokensCss,
   }
 }
 
-function assertAbsoluteOrigin(value) {
-  let url
+function assertAbsoluteOrigin(value: string): void {
+  let url: URL
   try {
     url = new URL(value)
   } catch {
