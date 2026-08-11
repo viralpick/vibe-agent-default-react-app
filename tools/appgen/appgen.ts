@@ -17,9 +17,27 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { bootstrap } from './bootstrap.ts'
-import { ENVIRONMENTS, metaPath, readMeta, resolveEnv, type EnvName, type Environment } from './env.ts'
+import {
+  ENVIRONMENTS,
+  metaPath,
+  readMeta,
+  resolveEnv,
+  writeMeta,
+  type EnvName,
+  type Environment,
+} from './env.ts'
 import { AgentApiError } from './http.ts'
-import { buildFqn, getObjectDetail, listActions, listCollections, listFunctions, listLinks, querySql } from './ontology.ts'
+import {
+  buildFqn,
+  createChat,
+  getObjectDetail,
+  listActions,
+  listAppBuilderModels,
+  listCollections,
+  listFunctions,
+  listLinks,
+  querySql,
+} from './ontology.ts'
 import { pullSnapshot, pushSnapshot, readBaseVersion } from './snapshot.ts'
 import { formatRemaining, readToken, saveTokenFromClipboard, tokenStatus } from './token.ts'
 
@@ -73,6 +91,13 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구
       포트는 ${DEV_PORT} 부터 훑어 vite 가 실제로 뜬 곳을 찾는다 — 로컬 FE 가 ${DEV_PORT} 을 쓰면
       vite 가 ${DEV_PORT + 1} 로 올라가는데, 고정 포트로 열면 토큰이 FE 로 간다.
       토큰을 저장소에서 직접 읽어 URL 을 만들므로 토큰 값이 명령줄에 나타나지 않는다.
+
+  appgen chat create --tenant <id> [--model <code>] [--name "<이름>"] [--dir <경로>]
+      빈 앱빌더 챗을 만들고 앱 메타에 연결한다. **최초 1회만** 필요하다.
+      제품 UI 로 만들면 프롬프트를 보내야 해서 에이전트 생성 한 턴이 함께 돈다 (LLM 비용 +
+      샌드박스 기동 + 곧 덮어쓸 스냅샷). 우리는 빈 챗만 필요하므로 직접 만든다.
+      모델은 앱빌더에 노출되는 것 중에서 고른다 (미지정 시 기본 모델).
+      챗 소유자는 로그인한 계정이 된다 — 고객에게 넘길 앱이면 고객이 만들어야 한다.
 
   appgen push --prompt "<한 줄>" [--chat <id>] [--tenant <id>] [--title "<제목>"]
               [--requirements '<JSON 배열>'] [--plan '<JSON 배열>'] [--dir <경로>]
@@ -334,6 +359,68 @@ function parseItems<K extends string>(
   })
 }
 
+/**
+ * 빈 앱빌더 챗을 만들고 앱 메타에 연결한다.
+ *
+ * 제품 UI 로 만들면 프롬프트를 보내야 하므로 **에이전트 생성 한 턴이 함께 돈다** (LLM 비용,
+ * 샌드박스 기동, 곧 덮어쓸 v1 스냅샷). 우리는 빈 챗만 필요하다.
+ *
+ * 모델은 `appBuilderGroup !== 'NONE'` 중에서 고른다. 아무 코드나 넣으면 이후 제품 챗에서
+ * 수정할 때 에이전트가 첫 단계에서 죽는다 (실측 — FE 는 "배포에 실패했습니다" 만 보여준다).
+ */
+async function runChatCreate(rest: string[]): Promise<void> {
+  const { flags } = parseFlags(rest)
+  const appDir = appDirOf(flags)
+  const meta = readMeta(appDir)
+  const env = resolveEnv(meta.env)
+
+  const tenantId = flags.tenant ?? meta.tenantId
+  if (!tenantId) throw new Error('--tenant <회사 id> 가 필요합니다 (앱 메타에 없습니다).')
+  if (meta.chatId && flags.force === undefined) {
+    throw new Error(
+      `이미 chat ${meta.chatId} 에 연결돼 있습니다. 새로 만들려면 --force true 를 주세요.`,
+    )
+  }
+
+  const ref = { tenantId, env }
+  const models = await listAppBuilderModels(ref)
+  if (models.length === 0) {
+    throw new Error('앱빌더에 쓸 수 있는 모델이 없습니다 (appBuilderGroup 이 전부 NONE).')
+  }
+
+  const model = flags.model
+    ? models.find((m) => m.code === flags.model)
+    : (models.find((m) => m.isDefault) ??
+      models.find((m) => m.appBuilderGroup === 'QUALITY') ??
+      models[0])
+  if (!model) {
+    throw new Error(
+      `모델 ${flags.model} 은 앱빌더에 쓸 수 없습니다.\n사용 가능:\n` +
+        models.map((m) => `  ${m.code}  (${m.appBuilderGroup}, ${m.provider})`).join('\n'),
+    )
+  }
+
+  const chat = await createChat(ref, {
+    name: flags.name ?? meta.name,
+    model: model.code,
+    // 로컬 프리셋과 일치시킨다 — 어긋나면 제품 첫 수정에서 디자인이 덮어써진다.
+    designMode: meta.mode,
+  })
+
+  writeMeta(appDir, { ...meta, chatId: chat.id, tenantId })
+  process.stdout.write(
+    [
+      `chat 을 만들었습니다: ${chat.id}`,
+      `  모델 ${model.code} (${model.appBuilderGroup}), 디자인 ${meta.mode}, 환경 ${env.name}`,
+      `  앱 메타에 기록했습니다 — 이후 push/pull 에 --chat 이 필요 없습니다`,
+      '',
+      '참고: 이 챗의 소유자는 방금 로그인한 계정입니다.',
+      '      고객에게 넘길 앱이면 고객이 직접 만들고 chat id 를 받아야 합니다.',
+      '',
+    ].join('\n'),
+  )
+}
+
 async function runPush(rest: string[]): Promise<void> {
   const { flags } = parseFlags(rest)
   const prompt = flags.prompt
@@ -476,6 +563,11 @@ async function main(): Promise<void> {
   }
   if (command === 'open') {
     await openApp(rest)
+    return
+  }
+  if (command === 'chat') {
+    if (rest[0] !== 'create') throw new Error("`appgen chat create` 만 지원합니다.")
+    await runChatCreate(rest.slice(1))
     return
   }
   if (command === 'push') {

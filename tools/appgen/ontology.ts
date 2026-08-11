@@ -214,6 +214,66 @@ export function runFunction(
   })
 }
 
+// ── 앱빌더 챗 ────────────────────────────────────────────────────────────────
+
+export interface ModelItem {
+  code: string
+  displayName: string
+  provider: string
+  visible: boolean
+  /** 앱빌더 모델 셀렉터 그룹. `NONE` 이면 앱빌더에 노출되지 않는다. */
+  appBuilderGroup: 'NONE' | 'SPEED' | 'QUALITY'
+  isDefault: boolean
+}
+
+/**
+ * 앱빌더 챗에 쓸 수 있는 모델 목록.
+ *
+ * `appBuilderGroup !== 'NONE'` 이 앱빌더 셀렉터에 노출되는 조건이다 (`LlmDto.kt`). 이 필터를
+ * 거치지 않고 아무 코드나 넣으면 **제품 에이전트가 첫 단계에서 죽는다** —
+ * `_initialize_model` 이 `llm_model` 조회 실패 시 ValueError 를 던지고, FE 는 "배포에
+ * 실패했습니다" 라는 제네릭 문구만 보여줘서 원인을 알기 어렵다 (실측).
+ */
+export async function listAppBuilderModels(ref: OntologyRef): Promise<ModelItem[]> {
+  const response = await apiRequest<{ models: ModelItem[] }>('/llms/environments', { ...ref })
+  return (response.models ?? []).filter((m) => m.appBuilderGroup !== 'NONE' && m.visible)
+}
+
+export interface CreateChatInput {
+  name: string
+  /** `listAppBuilderModels` 가 준 `code`. */
+  model: string
+  /** 로컬 프리셋과 같아야 한다 — 어긋나면 제품 첫 수정에서 디자인이 덮어써진다. */
+  designMode: string
+}
+
+/**
+ * 빈 앱빌더 챗을 만든다.
+ *
+ * 제품 UI 로 만들면 프롬프트를 보내 **에이전트 생성 한 턴이 함께 돌아간다** (LLM 비용 +
+ * 샌드박스 기동 + 곧 덮어쓸 v1 스냅샷). 우리는 빈 챗만 필요하므로 직접 만든다.
+ *
+ * `chat.member_id` 는 이 JWT 의 주체가 된다. 고객에게 넘길 앱이면 **고객이 만들어야** 한다
+ * (제품이 챗 소유자만 열 수 있게 막는다).
+ */
+export function createChat(ref: OntologyRef, input: CreateChatInput): Promise<{ id: string }> {
+  return apiRequest<{ id: string }>('/chats', {
+    method: 'POST',
+    ...ref,
+    body: {
+      name: input.name,
+      model: input.model,
+      chatMode: null,
+      tools: null,
+      ontologyObjects: null,
+      agentType: 'dashboard',
+      responseLength: null,
+      work: null,
+      design: { mode: input.designMode },
+    },
+  })
+}
+
 // ── 액션 (읽기만) ────────────────────────────────────────────────────────────
 
 /** 액션 목록. 생성된 앱의 ACTIONS 상수에 박을 UUID 를 여기서 얻는다. */
