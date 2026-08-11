@@ -41,6 +41,8 @@ const TAR_EXCLUDES = [
   './dev.log',
   './.env.local',
   './.claude',
+  // MCP 서버 설정. 로컬 절대경로가 박혀 있어 제품으로 넘어갈 이유가 없다.
+  './.mcp.json',
   // macOS AppleDouble 사이드카. 제품을 한 번 경유한 트리에는 이게 실제 파일로 존재한다
   // (아래 TAR_FLAGS 참조) — 정리하지 않으면 다음 push 에 다시 실려 나간다.
   '._*',
@@ -70,7 +72,7 @@ const TAR_FLAGS = ['--no-xattrs'] as const
  * tar 에서 제외한 것과 짝이 맞아야 한다 — 제외했는데 안 남기면 pull 이 로컬 설정을 지운다.
  * `.git` 은 이력 자체이고, `node_modules` 는 재설치가 느리다.
  */
-const PULL_PRESERVE = new Set(['.git', 'node_modules', '.env.local', '.claude'])
+const PULL_PRESERVE = new Set(['.git', 'node_modules', '.env.local', '.claude', '.mcp.json'])
 
 export interface RequirementItem {
   name: string

@@ -187,6 +187,25 @@ export async function bootstrap({
   // 앱 메타. 여기 박힌 env 가 이후 모든 명령의 대상 환경이다 (전역 기본값 없음).
   writeMeta(dir, { name, mode, proxyOrigin: resolvedProxyOrigin, env: env.name })
 
+  // 온톨로지 MCP 서버. `--dir` 로 앱을 고정하므로 서버가 테넌트·환경을 스스로 찾는다.
+  // tar 에서 제외되므로 (snapshot.ts) 이 파일과 로컬 절대경로는 제품으로 넘어가지 않는다.
+  await writeFile(
+    join(dir, '.mcp.json'),
+    `${JSON.stringify(
+      {
+        mcpServers: {
+          'aos-ontology': {
+            command: 'node',
+            args: [join(TOOL_DIR, 'mcp-server.ts'), '--dir', dir],
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  )
+
   initGit(dir, mode)
 
   return { dir, mode, env, copied }
