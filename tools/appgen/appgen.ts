@@ -329,7 +329,9 @@ async function runPull(rest: string[]): Promise<void> {
   })
   const lines = [
     `pull 완료: v${result.version} (${result.env.name}${result.publishStatus ? `, ${result.publishStatus}` : ''})`,
-    `  ${(result.bytes / 1024).toFixed(0)}KB 전개, 커밋 "pull: product v${result.version}"`,
+    result.committed
+      ? `  ${(result.bytes / 1024).toFixed(0)}KB 전개, 커밋 "pull: product v${result.version}"`
+      : `  ${(result.bytes / 1024).toFixed(0)}KB 전개, 변경 없음 (로컬과 바이트 단위로 동일)`,
   ]
   if (result.preCommitted) lines.push('  (커밋되지 않은 변경이 있어 전개 전에 커밋했습니다 — 되돌리려면 그 커밋을 restore)')
   if (result.version === 0) {

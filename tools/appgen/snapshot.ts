@@ -298,6 +298,13 @@ export interface PullResult {
   version: number
   publishStatus: string
   preCommitted: boolean
+  /**
+   * 전개 결과가 직전 상태와 달라 커밋이 생겼는지.
+   *
+   * false 는 **되받은 트리가 로컬과 바이트 단위로 같다**는 뜻이다 (push 직후 pull 하면 정상적으로
+   * false). 커밋 여부를 결과에 담지 않으면 출력이 "커밋했다"고 거짓을 말한다.
+   */
+  committed: boolean
   bytes: number
 }
 
@@ -332,7 +339,7 @@ export async function pullSnapshot(options: PullOptions): Promise<PullResult> {
   const version = Number.parseInt(headers.get('X-Snapshot-Version') ?? '0', 10)
   writeBaseVersion(chatId, Number.isInteger(version) ? version : 0)
 
-  commitAll(appDir, `pull: product v${version}`)
+  const committed = commitAll(appDir, `pull: product v${version}`)
 
   return {
     chatId,
@@ -340,6 +347,7 @@ export async function pullSnapshot(options: PullOptions): Promise<PullResult> {
     version,
     publishStatus: headers.get('X-Snapshot-Publish-Status') ?? '',
     preCommitted,
+    committed,
     bytes: bytes.length,
   }
 }
