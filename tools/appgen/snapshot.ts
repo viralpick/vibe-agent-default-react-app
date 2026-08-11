@@ -77,6 +77,20 @@ export interface RequirementItem {
   description: string
 }
 
+/**
+ * Checkpoint 본문에 표시되는 작업 단계.
+ *
+ * 제품에서 이 슬롯(`chat_context` 의 `type:"task_plan"`)은 작업 **전에** 세운 계획이지만,
+ * push 는 작업이 끝난 뒤에 부른다. 로컬 경로에서는 "한 일" 을 넣는다 — 사람이 그 챗을 열어
+ * "이 버전에서 무슨 작업이 있었나" 를 보는 것이 이 슬롯의 실제 목적이다.
+ *
+ * 안 보내면 Checkpoint 본문이 빈 채로 뜬다 (제품 턴에는 항상 있으므로 로컬 버전만 비어 보인다).
+ */
+export interface PlanItem {
+  title: string
+  description: string
+}
+
 interface PushResponse {
   version: number
   s3_key: string
@@ -259,6 +273,7 @@ export interface PushOptions {
   chatId?: string
   title?: string
   requirements?: RequirementItem[]
+  plan?: PlanItem[]
 }
 
 export interface PushResult extends PushResponse {
@@ -299,6 +314,7 @@ export async function pushSnapshot(options: PushOptions): Promise<PushResult> {
         base_version: String(readBaseVersion(chatId)),
         title: options.title,
         requirements: options.requirements ? JSON.stringify(options.requirements) : undefined,
+        plan: options.plan ? JSON.stringify(options.plan) : undefined,
         design_mode: meta.mode,
       },
     },

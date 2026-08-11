@@ -20,7 +20,7 @@ import { bootstrap } from './bootstrap.ts'
 import { ENVIRONMENTS, metaPath, readMeta, resolveEnv, type EnvName, type Environment } from './env.ts'
 import { AgentApiError } from './http.ts'
 import { buildFqn, getObjectDetail, listActions, listCollections, listFunctions, listLinks, querySql } from './ontology.ts'
-import { pullSnapshot, pushSnapshot, readBaseVersion, type RequirementItem } from './snapshot.ts'
+import { pullSnapshot, pushSnapshot, readBaseVersion } from './snapshot.ts'
 import { formatRemaining, readToken, saveTokenFromClipboard, tokenStatus } from './token.ts'
 
 /** 템플릿의 dev 스크립트가 `vite --port 3000` 이다. */
@@ -72,12 +72,14 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구
       로컬 dev 서버를 토큰과 함께 브라우저로 연다. 기본 포트 ${DEV_PORT}.
       토큰을 저장소에서 직접 읽어 URL 을 만들므로 토큰 값이 명령줄에 나타나지 않는다.
 
-  appgen push --prompt "<한 줄>" [--chat <id>] [--tenant <id>]
-              [--title "<제목>"] [--requirements '<JSON 배열>'] [--dir <경로>]
+  appgen push --prompt "<한 줄>" [--chat <id>] [--tenant <id>] [--title "<제목>"]
+              [--requirements '<JSON 배열>'] [--plan '<JSON 배열>'] [--dir <경로>]
       현재 코드를 제품 스냅샷으로 승격한다. 로컬 반복은 스냅샷을 만들지 않으므로
       "이제 제품에서 보이게 하겠다" 는 시점에만 실행한다.
       --chat / --tenant 는 첫 실행에만 필요하다 (앱 메타에 기록됨).
       --requirements 예: '[{"name":"매출 추이 차트","description":"월별 트렌드"}]'
+      --plan 은 제품 챗의 Checkpoint 본문에 표시되는 작업 단계다. 안 보내면 그 영역이 빈다.
+             예: '[{"title":"코드 수정","description":"App.tsx 에 검색 카드 추가"}]'
 
   appgen pull [--version <n>] [--chat <id>] [--tenant <id>] [--dir <경로>]
       제품 스냅샷을 워킹트리로 가져온다. 덮어쓰기 전 상태를 커밋으로 남기므로
@@ -259,21 +261,26 @@ function envForCwd(flags: Record<string, string>): Environment {
   return resolveEnv(undefined)
 }
 
-function parseRequirements(raw: string | undefined): RequirementItem[] | undefined {
+/** `[{a, description}, ...]` 플래그를 파싱한다. 서버도 같은 형태를 검증하지만 왕복 전에 잡는다. */
+function parseItems<K extends string>(
+  raw: string | undefined,
+  flag: string,
+  key: K,
+): Array<Record<K | 'description', string>> | undefined {
   if (raw === undefined) return undefined
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch (err) {
-    throw new Error(`--requirements 가 JSON 이 아닙니다: ${(err as Error).message}`)
+    throw new Error(`--${flag} 가 JSON 이 아닙니다: ${(err as Error).message}`)
   }
-  if (!Array.isArray(parsed)) throw new Error('--requirements 는 JSON 배열이어야 합니다.')
+  if (!Array.isArray(parsed)) throw new Error(`--${flag} 는 JSON 배열이어야 합니다.`)
   return parsed.map((item, i) => {
     const obj = item as Record<string, unknown>
-    if (typeof obj?.name !== 'string' || typeof obj?.description !== 'string') {
-      throw new Error(`--requirements[${i}] 는 {name, description} 이어야 합니다.`)
+    if (typeof obj?.[key] !== 'string' || typeof obj?.description !== 'string') {
+      throw new Error(`--${flag}[${i}] 는 {${key}, description} 이어야 합니다.`)
     }
-    return { name: obj.name, description: obj.description }
+    return { [key]: obj[key], description: obj.description } as Record<K | 'description', string>
   })
 }
 
@@ -290,7 +297,8 @@ async function runPush(rest: string[]): Promise<void> {
       chatId: flags.chat,
       tenantId: flags.tenant,
       title: flags.title,
-      requirements: parseRequirements(flags.requirements),
+      requirements: parseItems(flags.requirements, 'requirements', 'name'),
+      plan: parseItems(flags.plan, 'plan', 'title'),
     })
     const lines = [
       `push 완료: v${result.version} (${result.env.name})`,
