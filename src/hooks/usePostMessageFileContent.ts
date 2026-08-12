@@ -39,10 +39,15 @@ export function usePostMessageFileContent() {
         try {
           // Vite dev server에서 파일 내용 가져오기
           // ?raw 쿼리를 사용하면 Vite가 파일을 원본 텍스트로 반환
-          const normalizedPath = filePath.startsWith("/")
-            ? filePath
-            : `/${filePath}`;
-          const response = await fetch(`${normalizedPath}?raw`);
+          //
+          // 프리뷰가 프록시 서브패스(OpenSandbox: `/agent-api/sandbox-preview/{id}/proxy/3000/`)로
+          // 서빙될 때 origin 루트 기준 절대경로(`/src/App.tsx`)로 요청하면 프록시 프리픽스를
+          // 건너뛰어 404 가 난다. vite 의 base(`import.meta.env.BASE_URL`, `--base` 로 주입됨)를
+          // 붙여 vite dev server 루트 기준으로 요청한다.
+          // e2b 등 직접 접근(base='/')에서는 그대로 `/src/...` 가 되어 동작 무변화.
+          const base = import.meta.env.BASE_URL || "/";
+          const cleanPath = filePath.replace(/^\/+/, "");
+          const response = await fetch(`${base}${cleanPath}?raw`);
 
           if (!response.ok) {
             throw new Error(
