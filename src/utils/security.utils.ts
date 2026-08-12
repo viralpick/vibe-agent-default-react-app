@@ -4,10 +4,19 @@ import type { RateLimitInfo, SecurityConfig } from '../types/auth.types';
  * 기본 보안 설정
  */
 export const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
-  allowedOrigins: (import.meta.env.VITE_ALLOWED_ORIGINS || '')
-    .split(',')
-    .map((origin: string) => origin.trim())
-    .filter(Boolean),
+  // baked VITE_ALLOWED_ORIGINS 는 그대로 유지(하위호환)하고, 온프렘 FE origin
+  // (VITE_WEB_APPLICATION_FE_ORIGIN, agent-app 이 WEB_APPLICATION_FE_URL 에서 주입)만 append 한다.
+  allowedOrigins: [
+    ...new Set(
+      [
+        import.meta.env.VITE_ALLOWED_ORIGINS || '',
+        import.meta.env.VITE_WEB_APPLICATION_FE_ORIGIN || '',
+      ]
+        .flatMap((value: string) => value.split(','))
+        .map((origin: string) => origin.trim())
+        .filter(Boolean)
+    ),
+  ],
   timestampValidityMs: 5000, // 5초
   tokenCacheDurationMs: 10000, // 10초
   rateLimitWindowMs: 60000, // 1분
