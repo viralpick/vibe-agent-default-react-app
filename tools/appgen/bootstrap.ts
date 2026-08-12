@@ -153,6 +153,14 @@ export async function bootstrap({
   await mkdir(dir, { recursive: true })
   const copied = await copyTemplate(dir)
 
+  // index.html 의 <title> 을 앱 이름으로 바꾼다. 두 가지를 동시에 해결한다.
+  //
+  // ① 브라우저 탭이 구분된다. 템플릿 기본값을 그대로 두면 로컬 앱을 여러 개 열었을 때 탭
+  //    이름이 전부 같아서 어느 탭이 어느 앱인지 알 수 없다.
+  // ② `appgen open` 이 이 값으로 **내 앱의 dev 서버인지** 확인한다. 포트 탐색만으로는
+  //    다른 앱의 dev 서버에 토큰을 넘길 수 있다 (appgen.ts 의 scanDevServers 주석 참고).
+  await writeIndexTitle(join(dir, 'index.html'), name)
+
   // .cos/ — 제품이 sandbox 에 주입하는 것과 같은 3개 파일.
   await mkdir(join(dir, '.cos'), { recursive: true })
   const guide = await readFile(join(TOOL_DIR, 'vendor/GUIDE.md'), 'utf8')
@@ -209,6 +217,26 @@ export async function bootstrap({
   initGit(dir, mode)
 
   return { dir, mode, env, copied }
+}
+
+/**
+ * index.html 의 `<title>` 을 교체한다.
+ *
+ * 못 찾으면 던지지 않고 경고만 한다. 앱은 제목 없이도 정상 동작하고, bootstrap 을 실패시키면
+ * 앱 자체가 안 만들어진다. 대신 `appgen open` 이 이 앱을 못 알아보게 되므로 조용히 넘기지도
+ * 않는다.
+ */
+async function writeIndexTitle(indexHtml: string, title: string): Promise<void> {
+  const html = await readFile(indexHtml, 'utf8')
+  const next = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+  if (next === html) {
+    process.stderr.write(
+      `경고: index.html 에서 <title> 을 찾지 못해 앱 이름을 박지 못했습니다 (${indexHtml}).\n` +
+        '  appgen open 이 이 앱의 dev 서버를 알아보지 못합니다. 직접 <title> 을 추가하세요.\n',
+    )
+    return
+  }
+  await writeFile(indexHtml, next, 'utf8')
 }
 
 /**

@@ -90,7 +90,14 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구
       로컬 dev 서버를 토큰과 함께 브라우저로 연다.
       포트는 ${DEV_PORT} 부터 훑어 vite 가 실제로 뜬 곳을 찾는다 — 로컬 FE 가 ${DEV_PORT} 을 쓰면
       vite 가 ${DEV_PORT + 1} 로 올라가는데, 고정 포트로 열면 토큰이 FE 로 간다.
+      \`<title>\` 로 이 앱의 서버인지 확인해 알려준다. 아니어도 막지 않고 무엇을 열었는지 밝힌다.
       토큰을 저장소에서 직접 읽어 URL 을 만들므로 토큰 값이 명령줄에 나타나지 않는다.
+
+  appgen servers [--stop]
+      떠 있는 dev 서버를 앱 이름과 함께 보여준다. \`--stop\` 이면 모두 끈다.
+      \`npm run dev\` **앞에** 확인한다 — 떠 있으면 새로 띄우지 않고 그대로 쓴다. 잊고 또
+      띄우면 vite 가 다음 포트로 올라가 같은 앱의 서버가 둘이 된다.
+      작업을 마칠 때(push·배포 후) 정리한다.
 
   appgen chat create --tenant <id> [--model <code>] [--name "<이름>"] [--dir <경로>]
       빈 앱빌더 챗을 만들고 앱 메타에 연결한다. **최초 1회만** 필요하다.
@@ -233,26 +240,43 @@ async function runProbe(rest: string[]): Promise<void> {
  * 간다** — 앱이 아닌 곳의 브라우저 히스토리와 서버 로그에 토큰이 남는다. 동작 오류보다
  * 이쪽이 문제다.
  *
- * 판별은 `/@vite/client` 로 한다. vite dev 서버가 항상 주입하는 스크립트이고 Next.js FE 에는
- * 없다 (실측). `<title>` 은 앱이 바꿀 수 있어 쓰지 않는다.
+ * vite 인지 아닌지는 `/@vite/client` 로 판별한다. vite dev 서버가 항상 주입하는 스크립트이고
+ * Next.js FE 에는 없다 (실측).
+ *
+ * **그런데 "vite 다" 만으로는 부족하다.** `local-apps/` 에는 앱이 여러 개 있고 전부 vite 다.
+ * 다른 앱의 서버가 3000 을 잡고 내 서버가 3001 로 밀리면, 3000 부터 훑는 탐색이 **다른 앱을
+ * 내 토큰과 함께 연다.** 게다가 그때 포트가 기본값이라 "포트가 옮겨갔다" 는 안내조차 안 나가서
+ * 조용히 엉뚱한 앱을 본다 (실제로 앱 3개가 같은 템플릿 `<title>` 을 쓰고 있었다).
+ *
+ * 그래서 `<title>` 로 어느 앱인지까지 확인한다. 예전 주석은 "title 은 앱이 바꿀 수 있어 쓰지
+ * 않는다" 였는데, 이제 bootstrap 이 title 을 앱 이름으로 박으므로 **우리가 정하는 표식**이다.
  *
  * **탐색 요청에는 토큰을 싣지 않는다.** 확인된 포트에만 토큰 URL 을 준다.
  */
 const PORT_SCAN_COUNT = 10
 
-async function detectVitePort(startPort: number): Promise<number | null> {
+interface DevServer {
+  port: number
+  /** index.html 의 `<title>`. bootstrap 이 앱 이름을 박는다. 없으면 null. */
+  title: string | null
+}
+
+async function scanDevServers(startPort: number): Promise<DevServer[]> {
+  const found: DevServer[] = []
   for (let port = startPort; port < startPort + PORT_SCAN_COUNT; port++) {
     try {
       const response = await fetch(`http://localhost:${port}/`, {
         signal: AbortSignal.timeout(1500),
       })
       if (!response.ok) continue
-      if ((await response.text()).includes('/@vite/client')) return port
+      const html = await response.text()
+      if (!html.includes('/@vite/client')) continue
+      found.push({ port, title: html.match(/<title>([^<]*)<\/title>/)?.[1]?.trim() ?? null })
     } catch {
       // 닫힌 포트거나 타임아웃 — 다음 후보로.
     }
   }
-  return null
+  return found
 }
 
 /**
@@ -270,20 +294,54 @@ async function openApp(rest: string[]): Promise<void> {
   const path = flags.path ?? '/'
   const env = envForCwd(flags)
 
+  // 앱 디렉토리 밖에서도 동작해야 하므로 (토큰만 있으면 열 수 있다) 이름은 있으면 쓴다.
+  const appDir = resolve(flags.dir ?? process.cwd())
+  const appName = existsSync(metaPath(appDir)) ? readMeta(appDir).name : null
+
   // --port 를 명시했으면 그대로 믿는다. 탐색은 기본값일 때만 한다.
   let port: number
+  let note = ''
   if (flags.port !== undefined) {
     port = Number.parseInt(flags.port, 10)
     if (!Number.isInteger(port)) throw new Error(`--port 가 정수가 아닙니다: ${flags.port}`)
   } else {
-    const detected = await detectVitePort(DEV_PORT)
-    if (detected === null) {
+    const servers = await scanDevServers(DEV_PORT)
+    if (servers.length === 0) {
       throw new Error(
         `vite dev 서버를 찾지 못했습니다 (${DEV_PORT}~${DEV_PORT + PORT_SCAN_COUNT - 1} 확인).\n` +
           '앱 디렉토리에서 `npm run dev` 를 먼저 띄우거나 --port 로 지정하세요.',
       )
     }
-    port = detected
+
+    if (appName === null) {
+      // 앱 디렉토리가 아니면 어느 앱인지 확인할 방법이 없다. 추측한 사실을 밝힌다.
+      port = servers[0].port
+      note = `  (앱 디렉토리가 아니어서 어느 앱인지 확인하지 못했습니다: "${servers[0].title ?? '제목 없음'}")\n`
+    } else {
+      const mine = servers.filter((s) => s.title === appName)
+
+      // **막지 않고 알려준다.** 앱을 여러 개 동시에 붙드는 일은 거의 없고, 이 명령은 디버깅
+      // 용도라 다른 앱이 열려도 치명적이지 않다. 그래서 못 찾으면 거부하는 대신 무엇을
+      // 열었는지 밝히고 진행한다. (초기 구현은 거부였는데 실제 쓰임에 비해 과했다.)
+      if (mine.length === 0) {
+        const picked = servers[0]
+        port = picked.port
+        note =
+          `  ⚠️ 이 앱(${appName})의 서버가 아닙니다. 포트 ${picked.port} 의 "${picked.title ?? '제목 없음'}" 을 열었습니다.\n` +
+          '     의도한 앱이 아니면 이 디렉토리에서 `npm run dev` 를 띄우거나 --port 로 지정하세요.\n'
+      } else {
+        port = mine[0].port
+        if (mine.length > 1) {
+          // 이전 작업에서 띄운 서버가 살아 있는 채로 하나 더 띄우면 같은 앱을 서빙하는 서버가
+          // 둘이 되고, 어느 쪽을 보는지 알 수 없다. `appgen servers --stop` 으로 정리한다.
+          note =
+            `  ⚠️ 이 앱을 서빙하는 서버가 ${mine.length}개입니다 (포트 ${mine.map((s) => s.port).join(', ')}).\n` +
+            `     ${mine[0].port} 을 열었습니다. \`appgen servers --stop\` 으로 정리할 수 있습니다.\n`
+        } else if (port !== DEV_PORT) {
+          note = `  (${DEV_PORT} 이 점유되어 vite 가 ${port} 로 올라갔습니다)\n`
+        }
+      }
+    }
   }
 
   const url = new URL(path, `http://localhost:${port}`)
@@ -293,12 +351,79 @@ async function openApp(rest: string[]): Promise<void> {
   execFileSync(opener, [url.toString()], { stdio: 'ignore' })
 
   const status = tokenStatus(env.name)
-  const note = port === DEV_PORT ? '' : `  (${DEV_PORT} 이 점유되어 vite 가 ${port} 로 올라갔습니다)\n`
   process.stdout.write(
     `브라우저에서 열었습니다: http://localhost:${port}${path} (토큰 포함, 값은 출력하지 않음)\n` +
       note +
       `  ${formatRemaining(status.remainingSeconds)}\n`,
   )
+}
+
+/**
+ * 떠 있는 dev 서버를 보여주고, `--stop` 이면 정리한다.
+ *
+ * ## 왜 명령으로 두는가
+ *
+ * 실제로 낸 사고가 이것이다. 이전 작업에서 띄운 서버를 잊고 `npm run dev` 를 또 실행했고,
+ * vite 가 조용히 다음 포트로 올라가 **같은 앱을 서빙하는 서버가 둘**이 됐다. 어느 쪽을 보고
+ * 있는지 알 수 없는 상태가 된다.
+ *
+ * "확인하는 습관" 으로 막으려 했지만 잊는 것이 문제의 본질이라 한 줄로 만들었다. 쓰는 시점은
+ * 둘이다. `npm run dev` **앞**(떠 있으면 새로 띄우지 않고 그대로 쓴다), 그리고 작업을 **마칠
+ * 때**(push 나 배포 후, 또는 그만하자고 할 때 물어보고 정리).
+ *
+ * `--stop` 은 훑어서 찾은 vite dev 서버를 모두 끈다. 로컬 FE 는 Next.js 라 `/@vite/client` 가
+ * 없어서 애초에 목록에 잡히지 않는다 — 끄고 싶지 않은 것이 걸릴 위험이 구조적으로 낮다.
+ */
+async function runServers(rest: string[]): Promise<void> {
+  const stop = rest.includes('--stop')
+  const appDir = resolve(process.cwd())
+  const appName = existsSync(metaPath(appDir)) ? readMeta(appDir).name : null
+
+  const servers = await scanDevServers(DEV_PORT)
+  if (servers.length === 0) {
+    process.stdout.write(
+      `떠 있는 dev 서버가 없습니다 (${DEV_PORT}~${DEV_PORT + PORT_SCAN_COUNT - 1} 확인).\n`,
+    )
+    return
+  }
+
+  process.stdout.write(
+    `${servers
+      .map(
+        (s) =>
+          `  포트 ${s.port}: ${s.title ?? '(제목 없음)'}` +
+          (appName !== null && s.title === appName ? '  <- 이 앱' : ''),
+      )
+      .join('\n')}\n`,
+  )
+
+  if (!stop) {
+    process.stdout.write('그대로 쓰면 됩니다. 정리는 `appgen servers --stop`.\n')
+    return
+  }
+
+  for (const server of servers) {
+    const pids = listeningPids(server.port)
+    if (pids.length === 0) {
+      process.stdout.write(`  포트 ${server.port}: 프로세스를 찾지 못해 건너뜁니다.\n`)
+      continue
+    }
+    for (const pid of pids) process.kill(pid, 'SIGTERM')
+    process.stdout.write(`  포트 ${server.port} 정리 (pid ${pids.join(', ')})\n`)
+  }
+}
+
+/** 그 포트를 LISTEN 하는 pid. lsof 가 없거나 실패하면 빈 배열 (정리를 건너뛴다). */
+function listeningPids(port: number): number[] {
+  try {
+    const out = execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8' })
+    return out
+      .split('\n')
+      .map((line) => Number.parseInt(line.trim(), 10))
+      .filter((pid) => Number.isInteger(pid))
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -563,6 +688,10 @@ async function main(): Promise<void> {
   }
   if (command === 'open') {
     await openApp(rest)
+    return
+  }
+  if (command === 'servers') {
+    await runServers(rest)
     return
   }
   if (command === 'chat') {
