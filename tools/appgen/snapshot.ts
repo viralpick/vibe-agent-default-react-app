@@ -46,6 +46,16 @@ const TAR_EXCLUDES = [
   // macOS AppleDouble 사이드카. 제품을 한 번 경유한 트리에는 이게 실제 파일로 존재한다
   // (아래 TAR_FLAGS 참조) — 정리하지 않으면 다음 push 에 다시 실려 나간다.
   '._*',
+  // 빌드 산출물. 제품이 복원 후 `npm run build` 를 다시 돌리므로 실어 보낼 이유가 없다.
+  './dist',
+  './build',
+  './.vite',
+  './coverage',
+  // npm 부산물. 샌드박스(리눅스)의 install 이 플랫폼 바이너리 tarball 을 프로젝트 루트에
+  // 떨어뜨린다 — pull 로 `oxlint-binding-linux-x64-gnu-1.67.0.tgz` 6MB 가 넘어온 것을 실측했다.
+  // 버전마다 쌓이므로 다음 push 에서 다시 실려 나가지 않게 막는다. (원인 자체는 제품 샌드박스 쪽)
+  '*.tgz',
+  '.DS_Store',
 ] as const
 
 /**
