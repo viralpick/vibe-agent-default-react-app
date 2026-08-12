@@ -13,6 +13,7 @@ import { usePostMessageAuth } from "./hooks/usePostMessageAuth.ts";
 import { useUrlToken } from "./hooks/useUrlToken.ts";
 import { useEnableEditMode } from "./hooks/useEnableEditMode.ts";
 import { usePreviewErrorReporter } from "./hooks/usePreviewErrorReporter.ts";
+import { usePreviewConsoleMirror } from "./hooks/usePreviewConsoleMirror.ts";
 
 function AppWithHooks() {
   useEnableEditMode();
@@ -20,6 +21,7 @@ function AppWithHooks() {
   usePostMessageAuth(); // locale 동기화 AUTH_TOKEN 에서 합니다
   useUrlToken();
   usePreviewErrorReporter();
+  usePreviewConsoleMirror();
 
   return <App />;
 }
