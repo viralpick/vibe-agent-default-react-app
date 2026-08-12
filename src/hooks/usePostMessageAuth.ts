@@ -147,15 +147,23 @@ export function usePostMessageAuth() {
         return;
       }
 
-      // 2. Rate limiting
-      if (!rateLimiter.check(event.origin)) {
-        console.warn("[Security] Rate limit exceeded:", event.origin);
+      // 2. 메시지 데이터 타입 확인
+      const data = event.data;
+      if (!data || typeof data !== "object") {
         return;
       }
 
-      // 3. 메시지 데이터 타입 확인
-      const data = event.data;
-      if (!data || typeof data !== "object") {
+      // 3. Rate limiting — 단, AUTH_TOKEN/AUTH_ERROR(인증 응답)는 제외한다.
+      //    프리뷰가 콘솔과 same-origin 프록시(예: os-dev.enhans.ai/agent-api/sandbox-preview/...)로
+      //    서빙되면서 auth·file-content·view-sync·heartbeat 가 하나의 origin 버킷(30/min)을
+      //    공유하게 됐고, 메시지 폭주 시 이 게이트가 AUTH_TOKEN 응답까지 drop 해
+      //    getToken 이 타임아웃(→ apiClient Bearer 누락 → API 401)나던 문제.
+      //    인증 응답은 저빈도이며 origin(위) + nonce(아래)로 별도 검증되므로 rate limit 대상에서 뺀다.
+      const isAuthResponse =
+        data.type === PostMessageType.AUTH_TOKEN ||
+        data.type === PostMessageType.AUTH_ERROR;
+      if (!isAuthResponse && !rateLimiter.check(event.origin)) {
+        console.warn("[Security] Rate limit exceeded:", event.origin);
         return;
       }
 
