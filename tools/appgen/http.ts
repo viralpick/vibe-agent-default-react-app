@@ -119,7 +119,14 @@ export async function apiRequest<T = unknown>(path: string, options: RequestOpti
   }
 
   if (parsed === null) throw new Error(`${label} → 응답이 JSON 이 아닙니다: ${text.slice(0, 200)}`)
-  return parsed.data as T
+
+  // app-api 는 대부분 `ResponseBody` 로 감싸지만 **전부는 아니다.** `/llms/environments` 는
+  // `{models, tools}` 를 최상단에 바로 준다 (dev 실측). 봉투를 무조건 전제하면 그 엔드포인트가
+  // undefined 를 돌려주고 호출부에서 `Cannot read properties of undefined` 로 터진다.
+  //
+  // truthiness 가 아니라 키 존재로 가른다. 삭제처럼 `data: null` 을 정상 값으로 주는 응답을
+  // 봉투 없는 것으로 착각하면 안 된다.
+  return ('data' in parsed ? parsed.data : parsed) as T
 }
 
 /**
