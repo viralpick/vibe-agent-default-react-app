@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-export type EnvName = 'dev' | 'local'
+export type EnvName = 'dev' | 'local' | 'prod'
 
 export interface Environment {
   name: EnvName
@@ -22,6 +22,18 @@ export interface Environment {
   agentApi: string
   /** 생성된 앱이 호출할 `/fe-bff` 프록시 절대 origin. designMd 에 박힌다. */
   proxyOrigin: string
+  /**
+   * push 에 `--yes` 를 요구할 환경.
+   *
+   * **pull 은 서버에 아무것도 쓰지 않지만, 끝난 뒤 상태가 위험하다.** 앱 메타에 그 챗의
+   * id 와 테넌트가 박히므로, 같은 디렉토리에서 `push` 를 한 번 실행하면 **남의 운영 챗에
+   * 새 스냅샷 버전이 생긴다.** 배포까지 자동으로 되지는 않지만(Publish 는 사람이 누른다)
+   * 고객 챗에 낯선 Checkpoint 가 남는다.
+   *
+   * 그래서 확인을 대화형 프롬프트로 두지 않았다. 이 명령은 대개 에이전트가 실행하므로
+   * stdin 을 기다리면 그대로 멈춘다. 플래그로 받아야 한다.
+   */
+  requiresConfirm?: boolean
 }
 
 export const ENVIRONMENTS: Record<EnvName, Environment> = {
@@ -30,6 +42,19 @@ export const ENVIRONMENTS: Record<EnvName, Environment> = {
     appApi: 'https://app-api-v2-dev.commerceos.ai',
     agentApi: 'https://agent-api-dev.commerceos.ai',
     proxyOrigin: 'https://os-dev.enhans.ai',
+  },
+  prod: {
+    // 고객사 운영. `requiresConfirm` 때문에 push 는 `--yes` 없이 나가지 않는다.
+    //
+    // proxyOrigin: 운영에는 별도 프록시 호스트가 없다. 그런데 `resolvePreset` 이 빈 값을
+    // 거부하므로(에러 메시지가 이 값을 예시로 든다) 콘솔 origin 을 둔다. 이 값은 bootstrap
+    // 시점의 DESIGN.md 에만 박히고, 곧바로 pull 이 스냅샷의 DESIGN.md 로 덮으므로 이
+    // 흐름에서는 영향이 없다. 필요하면 `bootstrap --proxy-origin` 으로 덮어쓴다.
+    name: 'prod',
+    appApi: 'https://app-api-v2.commerceos.ai',
+    agentApi: 'https://agent-api.commerceos.ai',
+    proxyOrigin: 'https://app.commerceos.ai',
+    requiresConfirm: true,
   },
   local: {
     // 풀 로컬 스택. 로컬 서버를 dev DB 에 붙이지 않고 검증하기 위한 환경이다.

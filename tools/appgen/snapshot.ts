@@ -279,6 +279,8 @@ function rememberBinding(appDir: string, meta: AppMeta, chatId: string, tenantId
 }
 
 export interface PushOptions {
+  /** 확인이 필요한 환경에서 push 를 허용한다. `--yes`. */
+  yes?: boolean
   appDir: string
   prompt: string
   tenantId?: string
@@ -303,6 +305,21 @@ export async function pushSnapshot(options: PushOptions): Promise<PushResult> {
   const env = appEnv(appDir)
   const chatId = resolveChatId(meta, options.chatId)
   const tenantId = resolveTenantId(meta, options.tenantId)
+  // 확인이 필요한 환경(운영)이면 여기서 멈춘다. **토큰 확인과 같은 이유로 앞쪽에 둔다** —
+  // 뒤에서 막으면 선커밋과 tar 압축을 다 해놓고 거부하게 된다.
+  //
+  // 막는 대상은 "실수로 남의 운영 챗에 버전을 만드는 것" 이다. pull 이 앱 메타에 그 챗의
+  // id 를 박아두기 때문에, 그 디렉토리에서 push 를 한 번 실행하면 바로 일어난다.
+  if (env.requiresConfirm && !options.yes) {
+    throw new Error(
+      `${env.name} 환경으로 push 하려 합니다. 대상을 확인하고 --yes 를 붙이세요.\n` +
+        `  chat    ${chatId}\n` +
+        `  테넌트  ${tenantId}\n` +
+        `  앱      ${appDir}\n` +
+        '남의 챗이면 그 챗에 새 Checkpoint 가 생깁니다 (배포는 사람이 눌러야 하지만 흔적은 남습니다).',
+    )
+  }
+
   // 토큰을 먼저 확인한다 — 뒤에서 확인하면 선커밋과 tar 압축을 다 하고 나서 401 로 죽는다.
   tokenStatus(env.name)
 

@@ -107,6 +107,7 @@ const USAGE = `appgen — AgentOS 로컬 앱 도구
       챗 소유자는 로그인한 계정이 된다 — 고객에게 넘길 앱이면 고객이 만들어야 한다.
 
   appgen push --prompt "<한 줄>" [--chat <id>] [--tenant <id>] [--title "<제목>"]
+      [--yes]
               [--requirements '<JSON 배열>'] [--plan '<JSON 배열>'] [--dir <경로>]
       현재 코드를 제품 스냅샷으로 승격한다. 로컬 반복은 스냅샷을 만들지 않으므로
       "이제 제품에서 보이게 하겠다" 는 시점에만 실행한다.
@@ -552,8 +553,12 @@ async function runPush(rest: string[]): Promise<void> {
   if (!prompt) throw new Error('--prompt "<이번 push 가 무엇을 했는지 한 줄>" 이 필요합니다.')
 
   const appDir = appDirOf(flags)
+  // `parseFlags` 는 모든 `--x` 에 값이 오는 것을 전제한다. 값 없는 플래그는 argv 에서 직접
+  // 본다 (`login --clear` 와 같은 처리).
+  const yes = rest.includes('--yes')
   try {
     const result = await pushSnapshot({
+      yes,
       appDir,
       prompt,
       chatId: flags.chat,
