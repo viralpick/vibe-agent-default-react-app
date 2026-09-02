@@ -24,8 +24,8 @@ import path from "path";
 //     그래서 httpServer 의 'upgrade' 이벤트에 vite 의 리스너보다 먼저(prependListener)
 //     끼어들어 WS req.url 에도 prefix 를 복원한다 → pathname === hmrBase 일치 → HMR 정상.
 //
-// base 가 "/" (직접 접근 / e2b 서브도메인 환경)이면 prefix 가 빈 문자열이라 완전 no-op.
-// 즉 base 를 `--base` 로 주지 않는 e2b 경로에서는 이 플러그인이 실행조차 되지 않는다.
+// base 가 "/" (직접 접근 환경)이면 prefix 가 빈 문자열이라 완전 no-op.
+// 즉 base 를 `--base` 로 주지 않는 직접 접근 경로에서는 이 플러그인이 실행조차 되지 않는다.
 const stripBaseRedirect = (): PluginOption => ({
   name: "strip-base-redirect",
   configureServer(server) {
@@ -79,7 +79,7 @@ export default defineConfig({
   // 통과되지 못해 HMR 이 끊긴다. 이 sandbox 의 vite 는 외부 비노출(프록시 경유로만 접근)
   // dev 서버이므로 토큰 검사를 끄는 것이 안전하다.
   //
-  // 단, e2b 서브도메인/직접 접근(base="/") 에서는 토큰 검사가 정상 동작하므로 끄지 않는다.
+  // 단, 직접 접근(base="/") 에서는 토큰 검사가 정상 동작하므로 끄지 않는다.
   // → 프록시 환경(isBehindPathProxy)일 때만 우회해 보안 영향을 최소화.
   legacy: {
     skipWebSocketTokenCheck: isBehindPathProxy,
@@ -105,8 +105,8 @@ export default defineConfig({
       // 로그를 쓴다. 이걸 watch 대상에 두면 자기참조 루프가 된다:
       //   로그 write → 폴링 감지 → (--debug hmr 이면) 로그 3줄 추가 → 다시 감지 …
       // 실측(AOS-3962 첨부 dev.log): 3분 동안 500ms 마다 영구 반복,
-      // App.tsx 관련 4줄 vs dev.log 노이즈 1,000줄 이상. e2b 템플릿이
-      // cpu_count=1 이라 에이전트 실행 중 CPU 를 계속 먹고, 폴링 tick 을
+      // App.tsx 관련 4줄 vs dev.log 노이즈 1,000줄 이상. 제한된 CPU 로 도는
+      // 샌드박스에서 에이전트 실행 중 CPU 를 계속 먹고, 폴링 tick 을
       // 점유해 실제 소스 변경 감지를 지연시킨다.
       // `.cos/*.md`(GUIDE/DESIGN/HISTORY)도 모듈이 아니라 감시 이득이 없다.
       ignored: ["**/dev.log", "**/.cos/**"],

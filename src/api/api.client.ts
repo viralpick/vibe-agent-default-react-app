@@ -65,7 +65,7 @@ export function setStaticToken(token: string | null) {
  * 토큰을 얻을 수 있어, 핸드셰이크 타이밍 레이스(응답 5s 타임아웃 → Bearer 누락 → API 401)를
  * 우회한다. 쿠키는 콘솔 세션의 원본이라 콘솔이 갱신하면 즉시 최신값이 읽힌다.
  *
- * cross-origin(e2b 등)에서는 이 쿠키가 프리뷰 도메인에 존재하지 않아 null 을 반환하고,
+ * cross-origin 프리뷰에서는 이 쿠키가 프리뷰 도메인에 존재하지 않아 null 을 반환하고,
  * 호출부가 기존 postMessage 경로로 폴백한다 — cross-origin 동작은 그대로 유지된다.
  */
 function getTokenFromCookie(): string | null {
