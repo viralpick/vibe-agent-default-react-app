@@ -44,7 +44,7 @@ export function usePostMessageFileContent() {
           // 서빙될 때 origin 루트 기준 절대경로(`/src/App.tsx`)로 요청하면 프록시 프리픽스를
           // 건너뛰어 404 가 난다. vite 의 base(`import.meta.env.BASE_URL`, `--base` 로 주입됨)를
           // 붙여 vite dev server 루트 기준으로 요청한다.
-          // e2b 등 직접 접근(base='/')에서는 그대로 `/src/...` 가 되어 동작 무변화.
+          // 직접 접근(base='/')에서는 그대로 `/src/...` 가 되어 동작 무변화.
           const base = import.meta.env.BASE_URL || "/";
           const cleanPath = filePath.replace(/^\/+/, "");
           const response = await fetch(`${base}${cleanPath}?raw`);
