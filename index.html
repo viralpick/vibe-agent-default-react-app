@@ -9,7 +9,7 @@
         default-src 'self';
         script-src 'self' http://localhost:8080 https://*.commerceos.ai https://*.enhans.ai https://*.azure.lge.co.kr http://*.azure.lge.co.kr http://dapi.kakao.com https://t1.daumcdn.net http://t1.daumcdn.net https://openapi.map.naver.com;
         style-src 'self' 'unsafe-inline';
-        img-src 'self' http://*.daumcdn.net data: https:;
+        img-src 'self' http://*.daumcdn.net data: blob: https:;
         font-src 'self' data:;
         connect-src 'self' http://localhost:8080 http://localhost:* ws://localhost:* https://*.commerceos.ai wss://*.commerceos.ai https://*.enhans.ai wss://*.enhans.ai https://*.lghnh.enhans.ai wss://*.lghnh.enhans.ai http://*.lghnh.enhans.ai ws://*.lghnh.enhans.ai http://*.azure.lge.co.kr ws://*.azure.lge.co.kr http://*.atlas.lge.com ws://*.atlas.lge.com %VITE_WEB_APPLICATION_FE_CONNECT_SRC% https://*.kakao.com https://*.daumcdn.net https://*.naver.com https://*.ngrok-free.dev wss://*.ngrok-free.dev;
         base-uri 'self';
