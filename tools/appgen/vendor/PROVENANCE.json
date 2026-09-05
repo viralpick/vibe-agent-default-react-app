@@ -1,0 +1,9 @@
+{
+  "source_repo": "hubone-backend",
+  "source_path": "application/agent-app/agent/app_builder/guide_content.md",
+  "vendored_at": "2026-08-11",
+  "hubone_backend_head": "b889492428318a9627d74fb9795140f6cd1ff5cc",
+  "source_last_commit": "9fd3315c45b21dddac0c348ba496a7497d62baed 2026-08-10",
+  "sha256": "20dd6e2814a86fa0366222bd0f934b38464d92c28f79fd57db3582dc125aa00b",
+  "bytes": 53361
+}
