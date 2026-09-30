@@ -197,6 +197,9 @@ export const useEnableEditMode = () => {
       // 이 컴포넌트가 데이터를 가져오는 OntologyFunction id 콤마목록 (없으면 null).
       // host(Source 모드)는 이 값으로 컴포넌트를 inspect 한다.
       const functions = componentEl.getAttribute("data-aos-functions");
+      // 소스 좌표 `src/App.tsx:120:8` (dev 서버에서만 주입, 없으면 null). 이번 턴에서만 유효하므로
+      // host 는 저장하지 말고 "이 JSX" 를 가리키는 용도로만 쓴다. (AOS-4173)
+      const loc = componentEl.getAttribute("data-aos-loc");
 
       if (isSingleSelectRef.current) {
         // INSPECT 단건 선택: 다른 선택을 모두 해제하고 클릭한 1개만 하이라이트.
@@ -221,7 +224,7 @@ export const useEnableEditMode = () => {
       window.parent.postMessage(
         {
           type: "COMPONENT_TOGGLE",
-          payload: { id, displayName, functions },
+          payload: { id, displayName, functions, loc },
         },
         "*"
       );
@@ -288,6 +291,7 @@ export const useEnableEditMode = () => {
             name:
               el.getAttribute("data-aos-name") ||
               toPascalCase(el.getAttribute("data-aos-id") ?? ""),
+            loc: el.getAttribute("data-aos-loc"),
             x: Math.round(r.left + window.scrollX),
             y: Math.round(r.top + window.scrollY),
             w: Math.round(r.width),
