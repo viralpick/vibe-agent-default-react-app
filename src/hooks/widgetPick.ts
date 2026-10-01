@@ -38,14 +38,18 @@ const keyedAncestor = (el: HTMLElement): HTMLElement | null =>
 const shorten = (text: string): string => (text.length > 24 ? `${text.slice(0, 24)}…` : text);
 
 /**
- * 사람이 알아볼 이름 — 선언된 이름 → 영역 안 첫 제목 → 감싼 카드의 제목 → 태그.
- * 차트만 감싼 래퍼는 안에 제목이 없어서, 바로 바깥 몇 단계에서 제목을 빌려 온다 ("div" 보다 낫다).
+ * 사람이 알아볼 이름 — 영역 안 첫 제목 → 선언된 이름 → 감싼 카드의 제목 → 태그.
+ *
+ * 화면의 제목("국가별 브랜드 수")을 코드 이름(`CountryBrandChart`)보다 앞에 둔다 — 이 값이 위젯 이름의
+ * 기본값이 되고, 홈에서 읽는 사람은 화면에서 본 제목으로 위젯을 알아본다. 차트만 감싼 래퍼는 안에 제목이
+ * 없어서, 바로 바깥 몇 단계에서 제목을 빌려 온다 ("div" 보다 낫다).
  */
 const labelOf = (el: HTMLElement): string => {
+  const own = el.querySelector(HEADING)?.textContent?.trim();
+  if (own) return shorten(own);
   const declared = el.getAttribute("data-aos-name") ?? el.getAttribute("data-aos-id");
   if (declared) return el.hasAttribute("data-aos-name") ? declared : toPascalCase(declared);
-  let scope: HTMLElement | null = el;
-  for (let hop = 0; scope && hop < 3; hop++, scope = keyedAncestor(scope)) {
+  for (let scope = keyedAncestor(el), hop = 0; scope && hop < 3; hop++, scope = keyedAncestor(scope)) {
     const text = scope.querySelector(HEADING)?.textContent?.trim();
     if (text) return shorten(text);
   }
