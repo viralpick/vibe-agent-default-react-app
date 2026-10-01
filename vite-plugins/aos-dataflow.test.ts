@@ -158,3 +158,25 @@ describe("analyzeDataflow — 위반", () => {
     expect(result.violations.every((v) => /^src\/App\.tsx:\d+:\d+$/.test(v.loc))).toBe(true);
   });
 });
+
+describe("analyzeDataflow — bindings", () => {
+  it("host 엘리먼트 속성과 key 는 바인딩으로 기록하지 않는다", () => {
+    const result = analyze(`
+      function Table({ rows }) {
+        return (
+          <section data-aos-id="t">
+            {rows.map((r) => <tr key={r.id} className={r.cls}><Cell value={r.v} /></tr>)}
+            <button disabled={rows.length === 0} />
+          </section>
+        );
+      }
+      function App() {
+        const brands = useOntologyFunction(FUNCTIONS.brand_list, { tenantId: TENANT_ID });
+        return <Table rows={brands.data} />;
+      }
+    `);
+    const table = result.components.find((c) => c.name === "Table")!;
+
+    expect(table.bindings.map((b) => `${b.element}.${b.prop}`)).toEqual(["Cell.value"]);
+  });
+});

@@ -531,8 +531,10 @@ export function analyzeDataflow(ast: Node, file: string): DataflowResult {
       start: def.fn.start,
       end: def.fn.end,
       functionKeys: [...keys].sort(),
+      // 위젯 판정에 쓰는 것은 컴포넌트(대문자)로 들어가는 데이터 prop 이다. host 엘리먼트 속성
+      // (`button.disabled`, `span.className`)과 React `key` 는 데이터가 아니라 기록하지 않는다.
       bindings: result.sinks
-        .filter((s) => s.taint.keys.size > 0 && s.prop !== null)
+        .filter((s) => s.taint.keys.size > 0 && s.prop !== null && s.prop !== "key" && isPascalCase(s.element))
         .map((s) => ({
           element: s.element,
           prop: s.prop as string,
