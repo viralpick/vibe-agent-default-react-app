@@ -84,6 +84,11 @@ describe("analyzeAosSource — 컴포넌트 수집", () => {
         name: "SalesChart",
         element: "Card",
         functions: ["f-1", "f-2"],
+        functionsSource: "explicit",
+        functionsInferred: [],
+        component: "A",
+        bindings: [],
+        visualizations: [],
         functionsExpression: null,
         loc: "src/App.tsx:2:9",
       },
@@ -113,19 +118,84 @@ describe("analyzeAosSource — 컴포넌트 수집", () => {
 
 describe("buildManifest", () => {
   it("좌표 순으로 정렬하고 중복 id 를 표시한다", () => {
-    const base = { name: null, element: "Card", functions: [], functionsExpression: null };
+    const base = {
+      name: null,
+      element: "Card",
+      functions: [],
+      functionsSource: "none" as const,
+      functionsInferred: [],
+      component: null,
+      bindings: [],
+      visualizations: [],
+      functionsExpression: null,
+    };
     const manifest = buildManifest([
       { ...base, id: "b", loc: "src/App.tsx:10:1" },
       { ...base, id: "a", loc: "src/App.tsx:9:1" },
       { ...base, id: "b", loc: "src/App.tsx:30:1" },
     ]);
 
-    expect(manifest.version).toBe(1);
+    expect(manifest.version).toBe(3);
     expect(manifest.components.map((c) => c.loc)).toEqual([
       "src/App.tsx:9:1",
       "src/App.tsx:10:1",
       "src/App.tsx:30:1",
     ]);
     expect(manifest.duplicateIds).toEqual(["b"]);
+  });
+});
+
+describe("analyzeAosSource — data-aos-functions 추적 주입 (AOS-4888-a)", () => {
+  const APP = `
+    const FUNCTIONS = { brand_list: { id: "uuid-brand" }, monthly: { id: "uuid-monthly" } };
+    function BrandTable({ rows }) {
+      return <section data-aos-id="brand-table"><DataTable data={rows} /></section>;
+    }
+    function Trend({ rows }) {
+      return <section data-aos-id="trend" data-aos-functions="uuid-written-by-llm">{rows.length}</section>;
+    }
+    export default function App() {
+      const brands = useOntologyFunction(FUNCTIONS.brand_list, { tenantId: "1" });
+      const monthly = useOntologyFunction(FUNCTIONS.monthly, { tenantId: "1" });
+      return <main><BrandTable rows={brands.data} /><Trend rows={monthly.data} /></main>;
+    }
+  `;
+
+  it("LLM 이 쓰지 않은 컴포넌트에는 추적한 UUID 를 build 에서도 주입한다", () => {
+    const result = analyzeAosSource(APP, FILE, { injectLoc: false });
+
+    expect(result.code).toContain(`<section data-aos-functions="uuid-brand" data-aos-id="brand-table">`);
+    expect(result.code).not.toContain("data-aos-loc");
+    expect(result.components.find((c) => c.id === "brand-table")).toMatchObject({
+      functions: ["uuid-brand"],
+      functionsSource: "inferred",
+      component: "BrandTable",
+      bindings: [{ element: "DataTable", prop: "data", functions: ["uuid-brand"], direct: true }],
+    });
+  });
+
+  it("LLM 이 이미 쓴 값은 덮어쓰지 않고 추적값을 따로 남긴다", () => {
+    const result = analyzeAosSource(APP, FILE, { injectLoc: false });
+    const trend = result.components.find((c) => c.id === "trend")!;
+
+    expect(result.code).toContain(`data-aos-functions="uuid-written-by-llm"`);
+    expect(trend).toMatchObject({
+      functions: ["uuid-written-by-llm"],
+      functionsSource: "explicit",
+      functionsInferred: ["uuid-monthly"],
+    });
+  });
+
+  it("파일 단위로 hook 사용 여부와 위반을 보고하고, 매니페스트는 관련 파일만 싣는다", () => {
+    const legacy = analyzeAosSource(
+      "const FUNCTIONS = { a: { id: 'u' } };\nfunction App() { apiClient.post(`/ontology-functions/${FUNCTIONS.a.id}/run`); return <div data-aos-id='app' />; }",
+      FILE,
+      { injectLoc: false },
+    );
+    const util = analyzeAosSource("export const Hi = () => <span>hi</span>;", "src/utils/hi.tsx", { injectLoc: false });
+
+    expect(legacy.file.usesHook).toBe(false);
+    expect(legacy.file.violations.map((v) => v.rule).sort()).toEqual(["direct-run-call", "functions-outside-hook"]);
+    expect(buildManifest([...legacy.components, ...util.components], [legacy.file, util.file]).files.map((f) => f.file)).toEqual([FILE]);
   });
 });
