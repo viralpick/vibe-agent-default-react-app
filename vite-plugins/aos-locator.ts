@@ -2,6 +2,8 @@ import path from "path";
 import { parse } from "@babel/parser";
 import MagicString from "magic-string";
 import type { Plugin, ResolvedConfig } from "vite";
+import { type Node, walk } from "./aos-ast";
+import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
 
 // 앱빌더 요소 식별 플러그인 (AOS-4173).
 //
@@ -19,11 +21,17 @@ import type { Plugin, ResolvedConfig } from "vite";
 // 그 외 컴포넌트는 rest props 를 DOM 에 내리지 않으면 속성이 조용히 사라지고, Fragment 는 React
 // 경고를 낸다. 그래서 주입하지 않는다.
 //
+// data-aos-functions (AOS-4888-a): LLM 이 쓰지 않은 컴포넌트에는 aos-dataflow 가 계산한 값을
+// dev·build 양쪽에 주입한다 (배포 DOM 도 인스펙트·위젯이 읽는다). LLM 이 이미 쓴 값은 덮어쓰지 않고,
+// 매니페스트에 두 값을 함께 남겨 추적 결과와 비교할 수 있게 한다.
+//
 // plugin-react 의 babel 옵션 안이 아니라 `enforce: "pre"` 독립 플러그인으로 둔다. 뒤에 오는 JSX
 // 변환기(Babel / Oxc)가 바뀌어도 이 플러그인은 그대로 동작한다 (Vite 8 + plugin-react 6 대비).
 
 export const AOS_MANIFEST_FILE = "aos-manifest.json";
-export const AOS_MANIFEST_VERSION = 1;
+// v2 (AOS-4888-a): functionsSource / functionsInferred / component / bindings / files 추가.
+// v1 필드는 그대로라 v1 소비자도 읽을 수 있다.
+export const AOS_MANIFEST_VERSION = 2;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -32,12 +40,37 @@ export interface AosComponent {
   name: string | null;
   /** JSX 엘리먼트 이름 (`Card`, `KpiCard`, `section` ...) */
   element: string;
-  /** data-aos-functions 의 OntologyFunction id 목록 */
+  /** 이 컴포넌트가 쓰는 OntologyFunction id 목록 (explicit 이 있으면 그것, 없으면 inferred) */
   functions: string[];
+  /** functions 의 출처 — LLM 이 쓴 값인지, 데이터 흐름 추적 값인지 */
+  functionsSource: "explicit" | "inferred" | "none";
+  /** 데이터 흐름 추적이 계산한 값 (explicit 과 달라도 그대로 남긴다) */
+  functionsInferred: string[];
+  /** data-aos-id 엘리먼트를 감싼 top-level 컴포넌트 이름 (top-level 밖이면 null) */
+  component: string | null;
+  /** 이 컴포넌트 안에서 함수 데이터가 흘러 들어가는 JSX 속성 (차트 data 등) */
+  bindings: AosBinding[];
   /** 정적 문자열이 아니라 해석하지 못한 data-aos-functions 표현식 원문 (없으면 null) */
   functionsExpression: string | null;
   /** `src/App.tsx:120:8` — 라인 1-based, 칼럼 1-based */
   loc: string;
+}
+
+export interface AosBinding {
+  element: string;
+  prop: string;
+  loc: string;
+  /** OntologyFunction id */
+  functions: string[];
+  /** hook 결과 data 를 변환 없이 그대로 받는가 */
+  direct: boolean;
+}
+
+export interface AosFileReport {
+  file: string;
+  /** useOntologyFunction 을 한 번이라도 쓰는가 — false 면 기존(Promise.all) 패턴 파일 */
+  usesHook: boolean;
+  violations: DataflowViolation[];
 }
 
 export interface AosManifest {
@@ -45,6 +78,8 @@ export interface AosManifest {
   components: AosComponent[];
   /** 두 번 이상 선언된 data-aos-id — 클릭 대상이 모호해진다 */
   duplicateIds: string[];
+  /** 데이터 흐름 추적 계약(useOntologyFunction)을 벗어난 위치 — 파일별 */
+  files: AosFileReport[];
 }
 
 export interface AnalyzeResult {
@@ -52,40 +87,13 @@ export interface AnalyzeResult {
   code: string | null;
   map: ReturnType<MagicString["generateMap"]> | null;
   components: AosComponent[];
-}
-
-interface Node {
-  type: string;
-  start: number;
-  end: number;
-  loc: { start: { line: number; column: number } };
-  [key: string]: unknown;
+  file: AosFileReport;
 }
 
 const AOS_ID = "data-aos-id";
 const AOS_NAME = "data-aos-name";
 const AOS_FUNCTIONS = "data-aos-functions";
 const AOS_LOC = "data-aos-loc";
-
-// AST 순회 시 건너뛸 메타 필드 (자식 노드가 아니다)
-const SKIP_KEYS = new Set(["loc", "start", "end", "extra", "leadingComments", "trailingComments", "innerComments"]);
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object" && value !== null && typeof (value as Node).type === "string";
-}
-
-function walk(node: Node, visit: (node: Node) => void): void {
-  visit(node);
-  for (const key of Object.keys(node)) {
-    if (SKIP_KEYS.has(key)) continue;
-    const child = node[key];
-    if (Array.isArray(child)) {
-      for (const item of child) if (isNode(item)) walk(item, visit);
-    } else if (isNode(child)) {
-      walk(child, visit);
-    }
-  }
-}
 
 function jsxName(name: Node): string {
   switch (name.type) {
@@ -145,12 +153,16 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
       errorRecovery: true,
     }) as unknown as Node;
   } catch {
-    return { code: null, map: null, components: [] };
+    return { code: null, map: null, components: [], file: { file, usesHook: false, violations: [] } };
   }
 
   const s = new MagicString(code);
   const components: AosComponent[] = [];
   let injected = false;
+
+  const flow = analyzeDataflow(ast, file);
+  const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
+  const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
 
   walk(ast, (node) => {
     if (node.type !== "JSXOpeningElement") return;
@@ -170,16 +182,42 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
     // `<` 의 1-based 칼럼. babel 칼럼은 0-based 이고 이름은 `<` 바로 뒤에 오므로 이름의 칼럼과 같다.
     const loc = `${file}:${line}:${column}`;
 
+    // 제네릭 컴포넌트(`<Select<Option> ...>`)면 타입 인자 뒤에 넣어야 문법이 유지된다.
+    const typeArgs = (node.typeArguments ?? node.typeParameters) as Node | undefined;
+    const insertAt = typeArgs ? typeArgs.end : nameNode.end;
+
     const idAttr = attrs.get(AOS_ID);
     const id = staticString(idAttr?.value as Node | undefined);
     if (id !== null) {
-      const fnValue = attrs.get(AOS_FUNCTIONS)?.value as Node | undefined;
+      const fnAttr = attrs.get(AOS_FUNCTIONS);
+      const fnValue = fnAttr?.value as Node | undefined;
       const fnRaw = staticString(fnValue);
+      const owner = enclosing(node.start);
+      const inferred = owner ? toIds(owner.functionKeys) : [];
+      const explicit = fnRaw === null ? [] : splitFunctions(fnRaw);
+      const source = fnAttr ? "explicit" : inferred.length > 0 ? "inferred" : "none";
+
+      // LLM 이 쓰지 않았을 때만 추적값을 넣는다 (기존 앱이 쓴 값은 그대로 둔다)
+      if (!fnAttr && inferred.length > 0) {
+        s.appendLeft(insertAt, ` ${AOS_FUNCTIONS}="${inferred.join(",")}"`);
+        injected = true;
+      }
+
       components.push({
         id,
         name: staticString(attrs.get(AOS_NAME)?.value as Node | undefined),
         element,
-        functions: fnRaw === null ? [] : splitFunctions(fnRaw),
+        functions: source === "explicit" ? explicit : inferred,
+        functionsSource: source,
+        functionsInferred: inferred,
+        component: owner?.name ?? null,
+        bindings: (owner?.bindings ?? []).map((b) => ({
+          element: b.element,
+          prop: b.prop,
+          loc: b.loc,
+          functions: toIds(b.functionKeys),
+          direct: b.direct,
+        })),
         functionsExpression: fnValue && fnRaw === null ? code.slice(fnValue.start, fnValue.end) : null,
         loc,
       });
@@ -188,22 +226,22 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
     if (!options.injectLoc || attrs.has(AOS_LOC)) return;
     if (!isHostElement(nameNode) && !idAttr) return;
 
-    // 제네릭 컴포넌트(`<Select<Option> ...>`)면 타입 인자 뒤에 넣어야 문법이 유지된다.
-    const typeArgs = (node.typeArguments ?? node.typeParameters) as Node | undefined;
-    s.appendLeft(typeArgs ? typeArgs.end : nameNode.end, ` ${AOS_LOC}="${loc}"`);
+    s.appendLeft(insertAt, ` ${AOS_LOC}="${loc}"`);
     injected = true;
   });
 
-  if (!injected) return { code: null, map: null, components };
+  const fileReport: AosFileReport = { file, usesHook: flow.usesHook, violations: flow.violations };
+  if (!injected) return { code: null, map: null, components, file: fileReport };
   return {
     code: s.toString(),
     // source 는 비워 둔다 — Vite 가 transform 체인의 map 을 합칠 때 모듈 id 로 채운다.
     map: s.generateMap({ hires: "boundary" }),
     components,
+    file: fileReport,
   };
 }
 
-export function buildManifest(components: AosComponent[]): AosManifest {
+export function buildManifest(components: AosComponent[], files: AosFileReport[] = []): AosManifest {
   const sorted = [...components].sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }));
   const counts = new Map<string, number>();
   for (const c of sorted) counts.set(c.id, (counts.get(c.id) ?? 0) + 1);
@@ -211,7 +249,11 @@ export function buildManifest(components: AosComponent[]): AosManifest {
     .filter(([, count]) => count > 1)
     .map(([id]) => id)
     .sort();
-  return { version: AOS_MANIFEST_VERSION, components: sorted, duplicateIds };
+  // 데이터 조회와 무관한 파일(유틸·main.tsx)은 싣지 않는다
+  const relevant = files
+    .filter((f) => f.usesHook || f.violations.length > 0)
+    .sort((a, b) => a.file.localeCompare(b.file));
+  return { version: AOS_MANIFEST_VERSION, components: sorted, duplicateIds, files: relevant };
 }
 
 const TARGET_EXT = /\.[jt]sx$/;
@@ -221,6 +263,7 @@ export function aosLocator(): Plugin {
   let config: ResolvedConfig;
   // build 는 모듈마다 transform 이 한 번 돈다. 파일 단위로 덮어써 재변환에도 중복이 생기지 않게 한다.
   const componentsByFile = new Map<string, AosComponent[]>();
+  const reportsByFile = new Map<string, AosFileReport>();
 
   return {
     name: "aos-locator",
@@ -230,6 +273,7 @@ export function aosLocator(): Plugin {
     },
     buildStart() {
       componentsByFile.clear();
+      reportsByFile.clear();
     },
     transform(code, id) {
       const file = id.split("?", 1)[0];
@@ -241,12 +285,15 @@ export function aosLocator(): Plugin {
       const isServe = config.command === "serve";
       const result = analyzeAosSource(code, relative, { injectLoc: isServe });
 
-      if (!isServe) componentsByFile.set(relative, result.components);
+      if (!isServe) {
+        componentsByFile.set(relative, result.components);
+        reportsByFile.set(relative, result.file);
+      }
       if (result.code === null) return null;
       return { code: result.code, map: result.map };
     },
     generateBundle() {
-      const manifest = buildManifest([...componentsByFile.values()].flat());
+      const manifest = buildManifest([...componentsByFile.values()].flat(), [...reportsByFile.values()]);
       this.emitFile({
         type: "asset",
         fileName: AOS_MANIFEST_FILE,
