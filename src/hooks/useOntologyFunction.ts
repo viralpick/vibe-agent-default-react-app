@@ -65,7 +65,10 @@ export function useOntologyFunction<Row = Record<string, unknown>>(
       )
       .then((response) => {
         if (seq !== requestSeq.current) return;
-        setData((response?.data?.data?.result as Row[] | undefined) ?? []);
+        // 행이 아닌 값(null 등)은 여기서 걸러 둔다 — 앱 코드가 방어용 filter 를 붙이지 않아도 되게.
+        // (그런 filter 가 붙으면 홈 위젯이 "가공된 데이터" 로 보고 앱을 통째로 띄워야 한다)
+        const rows = (response?.data?.data?.result as unknown[] | undefined) ?? [];
+        setData(rows.filter((row): row is Row => row !== null && typeof row === "object"));
       })
       .catch((cause: unknown) => {
         if (seq !== requestSeq.current) return;

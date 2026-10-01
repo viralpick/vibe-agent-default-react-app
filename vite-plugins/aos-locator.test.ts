@@ -88,6 +88,7 @@ describe("analyzeAosSource — 컴포넌트 수집", () => {
         functionsInferred: [],
         component: "A",
         bindings: [],
+        visualizations: [],
         functionsExpression: null,
         loc: "src/App.tsx:2:9",
       },
@@ -125,6 +126,7 @@ describe("buildManifest", () => {
       functionsInferred: [],
       component: null,
       bindings: [],
+      visualizations: [],
       functionsExpression: null,
     };
     const manifest = buildManifest([
@@ -133,7 +135,7 @@ describe("buildManifest", () => {
       { ...base, id: "b", loc: "src/App.tsx:30:1" },
     ]);
 
-    expect(manifest.version).toBe(2);
+    expect(manifest.version).toBe(3);
     expect(manifest.components.map((c) => c.loc)).toEqual([
       "src/App.tsx:9:1",
       "src/App.tsx:10:1",

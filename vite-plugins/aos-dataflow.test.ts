@@ -180,3 +180,36 @@ describe("analyzeDataflow — bindings", () => {
     expect(table.bindings.map((b) => `${b.element}.${b.prop}`)).toEqual(["Cell.value"]);
   });
 });
+
+describe("analyzeDataflow — 값을 바꾸지 않는 감싸기 (AOS-4929)", () => {
+  function chartDirect(transform: string) {
+    const result = analyze(`
+      function Chart({ rows }) { return <section data-aos-id="c"><BarChart data={rows} /></section>; }
+      function App() {
+        const brands = useOntologyFunction(FUNCTIONS.brand_list, { tenantId: TENANT_ID });
+        const rows = ${transform};
+        return <Chart rows={rows} />;
+      }
+    `);
+    return result.components.find((c) => c.name === "Chart")!.bindings.find((b) => b.element === "BarChart")!.direct;
+  }
+
+  it.each([
+    "useMemo(() => brands.data, [brands.data])",
+    'useMemo(() => brands.data.filter((row) => row && typeof row === "object"), [brands.data])',
+    "brands.data.filter(Boolean)",
+    "brands.data.filter((r) => r != null)",
+    "useMemo(() => { return brands.data.filter((r) => Boolean(r)); }, [brands.data])",
+  ])("null 방어·useMemo 감싸기는 direct 로 본다: %s", (transform) => {
+    expect(chartDirect(transform)).toBe(true);
+  });
+
+  it.each([
+    "brands.data.slice(-50)",
+    "brands.data.filter((r) => r.active)",
+    "brands.data.map((r) => ({ x: r.country }))",
+    'useMemo(() => brands.data.filter((row) => row && typeof row === "object").slice(-50), [brands.data])',
+  ])("행을 바꾸는 가공은 derived 로 본다: %s", (transform) => {
+    expect(chartDirect(transform)).toBe(false);
+  });
+});
