@@ -8,7 +8,8 @@
 // 배포 매니페스트(aos-manifest.json)의 visualizations[].anchors 와 키를 맞춰 판단한다.
 //
 // 통신 (호스트 ↔ iframe):
-// - recv TOGGLE_WIDGET_PICK { enabled }   → enabled 면 WIDGET_PICK_READY 로 지원 여부를 알린다
+// - recv TOGGLE_WIDGET_PICK { enabled, snapKeys? } → enabled 면 WIDGET_PICK_READY 로 지원 여부를 알린다
+// - recv WIDGET_PICK_SNAP   { snapKeys }  → 차트 anchors 가 늦게 도착했을 때 (아래 levels 참고)
 // - recv WIDGET_PICK_LEVEL  { delta }     → 호스트가 대신 전달한 Alt+↑/↓ (iframe 에 포커스가 없을 때)
 // - recv WIDGET_PICK_STATUS { tone, text } → 라벨 옆에 호스트 판정(만들 수 있음 / 사유)을 표시
 // - emit WIDGET_PICK_HOVER  { key, keys, label, depth }
@@ -29,18 +30,45 @@ const toPascalCase = (kebab: string): string =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");
 
-/** 사람이 알아볼 이름 — 선언된 이름 → 영역 안 첫 제목 → 태그 */
-const labelOf = (el: HTMLElement): string => {
-  const declared = el.getAttribute("data-aos-name") ?? el.getAttribute("data-aos-id");
-  if (declared) return el.hasAttribute("data-aos-name") ? declared : toPascalCase(declared);
-  const heading = el.querySelector("h1, h2, h3, h4, h5, h6, [role='heading']");
-  const text = heading?.textContent?.trim();
-  if (text) return text.length > 24 ? `${text.slice(0, 24)}…` : text;
-  return el.tagName.toLowerCase();
-};
+const HEADING = "h1, h2, h3, h4, h5, h6, [role='heading']";
 
 const keyedAncestor = (el: HTMLElement): HTMLElement | null =>
   el.parentElement?.closest<HTMLElement>(`[${KEY_ATTR}]`) ?? null;
+
+const shorten = (text: string): string => (text.length > 24 ? `${text.slice(0, 24)}…` : text);
+
+/**
+ * 사람이 알아볼 이름 — 선언된 이름 → 영역 안 첫 제목 → 감싼 카드의 제목 → 태그.
+ * 차트만 감싼 래퍼는 안에 제목이 없어서, 바로 바깥 몇 단계에서 제목을 빌려 온다 ("div" 보다 낫다).
+ */
+const labelOf = (el: HTMLElement): string => {
+  const declared = el.getAttribute("data-aos-name") ?? el.getAttribute("data-aos-id");
+  if (declared) return el.hasAttribute("data-aos-name") ? declared : toPascalCase(declared);
+  let scope: HTMLElement | null = el;
+  for (let hop = 0; scope && hop < 3; hop++, scope = keyedAncestor(scope)) {
+    const text = scope.querySelector(HEADING)?.textContent?.trim();
+    if (text) return shorten(text);
+  }
+  return el.tagName.toLowerCase();
+};
+
+/** 호스트가 알려 준 차트 anchors. 비어 있으면 스냅 없이 DOM 단계마다 넓힌다 */
+let snapKeys = new Set<string>();
+
+const readSnapKeys = (value: unknown): Set<string> =>
+  new Set(Array.isArray(value) ? value.filter((key): key is string => typeof key === "string") : []);
+
+/** 이 영역에 들어 있는 차트 anchor 수 */
+const anchorsWithin = (el: HTMLElement): number => {
+  let count = 0;
+  const own = el.getAttribute(KEY_ATTR);
+  if (own && snapKeys.has(own)) count++;
+  el.querySelectorAll(`[${KEY_ATTR}]`).forEach((child) => {
+    const key = child.getAttribute(KEY_ATTR);
+    if (key && snapKeys.has(key)) count++;
+  });
+  return count;
+};
 
 const sameBox = (a: HTMLElement, b: HTMLElement): boolean => {
   const ra = a.getBoundingClientRect();
@@ -54,14 +82,31 @@ const sameBox = (a: HTMLElement, b: HTMLElement): boolean => {
 };
 
 /**
- * 커서 아래 가장 안쪽 요소에서 depth 단계 바깥 영역. 크기가 같은 래퍼는 한 단계로 치지 않는다 —
- * 같은 상자가 다시 하이라이트되면 넓혔는지 알 수 없다.
+ * 커서 아래 가장 안쪽 요소에서 depth 단계 바깥 영역.
+ *
+ * - 크기가 같은 래퍼는 한 단계로 치지 않는다 — 같은 상자가 다시 하이라이트되면 넓혔는지 알 수 없다.
+ * - 호스트가 차트 anchors(snapKeys)를 줬으면 **새 차트를 품게 되는 단계와 컴포넌트 경계(data-aos-id)
+ *   에서만 멈춘다.** 앱 레이아웃은 div 가 깊어서 한 단계씩이면 제목 → 제목줄 → 머리 → 카드로 몇 번을
+ *   눌러야 차트에 닿는다. 사용자가 고르는 단위는 "어떤 차트들을 담은 영역" 이므로 그 경계만 남긴다.
  */
 const levels = (base: HTMLElement): HTMLElement[] => {
   const chain = [base];
+  let charts = snapKeys.size > 0 ? anchorsWithin(base) : 0;
   for (let el = keyedAncestor(base); el && el !== document.body; el = keyedAncestor(el)) {
-    if (!sameBox(el, chain[chain.length - 1])) chain.push(el);
-    else chain[chain.length - 1] = el; // 같은 상자면 바깥 것을 대표로 둔다
+    const last = chain[chain.length - 1];
+    if (sameBox(el, last)) {
+      chain[chain.length - 1] = el; // 같은 상자면 바깥 것을 대표로 둔다
+      continue;
+    }
+    if (snapKeys.size === 0) {
+      chain.push(el);
+      continue;
+    }
+    const inside = anchorsWithin(el);
+    if (inside !== charts || el.hasAttribute("data-aos-id")) {
+      chain.push(el);
+      charts = inside;
+    }
   }
   return chain;
 };
@@ -211,8 +256,12 @@ export const installWidgetPick = (): (() => void) => {
     if (!data || typeof data !== "object") return;
     switch (data.type) {
       case "TOGGLE_WIDGET_PICK":
+        snapKeys = readSnapKeys(data.payload?.snapKeys);
         setEnabled(Boolean(data.payload?.enabled));
         if (enabled) post("WIDGET_PICK_READY");
+        break;
+      case "WIDGET_PICK_SNAP":
+        snapKeys = readSnapKeys(data.payload?.snapKeys);
         break;
       case "WIDGET_PICK_LEVEL":
         if (enabled) shift(data.payload?.delta === -1 ? -1 : 1);
