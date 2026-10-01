@@ -4,6 +4,7 @@ import MagicString from "magic-string";
 import type { Plugin, ResolvedConfig } from "vite";
 import { type Node, walk } from "./aos-ast";
 import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
+import { type AosVisualization, extractVisualizations } from "./aos-viz";
 
 // 앱빌더 요소 식별 플러그인 (AOS-4173).
 //
@@ -30,8 +31,8 @@ import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
 
 export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v2 (AOS-4888-a): functionsSource / functionsInferred / component / bindings / files 추가.
-// v1 필드는 그대로라 v1 소비자도 읽을 수 있다.
-export const AOS_MANIFEST_VERSION = 2;
+// v3 (AOS-4929): visualizations 추가. 이전 필드는 그대로라 이전 소비자도 읽을 수 있다.
+export const AOS_MANIFEST_VERSION = 3;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -50,6 +51,8 @@ export interface AosComponent {
   component: string | null;
   /** 이 컴포넌트 안에서 함수 데이터가 흘러 들어가는 JSX 속성 (차트 data 등) */
   bindings: AosBinding[];
+  /** 이 컴포넌트 안의 차트 명세 — 위젯이 복사해 저장한다 (AOS-4929) */
+  visualizations: AosVisualization[];
   /** 정적 문자열이 아니라 해석하지 못한 data-aos-functions 표현식 원문 (없으면 null) */
   functionsExpression: string | null;
   /** `src/App.tsx:120:8` — 라인 1-based, 칼럼 1-based */
@@ -161,6 +164,7 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
   let injected = false;
 
   const flow = analyzeDataflow(ast, file);
+  const visualizations = extractVisualizations(ast, file, flow);
   const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
   const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
 
@@ -218,6 +222,7 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
           functions: toIds(b.functionKeys),
           direct: b.direct,
         })),
+        visualizations: owner ? (visualizations.get(owner.name) ?? []) : [],
         functionsExpression: fnValue && fnRaw === null ? code.slice(fnValue.start, fnValue.end) : null,
         loc,
       });
