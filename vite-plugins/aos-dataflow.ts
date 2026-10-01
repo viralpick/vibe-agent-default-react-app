@@ -221,6 +221,79 @@ function allPropsTaint(state: PropState): Taint {
   return undirect(t);
 }
 
+/** `row => row && typeof row === "object"` · `Boolean` · `row => row != null` 처럼 행을 거르지 않는 null 방어 술어인가 */
+function isNullGuard(fn: Node): boolean {
+  if (fn.type === "Identifier") return fn.name === "Boolean";
+  if (fn.type !== "ArrowFunctionExpression" && fn.type !== "FunctionExpression") return false;
+  const param = (fn.params as Node[])[0];
+  if (!param || param.type !== "Identifier") return false;
+  const name = param.name as string;
+  let body = fn.body as Node;
+  if (body.type === "BlockStatement") {
+    const stmts = body.body as Node[];
+    if (stmts.length !== 1 || stmts[0].type !== "ReturnStatement" || !stmts[0].argument) return false;
+    body = stmts[0].argument as Node;
+  }
+  const isParam = (n: Node) => unwrap(n).type === "Identifier" && unwrap(n).name === name;
+  const isGuardTerm = (n: Node): boolean => {
+    const t = unwrap(n);
+    if (isParam(t)) return true; // row
+    if (t.type === "CallExpression" && (t.callee as Node).type === "Identifier" && (t.callee as Node).name === "Boolean") {
+      return isParam((t.arguments as Node[])[0] ?? t);
+    }
+    if (t.type === "BinaryExpression") {
+      const left = unwrap(t.left as Node);
+      const right = unwrap(t.right as Node);
+      // row != null / row !== null / row !== undefined
+      if (["!=", "!=="].includes(t.operator as string) && isParam(left) && (right.type === "NullLiteral" || (right.type === "Identifier" && right.name === "undefined"))) return true;
+      // typeof row === "object"
+      if (["==", "==="].includes(t.operator as string) && left.type === "UnaryExpression" && left.operator === "typeof" && isParam(left.argument as Node) && right.type === "StringLiteral" && right.value === "object") return true;
+    }
+    if (t.type === "LogicalExpression" && t.operator === "&&") return isGuardTerm(t.left as Node) && isGuardTerm(t.right as Node);
+    return false;
+  };
+  return isGuardTerm(body);
+}
+
+/**
+ * 값을 바꾸지 않는 감싸기를 벗긴다 — direct 판정용 (AOS-4929).
+ *  - `useMemo(() => x, deps)` → x
+ *  - `x.filter(row => row && typeof row === "object")` 같은 null 방어 → x
+ * LLM 이 방어적으로 붙이는 이 모양 때문에 함수 결과를 그대로 넘긴 차트가 "가공됨" 으로 판정되던 것을 막는다.
+ * 실제로 행을 바꾸는 것(map · 조건 filter · slice · sort)은 벗기지 않는다.
+ */
+function peelPassThrough(node: Node): Node {
+  let current = unwrap(node);
+  for (;;) {
+    if (current.type === "CallExpression") {
+      const callee = current.callee as Node;
+      const args = current.arguments as Node[];
+      if (callee.type === "Identifier" && callee.name === "useMemo" && args[0] && isFunctionNode(args[0])) {
+        let body = args[0].body as Node;
+        if (body.type === "BlockStatement") {
+          const stmts = body.body as Node[];
+          if (stmts.length !== 1 || stmts[0].type !== "ReturnStatement" || !stmts[0].argument) return current;
+          body = stmts[0].argument as Node;
+        }
+        current = unwrap(body);
+        continue;
+      }
+      if (
+        (callee.type === "MemberExpression" || callee.type === "OptionalMemberExpression") &&
+        !callee.computed &&
+        (callee.property as Node).type === "Identifier" &&
+        (callee.property as Node).name === "filter" &&
+        args.length === 1 &&
+        isNullGuard(unwrap(args[0]))
+      ) {
+        current = unwrap(callee.object as Node);
+        continue;
+      }
+    }
+    return current;
+  }
+}
+
 /** 식이 운반하는 taint. direct 는 식이 별칭 형태(식별자·멤버 접근)일 때만 유지된다 */
 function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map()): Taint {
   let acc: Taint = EMPTY;
@@ -283,7 +356,7 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
   };
 
   visit(expr);
-  const target = unwrap(expr);
+  const target = peelPassThrough(unwrap(expr));
   const aliasForm = target.type === "Identifier" || target.type === "MemberExpression" || target.type === "OptionalMemberExpression";
   return aliasForm ? acc : undirect(acc);
 }
