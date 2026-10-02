@@ -2,7 +2,7 @@ import path from "path";
 import { parse } from "@babel/parser";
 import MagicString from "magic-string";
 import type { Plugin, ResolvedConfig } from "vite";
-import { type Node, walk } from "./aos-ast";
+import { childNodes, isPascalCase, locOf, type Node, walk } from "./aos-ast";
 import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
 import { type AosVisualization, extractVisualizations } from "./aos-viz";
 
@@ -26,13 +26,18 @@ import { type AosVisualization, extractVisualizations } from "./aos-viz";
 // dev·build 양쪽에 주입한다 (배포 DOM 도 인스펙트·위젯이 읽는다). LLM 이 이미 쓴 값은 덮어쓰지 않고,
 // 매니페스트에 두 값을 함께 남겨 추적 결과와 비교할 수 있게 한다.
 //
+// data-aos-k (AOS-5814): 좌표를 해시한 짧은 키 `k1x9f3a`. loc 과 같은 대상에 dev·build 양쪽으로 넣는다.
+// 배포 DOM 에서 "고른 영역이 어느 차트를 담고 있나" 를 매니페스트와 맞추는 용도다 — 파일 경로·줄 번호는
+// 드러나지 않는다. 매니페스트 최상위 visualizations[].anchors 가 이 키로 차트를 감싼 DOM 을 가리킨다.
+//
 // plugin-react 의 babel 옵션 안이 아니라 `enforce: "pre"` 독립 플러그인으로 둔다. 뒤에 오는 JSX
 // 변환기(Babel / Oxc)가 바뀌어도 이 플러그인은 그대로 동작한다 (Vite 8 + plugin-react 6 대비).
 
 export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v2 (AOS-4888-a): functionsSource / functionsInferred / component / bindings / files 추가.
 // v3 (AOS-4929): visualizations 추가. 이전 필드는 그대로라 이전 소비자도 읽을 수 있다.
-export const AOS_MANIFEST_VERSION = 3;
+// v4 (AOS-5814): components[].key, 최상위 visualizations(key · component · anchors) 추가.
+export const AOS_MANIFEST_VERSION = 4;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -57,6 +62,39 @@ export interface AosComponent {
   functionsExpression: string | null;
   /** `src/App.tsx:120:8` — 라인 1-based, 칼럼 1-based */
   loc: string;
+  /** DOM 의 data-aos-k 값 */
+  key: string;
+}
+
+/**
+ * 앱 전체의 차트 하나 (data-aos-id 유무와 무관). 위젯은 선택한 DOM subtree 의 data-aos-k 와 anchors 가
+ * 하나라도 겹치는 차트를 "그 영역 안의 차트" 로 본다.
+ */
+export interface AosManifestVisualization extends AosVisualization {
+  /** 차트 JSX 좌표의 해시 — 위젯이 차트를 가리키는 식별자 */
+  key: string;
+  /** 차트를 감싼 top-level 컴포넌트 이름 */
+  component: string;
+  /**
+   * 차트를 감싼 가장 가까운 키 보유 DOM(host 또는 data-aos-id 엘리먼트)의 키. 컴포넌트의 루트가 차트라
+   * 같은 파일에 감싼 DOM 이 없으면 그 컴포넌트를 쓰는 자리를 따라 올라가 모은다.
+   */
+  anchors: string[];
+}
+
+/** 파일 하나에서 뽑은 차트 — anchors 는 파일을 모두 모은 뒤 buildManifest 가 해석한다 */
+export interface AosVizRecord extends AosVisualization {
+  component: string;
+  /** 같은 파일 안에서 감싼 키 보유 엘리먼트의 loc (없으면 null — 컴포넌트 사용처로 해석) */
+  anchorLoc: string | null;
+}
+
+/** `<Name ...>` 사용처 — 컴포넌트 경계를 넘어 anchors 를 해석할 때 쓴다 */
+export interface AosUsage {
+  name: string;
+  anchorLoc: string | null;
+  /** 사용처를 감싼 top-level 컴포넌트 (top-level 밖이면 null) */
+  owner: string | null;
 }
 
 export interface AosBinding {
@@ -83,6 +121,8 @@ export interface AosManifest {
   duplicateIds: string[];
   /** 데이터 흐름 추적 계약(useOntologyFunction)을 벗어난 위치 — 파일별 */
   files: AosFileReport[];
+  /** 앱 전체의 차트 (AOS-5814) */
+  visualizations: AosManifestVisualization[];
 }
 
 export interface AnalyzeResult {
@@ -91,12 +131,25 @@ export interface AnalyzeResult {
   map: ReturnType<MagicString["generateMap"]> | null;
   components: AosComponent[];
   file: AosFileReport;
+  visualizations: AosVizRecord[];
+  usages: AosUsage[];
 }
 
 const AOS_ID = "data-aos-id";
 const AOS_NAME = "data-aos-name";
 const AOS_FUNCTIONS = "data-aos-functions";
 const AOS_LOC = "data-aos-loc";
+const AOS_KEY = "data-aos-k";
+
+/** loc → `k` + base36(FNV-1a 32bit). 빌드마다 같은 소스면 같은 키다 */
+export function aosKey(loc: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < loc.length; i++) {
+    hash ^= loc.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `k${(hash >>> 0).toString(36)}`;
+}
 
 function jsxName(name: Node): string {
   switch (name.type) {
@@ -143,6 +196,46 @@ function splitFunctions(raw: string): string[] {
     .filter((token) => token.length > 0);
 }
 
+function hasAttr(opening: Node, name: string): boolean {
+  return (opening.attributes as Node[]).some(
+    (a) => a.type === "JSXAttribute" && (a.name as Node).type === "JSXIdentifier" && (a.name as Node).name === name,
+  );
+}
+
+/** 키(data-aos-k)가 DOM 까지 내려가는 엘리먼트 — loc 주입 대상과 같다 */
+function isKeyed(opening: Node): boolean {
+  return isHostElement(opening.name as Node) || hasAttr(opening, AOS_ID);
+}
+
+/**
+ * JSX 트리를 한 번 내려가며 엘리먼트마다 "가장 가까운 키 보유 조상" 을 기록한다. 조건부·map 콜백 안의
+ * JSX 도 바깥 JSX 의 자식으로 본다. 변수에 담았다가 렌더하는 JSX 는 조상이 없다(null) — 그 경우는 컴포넌트
+ * 사용처로 넘어간다.
+ */
+function scanJsxAncestors(program: Node, file: string): { anchorOf: Map<string, string | null>; usages: { name: string; anchorLoc: string | null; pos: number }[] } {
+  const anchorOf = new Map<string, string | null>();
+  const usages: { name: string; anchorLoc: string | null; pos: number }[] = [];
+  const visit = (node: Node, nearest: string | null) => {
+    let next = nearest;
+    if (node.type === "JSXElement") {
+      const opening = node.openingElement as Node;
+      const nameNode = opening.name as Node;
+      const element = jsxName(nameNode);
+      if (element && !isFragment(element)) {
+        const loc = locOf(file, opening);
+        anchorOf.set(loc, isKeyed(opening) ? loc : nearest);
+        if (nameNode.type === "JSXIdentifier" && isPascalCase(element)) {
+          usages.push({ name: element, anchorLoc: nearest, pos: node.start });
+        }
+        if (isKeyed(opening)) next = loc;
+      }
+    }
+    for (const child of childNodes(node)) visit(child, next);
+  };
+  visit(program, null);
+  return { anchorOf, usages };
+}
+
 /**
  * 모듈 하나를 파싱해 컴포넌트 목록을 뽑고, `injectLoc` 이면 좌표 속성을 주입한 코드를 돌려준다.
  * 파싱 실패는 예외로 올리지 않는다 — 식별자는 부가 기능이라 문법 오류 보고는 뒤의 변환기에 맡긴다.
@@ -156,7 +249,14 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
       errorRecovery: true,
     }) as unknown as Node;
   } catch {
-    return { code: null, map: null, components: [], file: { file, usesHook: false, violations: [] } };
+    return {
+      code: null,
+      map: null,
+      components: [],
+      file: { file, usesHook: false, violations: [] },
+      visualizations: [],
+      usages: [],
+    };
   }
 
   const s = new MagicString(code);
@@ -167,6 +267,16 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
   const visualizations = extractVisualizations(ast, file, flow);
   const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
   const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
+  const program = (ast.type === "File" ? ast.program : ast) as Node;
+  const { anchorOf, usages: rawUsages } = scanJsxAncestors(program, file);
+  const vizRecords: AosVizRecord[] = [...visualizations.entries()].flatMap(([component, list]) =>
+    list.map((viz) => ({ ...viz, component, anchorLoc: anchorOf.get(viz.loc) ?? null })),
+  );
+  const usages: AosUsage[] = rawUsages.map((u) => ({
+    name: u.name,
+    anchorLoc: u.anchorLoc,
+    owner: enclosing(u.pos)?.name ?? null,
+  }));
 
   walk(ast, (node) => {
     if (node.type !== "JSXOpeningElement") return;
@@ -225,28 +335,60 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
         visualizations: owner ? (visualizations.get(owner.name) ?? []) : [],
         functionsExpression: fnValue && fnRaw === null ? code.slice(fnValue.start, fnValue.end) : null,
         loc,
+        key: aosKey(loc),
       });
     }
 
-    if (!options.injectLoc || attrs.has(AOS_LOC)) return;
     if (!isHostElement(nameNode) && !idAttr) return;
 
-    s.appendLeft(insertAt, ` ${AOS_LOC}="${loc}"`);
-    injected = true;
+    if (!attrs.has(AOS_KEY)) {
+      s.appendLeft(insertAt, ` ${AOS_KEY}="${aosKey(loc)}"`);
+      injected = true;
+    }
+    if (options.injectLoc && !attrs.has(AOS_LOC)) {
+      s.appendLeft(insertAt, ` ${AOS_LOC}="${loc}"`);
+      injected = true;
+    }
   });
 
   const fileReport: AosFileReport = { file, usesHook: flow.usesHook, violations: flow.violations };
-  if (!injected) return { code: null, map: null, components, file: fileReport };
+  const base = { components, file: fileReport, visualizations: vizRecords, usages };
+  if (!injected) return { code: null, map: null, ...base };
   return {
     code: s.toString(),
     // source 는 비워 둔다 — Vite 가 transform 체인의 map 을 합칠 때 모듈 id 로 채운다.
     map: s.generateMap({ hires: "boundary" }),
-    components,
-    file: fileReport,
+    ...base,
   };
 }
 
-export function buildManifest(components: AosComponent[], files: AosFileReport[] = []): AosManifest {
+/**
+ * 차트의 anchors 를 컴포넌트 경계를 넘어 해석한다. 같은 파일에 감싼 키 보유 DOM 이 있으면 그것 하나,
+ * 없으면(컴포넌트 루트가 차트) 그 컴포넌트를 쓰는 모든 자리의 감싼 DOM 을 모은다 — 사용처도 루트라면 한 단계 더.
+ */
+function resolveAnchors(viz: AosVizRecord, usages: AosUsage[]): string[] {
+  if (viz.anchorLoc) return [aosKey(viz.anchorLoc)];
+  const keys = new Set<string>();
+  const visited = new Set<string>();
+  const fromComponent = (name: string) => {
+    if (visited.has(name)) return;
+    visited.add(name);
+    for (const usage of usages) {
+      if (usage.name !== name) continue;
+      if (usage.anchorLoc) keys.add(aosKey(usage.anchorLoc));
+      else if (usage.owner) fromComponent(usage.owner);
+    }
+  };
+  fromComponent(viz.component);
+  return [...keys].sort();
+}
+
+export function buildManifest(
+  components: AosComponent[],
+  files: AosFileReport[] = [],
+  visualizations: AosVizRecord[] = [],
+  usages: AosUsage[] = [],
+): AosManifest {
   const sorted = [...components].sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }));
   const counts = new Map<string, number>();
   for (const c of sorted) counts.set(c.id, (counts.get(c.id) ?? 0) + 1);
@@ -258,7 +400,13 @@ export function buildManifest(components: AosComponent[], files: AosFileReport[]
   const relevant = files
     .filter((f) => f.usesHook || f.violations.length > 0)
     .sort((a, b) => a.file.localeCompare(b.file));
-  return { version: AOS_MANIFEST_VERSION, components: sorted, duplicateIds, files: relevant };
+  const vizList: AosManifestVisualization[] = [...visualizations]
+    .sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }))
+    .map((record) => {
+      const { anchorLoc: _anchorLoc, ...viz } = record;
+      return { ...viz, key: aosKey(viz.loc), anchors: resolveAnchors(record, usages) };
+    });
+  return { version: AOS_MANIFEST_VERSION, components: sorted, duplicateIds, files: relevant, visualizations: vizList };
 }
 
 const TARGET_EXT = /\.[jt]sx$/;
@@ -269,6 +417,8 @@ export function aosLocator(): Plugin {
   // build 는 모듈마다 transform 이 한 번 돈다. 파일 단위로 덮어써 재변환에도 중복이 생기지 않게 한다.
   const componentsByFile = new Map<string, AosComponent[]>();
   const reportsByFile = new Map<string, AosFileReport>();
+  const vizByFile = new Map<string, AosVizRecord[]>();
+  const usagesByFile = new Map<string, AosUsage[]>();
 
   return {
     name: "aos-locator",
@@ -279,6 +429,8 @@ export function aosLocator(): Plugin {
     buildStart() {
       componentsByFile.clear();
       reportsByFile.clear();
+      vizByFile.clear();
+      usagesByFile.clear();
     },
     transform(code, id) {
       const file = id.split("?", 1)[0];
@@ -293,12 +445,19 @@ export function aosLocator(): Plugin {
       if (!isServe) {
         componentsByFile.set(relative, result.components);
         reportsByFile.set(relative, result.file);
+        vizByFile.set(relative, result.visualizations);
+        usagesByFile.set(relative, result.usages);
       }
       if (result.code === null) return null;
       return { code: result.code, map: result.map };
     },
     generateBundle() {
-      const manifest = buildManifest([...componentsByFile.values()].flat(), [...reportsByFile.values()]);
+      const manifest = buildManifest(
+        [...componentsByFile.values()].flat(),
+        [...reportsByFile.values()],
+        [...vizByFile.values()].flat(),
+        [...usagesByFile.values()].flat(),
+      );
       this.emitFile({
         type: "asset",
         fileName: AOS_MANIFEST_FILE,
