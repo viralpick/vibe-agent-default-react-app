@@ -1,5 +1,6 @@
 import React from "react";
 import { domToPng } from "modern-screenshot";
+import { installWidgetPick } from "./widgetPick";
 
 // PascalCase 라벨 fallback: data-aos-name 이 없을 때 kebab id 를 변환.
 // "sales-chart" → "SalesChart"
@@ -177,6 +178,10 @@ export const useEnableEditMode = () => {
     };
   }, []);
 
+  // 위젯 만들기 영역 고르기 (AOS-5814). 이 훅 안에서 설치해야 기존 앱도 템플릿 재적용
+  // (src/hooks 는 복원 때마다 HEAD 로 되돌린다)만으로 기능을 받는다 — main.tsx 는 앱 소스라 재적용 대상이 아니다.
+  React.useEffect(() => installWidgetPick(), []);
+
   // 컴포넌트 단위 선택 클릭 처리
   React.useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -197,6 +202,9 @@ export const useEnableEditMode = () => {
       // 이 컴포넌트가 데이터를 가져오는 OntologyFunction id 콤마목록 (없으면 null).
       // host(Source 모드)는 이 값으로 컴포넌트를 inspect 한다.
       const functions = componentEl.getAttribute("data-aos-functions");
+      // 소스 좌표 `src/App.tsx:120:8` (dev 서버에서만 주입, 없으면 null). 이번 턴에서만 유효하므로
+      // host 는 저장하지 말고 "이 JSX" 를 가리키는 용도로만 쓴다. (AOS-4173)
+      const loc = componentEl.getAttribute("data-aos-loc");
 
       if (isSingleSelectRef.current) {
         // INSPECT 단건 선택: 다른 선택을 모두 해제하고 클릭한 1개만 하이라이트.
@@ -221,7 +229,7 @@ export const useEnableEditMode = () => {
       window.parent.postMessage(
         {
           type: "COMPONENT_TOGGLE",
-          payload: { id, displayName, functions },
+          payload: { id, displayName, functions, loc },
         },
         "*"
       );
@@ -288,6 +296,7 @@ export const useEnableEditMode = () => {
             name:
               el.getAttribute("data-aos-name") ||
               toPascalCase(el.getAttribute("data-aos-id") ?? ""),
+            loc: el.getAttribute("data-aos-loc"),
             x: Math.round(r.left + window.scrollX),
             y: Math.round(r.top + window.scrollY),
             w: Math.round(r.width),
