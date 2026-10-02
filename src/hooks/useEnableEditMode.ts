@@ -1,6 +1,7 @@
 import React from "react";
 import { domToPng } from "modern-screenshot";
 import { installWidgetPick } from "./widgetPick";
+import { installWidgetView } from "./widgetView";
 
 // PascalCase 라벨 fallback: data-aos-name 이 없을 때 kebab id 를 변환.
 // "sales-chart" → "SalesChart"
@@ -181,6 +182,8 @@ export const useEnableEditMode = () => {
   // 위젯 만들기 영역 고르기 (AOS-5814). 이 훅 안에서 설치해야 기존 앱도 템플릿 재적용
   // (src/hooks 는 복원 때마다 HEAD 로 되돌린다)만으로 기능을 받는다 — main.tsx 는 앱 소스라 재적용 대상이 아니다.
   React.useEffect(() => installWidgetPick(), []);
+  // 홈 위젯 표시 모드(`?aos-widget=`, AOS-5815) — 그 영역만 보이게 한다. 같은 이유로 여기서 설치한다.
+  React.useEffect(() => installWidgetView(), []);
 
   // 컴포넌트 단위 선택 클릭 처리
   React.useEffect(() => {
