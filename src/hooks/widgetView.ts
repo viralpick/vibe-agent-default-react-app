@@ -17,6 +17,7 @@ const STYLE_ID = "aos-widget-view-style";
 const TARGET_ATTR = "data-aos-widget-target";
 const WAIT_MS = 10_000;
 const SETTLE_MS = 600;
+const FOLLOW_MS = 6_000;
 
 const post = (payload: object) => window.parent.postMessage({ type: "WIDGET_VIEW_STATUS", payload }, "*");
 
@@ -48,6 +49,28 @@ const isolate = (el: HTMLElement, width: number, height: number) => {
   document.head.appendChild(style);
 };
 
+/**
+ * 잰 뒤에도 영역이 자랄 수 있다(늦게 도착한 데이터로 카드가 하나 더 그려짐). 고정 크기를 넘는 내용이 생기면
+ * 크기를 늘리고 다시 알린다 — 호스트가 새 크기로 다시 축소한다. 잠깐만 지켜본다.
+ */
+const followGrowth = (el: HTMLElement, key: string, width: number, height: number) => {
+  let w = width;
+  let h = height;
+  const startedAt = Date.now();
+  const timer = window.setInterval(() => {
+    const nextW = Math.max(w, el.scrollWidth);
+    const nextH = Math.max(h, el.scrollHeight);
+    if (nextW !== w || nextH !== h) {
+      w = nextW;
+      h = nextH;
+      el.style.setProperty("--aos-widget-w", `${w}px`);
+      el.style.setProperty("--aos-widget-h", `${h}px`);
+      post({ key, found: true, width: w, height: h });
+    }
+    if (Date.now() - startedAt > FOLLOW_MS) window.clearInterval(timer);
+  }, 250);
+};
+
 /** `?aos-widget=` 이 붙어 열렸으면 그 영역만 보이게 한다. 아니면 아무것도 하지 않는다 */
 export const installWidgetView = (): (() => void) => {
   const key = new URLSearchParams(window.location.search).get(PARAM);
@@ -71,6 +94,7 @@ export const installWidgetView = (): (() => void) => {
       const height = Math.max(1, Math.ceil(rect.height));
       isolate(el, width, height);
       post({ key, found: true, width, height });
+      followGrowth(el, key, width, height);
     }, SETTLE_MS);
   };
   const observer = new MutationObserver(() => {
