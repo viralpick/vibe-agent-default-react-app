@@ -82,7 +82,10 @@ export function usePostMessageAuth() {
       // 요청 저장 (응답 대기)
       globalPendingRequests.set(nonce, { resolve, reject });
 
-      // 타임아웃 설정 (5초)
+      // 타임아웃 설정 (15초)
+      // 배포 환경(콘솔 ↔ 샌드박스 프록시)의 postMessage 왕복은 로컬보다 지연이 크다.
+      // 5초는 그 지연에서 간헐적으로 초과돼 토큰을 못 받고 FAILED → API 401 로 이어졌다.
+      // 저빈도 핸드셰이크이므로 여유를 크게 둔다.
       setTimeout(() => {
         if (globalPendingRequests.has(nonce)) {
           globalPendingRequests.delete(nonce);
@@ -90,7 +93,7 @@ export function usePostMessageAuth() {
           setAuthState({ status: AuthStatus.FAILED, error });
           reject(new Error(error));
         }
-      }, 5000);
+      }, 15000);
 
       // 호스트에 메시지 전송
       const messageType = isRefresh
