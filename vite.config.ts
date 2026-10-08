@@ -2,6 +2,7 @@ import { defineConfig, type Connect, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { aosLocator } from "./vite-plugins/aos-locator";
 
 // OpenSandbox server proxy 호환용 dev 플러그인.
 //
@@ -66,7 +67,7 @@ const isBehindPathProxy = !!baseArg && baseArg !== "/" && baseArg !== "./";
 // https://vite.dev/config/
 export default defineConfig({
   base: "./",
-  plugins: [stripBaseRedirect(), react(), tailwindcss()],
+  plugins: [stripBaseRedirect(), aosLocator(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
