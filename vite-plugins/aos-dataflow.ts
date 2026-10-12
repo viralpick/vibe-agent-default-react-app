@@ -63,7 +63,7 @@ export interface DataflowViolation {
 }
 
 export interface ComponentFlow {
-  /** `src/app/components/SalesChart.tsx#SalesChart` — 파일이 달라도 같은 이름이 섞이지 않게 */
+  /** `src/modules/SalesChart.tsx#SalesChart` — 파일이 달라도 같은 이름이 섞이지 않게 */
   id: string;
   name: string;
   start: number;
@@ -562,7 +562,7 @@ function collectViolations(program: Node, file: string, functionIds: Map<string,
   });
 
   const visit = (node: Node, parent: Node | null) => {
-    // `import { FUNCTIONS } from "@/app/constants"` · `export { FUNCTIONS }` 는 값을 넘기는 게 아니라 이름을 잇는 것이다
+    // `import { FUNCTIONS } from "@/modules/constants"` · `export { FUNCTIONS }` 는 값을 넘기는 게 아니라 이름을 잇는 것이다
     if (node.type === "ImportSpecifier" || node.type === "ImportDefaultSpecifier" || node.type === "ImportNamespaceSpecifier" || node.type === "ExportSpecifier") {
       return;
     }

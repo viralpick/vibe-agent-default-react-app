@@ -35,7 +35,7 @@ import { type AosVisualization, extractVisualizations } from "./aos-viz";
 // 변환기(Babel / Oxc)가 바뀌어도 이 플러그인은 그대로 동작한다 (Vite 8 + plugin-react 6 대비).
 //
 // 멀티모듈 (AOS-4902): 데이터 흐름·차트·anchors 는 파일 하나가 아니라 src/ 전체를 본다 (aos-project).
-// App.tsx 가 조회한 데이터를 src/app/components/X.tsx 에 props 로 넘겨도 X 의 data-aos-functions 가 잡힌다.
+// App.tsx 가 조회한 데이터를 src/modules/X.tsx 에 props 로 넘겨도 X 의 data-aos-functions 가 잡힌다.
 // 그래서 dev 에서는 한 파일이 바뀌면 **다른 파일**의 주입값이 달라질 수 있다 — handleHotUpdate 가 그런
 // 모듈을 찾아 무효화하고 HMR 대상에 함께 싣는다.
 
@@ -72,7 +72,7 @@ export interface AosComponent {
   loc: string;
   /** DOM 의 data-aos-k 값 */
   key: string;
-  /** data-aos-id 가 적힌 파일 (프로젝트 루트 기준, `src/app/components/SalesChart.tsx`) */
+  /** data-aos-id 가 적힌 파일 (프로젝트 루트 기준, `src/modules/SalesChart.tsx`) */
   file: string;
 }
 
