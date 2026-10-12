@@ -1,9 +1,10 @@
+import fs from "fs";
 import path from "path";
-import { parse } from "@babel/parser";
 import MagicString from "magic-string";
-import type { Plugin, ResolvedConfig } from "vite";
+import type { ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { childNodes, isPascalCase, locOf, type Node, walk } from "./aos-ast";
-import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
+import { analyzeProjectDataflow, type DataflowViolation, type ProjectFlow } from "./aos-dataflow";
+import { AosProject, findCycles, isIndexable } from "./aos-project";
 import { type AosVisualization, extractVisualizations } from "./aos-viz";
 
 // 앱빌더 요소 식별 플러그인 (AOS-4173).
@@ -32,12 +33,19 @@ import { type AosVisualization, extractVisualizations } from "./aos-viz";
 //
 // plugin-react 의 babel 옵션 안이 아니라 `enforce: "pre"` 독립 플러그인으로 둔다. 뒤에 오는 JSX
 // 변환기(Babel / Oxc)가 바뀌어도 이 플러그인은 그대로 동작한다 (Vite 8 + plugin-react 6 대비).
+//
+// 멀티모듈 (AOS-4902): 데이터 흐름·차트·anchors 는 파일 하나가 아니라 src/ 전체를 본다 (aos-project).
+// App.tsx 가 조회한 데이터를 src/app/components/X.tsx 에 props 로 넘겨도 X 의 data-aos-functions 가 잡힌다.
+// 그래서 dev 에서는 한 파일이 바뀌면 **다른 파일**의 주입값이 달라질 수 있다 — handleHotUpdate 가 그런
+// 모듈을 찾아 무효화하고 HMR 대상에 함께 싣는다.
 
 export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v2 (AOS-4888-a): functionsSource / functionsInferred / component / bindings / files 추가.
 // v3 (AOS-4929): visualizations 추가. 이전 필드는 그대로라 이전 소비자도 읽을 수 있다.
 // v4 (AOS-5814): components[].key, 최상위 visualizations(key · component · anchors) 추가.
-export const AOS_MANIFEST_VERSION = 4;
+// v5 (AOS-4902): components[].file, 최상위 modules(파일별 실행 시점 import) · cycles(순환 import) 추가.
+//   추적이 파일 경계를 넘는다 — 다른 파일에서 props 로 받은 데이터도 functions / visualizations.data 에 잡힌다.
+export const AOS_MANIFEST_VERSION = 5;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -64,6 +72,8 @@ export interface AosComponent {
   loc: string;
   /** DOM 의 data-aos-k 값 */
   key: string;
+  /** data-aos-id 가 적힌 파일 (프로젝트 루트 기준, `src/app/components/SalesChart.tsx`) */
+  file: string;
 }
 
 /**
@@ -85,6 +95,8 @@ export interface AosManifestVisualization extends AosVisualization {
 /** 파일 하나에서 뽑은 차트 — anchors 는 파일을 모두 모은 뒤 buildManifest 가 해석한다 */
 export interface AosVizRecord extends AosVisualization {
   component: string;
+  /** `파일#이름` — 다른 파일의 같은 이름 컴포넌트와 구분한다 (없으면 이름으로만 맞춘다) */
+  componentId?: string;
   /** 같은 파일 안에서 감싼 키 보유 엘리먼트의 loc (없으면 null — 컴포넌트 사용처로 해석) */
   anchorLoc: string | null;
 }
@@ -95,6 +107,10 @@ export interface AosUsage {
   anchorLoc: string | null;
   /** 사용처를 감싼 top-level 컴포넌트 (top-level 밖이면 null) */
   owner: string | null;
+  /** import 를 따라 해석한 대상 컴포넌트 `파일#이름` (해석 못 하면 null — 이름으로 맞춘다) */
+  target?: string | null;
+  /** owner 의 `파일#이름` */
+  ownerId?: string | null;
 }
 
 export interface AosBinding {
@@ -114,6 +130,15 @@ export interface AosFileReport {
   violations: DataflowViolation[];
 }
 
+/** 빌드에 들어간 모듈 하나의 실행 시점 import (AOS-4902) */
+export interface AosModule {
+  file: string;
+  /** 해석된 프로젝트 파일 — `import type` · type 전용 지정자는 뺀다 */
+  imports: string[];
+  /** `@/` · 상대 경로인데 프로젝트 파일로 해석되지 않은 지정자 (없는 파일 import) */
+  unresolved: string[];
+}
+
 export interface AosManifest {
   version: number;
   components: AosComponent[];
@@ -123,6 +148,10 @@ export interface AosManifest {
   files: AosFileReport[];
   /** 앱 전체의 차트 (AOS-5814) */
   visualizations: AosManifestVisualization[];
+  /** 모듈별 import (AOS-4902) */
+  modules: AosModule[];
+  /** 순환 import — 각 원소는 서로를 (간접적으로) import 하는 파일들 */
+  cycles: string[][];
 }
 
 export interface AnalyzeResult {
@@ -239,16 +268,19 @@ function scanJsxAncestors(program: Node, file: string): { anchorOf: Map<string, 
 /**
  * 모듈 하나를 파싱해 컴포넌트 목록을 뽑고, `injectLoc` 이면 좌표 속성을 주입한 코드를 돌려준다.
  * 파싱 실패는 예외로 올리지 않는다 — 식별자는 부가 기능이라 문법 오류 보고는 뒤의 변환기에 맡긴다.
+ *
+ * `project` 를 주면 데이터 흐름을 프로젝트 전체로 계산한다 (이 파일의 내용은 code 로 갱신한다).
+ * 없으면 이 파일 하나만 있는 프로젝트로 본다 — 다른 파일에서 오는 props 는 모른다.
  */
-export function analyzeAosSource(code: string, file: string, options: { injectLoc: boolean }): AnalyzeResult {
-  let ast: Node;
-  try {
-    ast = parse(code, {
-      sourceType: "module",
-      plugins: ["typescript", "jsx"],
-      errorRecovery: true,
-    }) as unknown as Node;
-  } catch {
+export function analyzeAosSource(
+  code: string,
+  file: string,
+  options: { injectLoc: boolean; project?: AosProject },
+): AnalyzeResult {
+  const project = options.project ?? new AosProject();
+  project.set(file, code);
+  const program = project.module(file)?.program ?? null;
+  if (!program) {
     return {
       code: null,
       map: null,
@@ -263,22 +295,26 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
   const components: AosComponent[] = [];
   let injected = false;
 
-  const flow = analyzeDataflow(ast, file);
-  const visualizations = extractVisualizations(ast, file, flow);
-  const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
+  const projectFlow = analyzeProjectDataflow(project);
+  const flow = projectFlow.files.get(file)!;
+  const visualizations = extractVisualizations(program, file, flow);
   const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
-  const program = (ast.type === "File" ? ast.program : ast) as Node;
   const { anchorOf, usages: rawUsages } = scanJsxAncestors(program, file);
   const vizRecords: AosVizRecord[] = [...visualizations.entries()].flatMap(([component, list]) =>
-    list.map((viz) => ({ ...viz, component, anchorLoc: anchorOf.get(viz.loc) ?? null })),
+    list.map((viz) => ({ ...viz, component, componentId: `${file}#${component}`, anchorLoc: anchorOf.get(viz.loc) ?? null })),
   );
-  const usages: AosUsage[] = rawUsages.map((u) => ({
-    name: u.name,
-    anchorLoc: u.anchorLoc,
-    owner: enclosing(u.pos)?.name ?? null,
-  }));
+  const usages: AosUsage[] = rawUsages.map((u) => {
+    const owner = enclosing(u.pos);
+    return {
+      name: u.name,
+      anchorLoc: u.anchorLoc,
+      owner: owner?.name ?? null,
+      target: projectFlow.resolveElement(file, u.name),
+      ownerId: owner?.id ?? null,
+    };
+  });
 
-  walk(ast, (node) => {
+  walk(program, (node) => {
     if (node.type !== "JSXOpeningElement") return;
 
     const nameNode = node.name as Node;
@@ -307,7 +343,7 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
       const fnValue = fnAttr?.value as Node | undefined;
       const fnRaw = staticString(fnValue);
       const owner = enclosing(node.start);
-      const inferred = owner ? toIds(owner.functionKeys) : [];
+      const inferred = owner ? owner.functionIds : [];
       const explicit = fnRaw === null ? [] : splitFunctions(fnRaw);
       const source = fnAttr ? "explicit" : inferred.length > 0 ? "inferred" : "none";
 
@@ -329,13 +365,14 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
           element: b.element,
           prop: b.prop,
           loc: b.loc,
-          functions: toIds(b.functionKeys),
+          functions: b.functionIds,
           direct: b.direct,
         })),
         visualizations: owner ? (visualizations.get(owner.name) ?? []) : [],
         functionsExpression: fnValue && fnRaw === null ? code.slice(fnValue.start, fnValue.end) : null,
         loc,
         key: aosKey(loc),
+        file,
       });
     }
 
@@ -370,16 +407,21 @@ function resolveAnchors(viz: AosVizRecord, usages: AosUsage[]): string[] {
   if (viz.anchorLoc) return [aosKey(viz.anchorLoc)];
   const keys = new Set<string>();
   const visited = new Set<string>();
-  const fromComponent = (name: string) => {
-    if (visited.has(name)) return;
-    visited.add(name);
+  // 사용처가 import 를 따라 해석됐으면 `파일#이름` 으로, 아니면 이름으로 맞춘다 — 다른 파일의 같은 이름
+  // 컴포넌트나 별칭 import(`import { A as B }`)가 섞이지 않게
+  const usedHere = (usage: AosUsage, id: string | null, name: string) =>
+    usage.target && id ? usage.target === id : usage.name === name;
+  const fromComponent = (id: string | null, name: string) => {
+    const visitKey = id ?? name;
+    if (visited.has(visitKey)) return;
+    visited.add(visitKey);
     for (const usage of usages) {
-      if (usage.name !== name) continue;
+      if (!usedHere(usage, id, name)) continue;
       if (usage.anchorLoc) keys.add(aosKey(usage.anchorLoc));
-      else if (usage.owner) fromComponent(usage.owner);
+      else if (usage.owner) fromComponent(usage.ownerId ?? null, usage.owner);
     }
   };
-  fromComponent(viz.component);
+  fromComponent(viz.componentId ?? null, viz.component);
   return [...keys].sort();
 }
 
@@ -388,6 +430,7 @@ export function buildManifest(
   files: AosFileReport[] = [],
   visualizations: AosVizRecord[] = [],
   usages: AosUsage[] = [],
+  modules: AosModule[] = [],
 ): AosManifest {
   const sorted = [...components].sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }));
   const counts = new Map<string, number>();
@@ -403,22 +446,111 @@ export function buildManifest(
   const vizList: AosManifestVisualization[] = [...visualizations]
     .sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }))
     .map((record) => {
-      const { anchorLoc: _anchorLoc, ...viz } = record;
+      const { anchorLoc: _anchorLoc, componentId: _componentId, ...viz } = record;
       return { ...viz, key: aosKey(viz.loc), anchors: resolveAnchors(record, usages) };
     });
-  return { version: AOS_MANIFEST_VERSION, components: sorted, duplicateIds, files: relevant, visualizations: vizList };
+  const sortedModules = [...modules].sort((a, b) => a.file.localeCompare(b.file));
+  const cycles = findCycles(new Map(sortedModules.map((m) => [m.file, m.imports])));
+  return {
+    version: AOS_MANIFEST_VERSION,
+    components: sorted,
+    duplicateIds,
+    files: relevant,
+    visualizations: vizList,
+    modules: sortedModules,
+    cycles,
+  };
+}
+
+/** 프로젝트의 모듈 import 표 — files 를 주면 그 파일만 (build 에 실제로 들어간 모듈) */
+export function projectModules(project: AosProject, files: Iterable<string> = project.files()): AosModule[] {
+  return [...files]
+    .filter((file) => project.has(file))
+    .sort()
+    .map((file) => ({ file, imports: project.runtimeImports(file), unresolved: project.unresolvedImports(file) }));
+}
+
+/**
+ * 프로젝트 전체를 한 번에 분석해 매니페스트를 만든다 — build 의 transform → generateBundle 과 같은 결과다.
+ * 테스트와 오프라인 점검용 (플러그인은 transform 마다 파일 하나씩 돈다).
+ */
+export function analyzeProject(project: AosProject, options: { injectLoc: boolean }): { results: Map<string, AnalyzeResult>; manifest: AosManifest } {
+  const results = new Map<string, AnalyzeResult>();
+  for (const file of project.files()) {
+    if (!TARGET_EXT.test(file)) continue;
+    results.set(file, analyzeAosSource(project.sourceOf(file) ?? "", file, { ...options, project }));
+  }
+  const flows = analyzeProjectDataflow(project);
+  const all = [...results.values()];
+  const manifest = buildManifest(
+    all.flatMap((r) => r.components),
+    project.files().flatMap((file) => fileReport(flows, file)),
+    all.flatMap((r) => r.visualizations),
+    all.flatMap((r) => r.usages),
+    projectModules(project),
+  );
+  return { results, manifest };
+}
+
+function fileReport(flows: ProjectFlow, file: string): AosFileReport[] {
+  const flow = flows.files.get(file);
+  return flow ? [{ file, usesHook: flow.usesHook, violations: flow.violations }] : [];
+}
+
+/**
+ * 파일마다 "다른 파일에 따라 달라지는 주입값" 의 서명 — 컴포넌트별 추적 UUID.
+ * 한 파일이 바뀐 뒤 서명이 달라진 **다른** 파일은 transform 결과(data-aos-functions)가 낡았다.
+ */
+export function fileSignatures(flows: ProjectFlow): Map<string, string> {
+  const signatures = new Map<string, string>();
+  for (const [file, flow] of flows.files) {
+    signatures.set(file, JSON.stringify(flow.components.map((c) => [c.name, c.functionIds])));
+  }
+  return signatures;
+}
+
+/** before/after 서명이 다른 파일 중 changed 자신을 뺀 것 (정렬) */
+export function staleFiles(before: Map<string, string>, after: Map<string, string>, changed: string): string[] {
+  const files = new Set([...before.keys(), ...after.keys()]);
+  return [...files].filter((file) => file !== changed && before.get(file) !== after.get(file)).sort();
 }
 
 const TARGET_EXT = /\.[jt]sx$/;
-const EXCLUDED = /(\/node_modules\/|\/src\/test\/|\.(test|spec)\.[jt]sx$)/;
 
 export function aosLocator(): Plugin {
   let config: ResolvedConfig;
+  let project: AosProject | null = null;
   // build 는 모듈마다 transform 이 한 번 돈다. 파일 단위로 덮어써 재변환에도 중복이 생기지 않게 한다.
   const componentsByFile = new Map<string, AosComponent[]>();
-  const reportsByFile = new Map<string, AosFileReport>();
   const vizByFile = new Map<string, AosVizRecord[]>();
   const usagesByFile = new Map<string, AosUsage[]>();
+  // build 에 실제로 들어간 소스 모듈 (.ts 포함) — 매니페스트 files / modules 의 범위
+  const builtFiles = new Set<string>();
+
+  const relativeOf = (absolute: string): string | null => {
+    const file = absolute.split("?", 1)[0];
+    const srcRoot = path.join(config.root, "src") + path.sep;
+    if (!file.startsWith(srcRoot)) return null;
+    const relative = path.relative(config.root, file).split(path.sep).join("/");
+    return isIndexable(relative) ? relative : null;
+  };
+  const ensureProject = (): AosProject => (project ??= AosProject.fromDisk(config.root));
+
+  /** 파일 하나를 갱신하고, 그 때문에 주입값이 달라진 다른 파일의 모듈을 무효화해 돌려준다 */
+  const syncFile = (server: ViteDevServer, relative: string, update: (p: AosProject) => boolean): ModuleNode[] => {
+    const current = ensureProject();
+    const before = fileSignatures(analyzeProjectDataflow(current));
+    if (!update(current)) return [];
+    const after = fileSignatures(analyzeProjectDataflow(current));
+    const stale: ModuleNode[] = [];
+    for (const file of staleFiles(before, after, relative)) {
+      for (const mod of server.moduleGraph.getModulesByFile(path.join(config.root, file)) ?? []) {
+        server.moduleGraph.invalidateModule(mod);
+        stale.push(mod);
+      }
+    }
+    return stale;
+  };
 
   return {
     name: "aos-locator",
@@ -428,23 +560,55 @@ export function aosLocator(): Plugin {
     },
     buildStart() {
       componentsByFile.clear();
-      reportsByFile.clear();
       vizByFile.clear();
       usagesByFile.clear();
+      builtFiles.clear();
+      // 아직 transform 되지 않은 모듈의 내용도 필요하다 — 디스크에서 src/ 를 통째로 읽는다
+      project = AosProject.fromDisk(config.root);
+    },
+    configureServer(server) {
+      // 새 파일·삭제는 handleHotUpdate 로 오지 않을 수 있어 watcher 에서 인덱스를 맞춘다
+      const onAddOrUnlink = (absolute: string, removed: boolean) => {
+        const relative = relativeOf(absolute);
+        if (!relative) return;
+        syncFile(server, relative, (p) => {
+          if (removed) return p.delete(relative);
+          try {
+            return p.set(relative, fs.readFileSync(absolute, "utf8"));
+          } catch {
+            return false;
+          }
+        });
+      };
+      server.watcher.on("add", (file) => onAddOrUnlink(file, false));
+      server.watcher.on("unlink", (file) => onAddOrUnlink(file, true));
+    },
+    async handleHotUpdate(ctx) {
+      if (!config || config.command !== "serve") return;
+      const relative = relativeOf(ctx.file);
+      if (!relative) return;
+      const code = await ctx.read();
+      const stale = syncFile(ctx.server, relative, (p) => p.set(relative, code));
+      if (stale.length === 0) return;
+      // 바뀐 파일의 모듈과 함께, 다른 파일에서 오는 props 때문에 data-aos-functions 가 달라진 모듈도 다시 보낸다
+      return [...ctx.modules, ...stale.filter((mod) => !ctx.modules.includes(mod))];
     },
     transform(code, id) {
-      const file = id.split("?", 1)[0];
-      if (!TARGET_EXT.test(file) || EXCLUDED.test(file)) return null;
-      const srcRoot = path.join(config.root, "src") + path.sep;
-      if (!file.startsWith(srcRoot)) return null;
-
-      const relative = path.relative(config.root, file).split(path.sep).join("/");
+      if (!config) return null;
+      const relative = relativeOf(id);
+      if (!relative) return null;
       const isServe = config.command === "serve";
-      const result = analyzeAosSource(code, relative, { injectLoc: isServe });
+      const current = ensureProject();
+      if (!isServe) builtFiles.add(relative);
+      // .ts 모듈(FUNCTIONS 상수·유틸)은 주입할 JSX 가 없다 — 인덱스만 최신으로 맞춘다
+      if (!TARGET_EXT.test(relative)) {
+        current.set(relative, code);
+        return null;
+      }
+      const result = analyzeAosSource(code, relative, { injectLoc: isServe, project: current });
 
       if (!isServe) {
         componentsByFile.set(relative, result.components);
-        reportsByFile.set(relative, result.file);
         vizByFile.set(relative, result.visualizations);
         usagesByFile.set(relative, result.usages);
       }
@@ -452,11 +616,15 @@ export function aosLocator(): Plugin {
       return { code: result.code, map: result.map };
     },
     generateBundle() {
+      const current = ensureProject();
+      const flows = analyzeProjectDataflow(current);
+      const built = [...builtFiles].sort();
       const manifest = buildManifest(
         [...componentsByFile.values()].flat(),
-        [...reportsByFile.values()],
+        built.flatMap((file) => fileReport(flows, file)),
         [...vizByFile.values()].flat(),
         [...usagesByFile.values()].flat(),
+        projectModules(current, built),
       );
       this.emitFile({
         type: "asset",
