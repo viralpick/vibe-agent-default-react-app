@@ -5,6 +5,7 @@ import type { ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { childNodes, isPascalCase, locOf, type Node, walk } from "./aos-ast";
 import { analyzeProjectDataflow, type DataflowViolation, type ProjectFlow } from "./aos-dataflow";
 import { AosProject, findCycles, isIndexable } from "./aos-project";
+import { RecipeContext } from "./aos-recipe";
 import { type AosVisualization, extractVisualizations } from "./aos-viz";
 
 // 앱빌더 요소 식별 플러그인 (AOS-4173).
@@ -45,7 +46,9 @@ export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v4 (AOS-5814): components[].key, 최상위 visualizations(key · component · anchors) 추가.
 // v5 (AOS-4902): components[].file, 최상위 modules(파일별 실행 시점 import) · cycles(순환 import) 추가.
 //   추적이 파일 경계를 넘는다 — 다른 파일에서 props 로 받은 데이터도 functions / visualizations.data 에 잡힌다.
-export const AOS_MANIFEST_VERSION = 5;
+// v6 (AOS-6186): visualizations[].recipe(가공 레시피) · parameters(함수 파라미터 레시피), kind TABLE · KPI(앱이 만든 카드 포함),
+//   표의 spec.props.columns. 가공된 값도 레시피를 옮길 수 있으면 reproducible 이다.
+export const AOS_MANIFEST_VERSION = 6;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -297,7 +300,8 @@ export function analyzeAosSource(
 
   const projectFlow = analyzeProjectDataflow(project);
   const flow = projectFlow.files.get(file)!;
-  const visualizations = extractVisualizations(program, file, flow);
+  const recipes = project.memo("recipe-context", () => new RecipeContext(project, projectFlow));
+  const visualizations = extractVisualizations(program, file, flow, recipes);
   const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
   const { anchorOf, usages: rawUsages } = scanJsxAncestors(program, file);
   const vizRecords: AosVizRecord[] = [...visualizations.entries()].flatMap(([component, list]) =>
