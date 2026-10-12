@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeAosSource, aosKey, buildManifest } from "./aos-locator";
+import { AOS_MANIFEST_VERSION, analyzeAosSource, aosKey, buildManifest } from "./aos-locator";
 
 const FILE = "src/App.tsx";
 
@@ -95,6 +95,7 @@ describe("analyzeAosSource — 컴포넌트 수집", () => {
         functionsExpression: null,
         loc: "src/App.tsx:2:9",
         key: aosKey("src/App.tsx:2:9"),
+        file: "src/App.tsx",
       },
     ]);
   });
@@ -132,6 +133,7 @@ describe("buildManifest", () => {
       bindings: [],
       visualizations: [],
       functionsExpression: null,
+      file: "src/App.tsx",
     };
     const manifest = buildManifest([
       { ...base, id: "b", loc: "src/App.tsx:10:1", key: "kb1" },
@@ -139,7 +141,7 @@ describe("buildManifest", () => {
       { ...base, id: "b", loc: "src/App.tsx:30:1", key: "kb2" },
     ]);
 
-    expect(manifest.version).toBe(5);
+    expect(manifest.version).toBe(AOS_MANIFEST_VERSION);
     expect(manifest.components.map((c) => c.loc)).toEqual([
       "src/App.tsx:9:1",
       "src/App.tsx:10:1",
