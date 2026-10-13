@@ -139,7 +139,7 @@ describe("buildManifest", () => {
       { ...base, id: "b", loc: "src/App.tsx:30:1", key: "kb2" },
     ]);
 
-    expect(manifest.version).toBe(4);
+    expect(manifest.version).toBe(5);
     expect(manifest.components.map((c) => c.loc)).toEqual([
       "src/App.tsx:9:1",
       "src/App.tsx:10:1",
