@@ -57,16 +57,11 @@ describe("visualizations — synapse", () => {
     expect(viz.dynamicProps.sort()).toEqual(["colors", "key"]);
   });
 
-  it("useMemo 로 변환한 data 는 가공 레시피를 싣고 재현 가능으로 판정한다 (AOS-6186)", () => {
+  it("useMemo 로 변환한 data 는 재현 불가로 보고 이유를 남긴다", () => {
     const [viz] = vizOf(APP, "trend");
 
-    expect(viz).toMatchObject({ data: { functions: ["uuid-monthly"], direct: false }, reproducible: true, reason: null });
-    expect(viz.recipe).toMatchObject({ functions: ["uuid-monthly"], libraries: [] });
-    expect(viz.recipe!.source).toContain("rows.map");
-  });
-
-  it("함수 결과를 그대로 넘긴 차트는 레시피를 싣지 않는다", () => {
-    expect(vizOf(APP, "country-chart")[0].recipe).toBeNull();
+    expect(viz).toMatchObject({ data: { functions: ["uuid-monthly"], direct: false }, reproducible: false });
+    expect(viz.reason).toContain("변환");
   });
 });
 
@@ -116,7 +111,7 @@ describe("visualizations — recharts 정규화", () => {
 });
 
 describe("visualizations — 재현 불가 판정", () => {
-  it("KPI 카드와 함수 여러 개를 섞은 data 도 레시피로 옮길 수 있으면 재현 가능", () => {
+  it("KPI 카드와 함수 여러 개를 섞은 data 는 재현 불가", () => {
     const vizs = vizOf(
       `
       function Summary({ total, rows }) {
@@ -138,10 +133,10 @@ describe("visualizations — 재현 불가 판정", () => {
     );
 
     expect(vizs.map((v) => [v.kind, v.reproducible])).toEqual([
-      ["KPI", true],
-      ["BAR", true],
+      ["KPI", false],
+      ["BAR", false],
     ]);
-    expect(vizs[1].recipe!.functions).toEqual(["uuid-country", "uuid-monthly"]);
+    expect(vizs[1].reason).toContain("여러 개");
   });
 
   it("import 출처가 차트 라이브러리가 아니면 시각화로 보지 않는다", () => {

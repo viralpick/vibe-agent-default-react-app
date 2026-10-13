@@ -85,13 +85,13 @@ function sameTaint(a: Taint | undefined, b: Taint): boolean {
   return a.direct === b.direct && a.keys.size === b.keys.size && [...b.keys].every((k) => a.keys.has(k));
 }
 
-export function propertyName(node: Node, computed: boolean): string | null {
+function propertyName(node: Node, computed: boolean): string | null {
   if (!computed && node.type === "Identifier") return node.name as string;
   if (node.type === "StringLiteral") return node.value as string;
   return null;
 }
 
-export function patternNames(pattern: Node | null | undefined): string[] {
+function patternNames(pattern: Node | null | undefined): string[] {
   if (!pattern) return [];
   switch (pattern.type) {
     case "Identifier":
@@ -111,14 +111,14 @@ export function patternNames(pattern: Node | null | undefined): string[] {
   }
 }
 
-export function isFunctionsMember(node: Node): string | null {
+function isFunctionsMember(node: Node): string | null {
   if (node.type !== "MemberExpression" || node.computed) return null;
   const object = node.object as Node;
   if (object.type !== "Identifier" || object.name !== FUNCTIONS_NAME) return null;
   return propertyName(node.property as Node, false);
 }
 
-export function isHookCall(node: Node): boolean {
+function isHookCall(node: Node): boolean {
   const call = unwrap(node);
   return (
     call.type === "CallExpression" &&
@@ -152,7 +152,7 @@ function collectFunctionIds(program: Node): Map<string, string> {
   return ids;
 }
 
-export interface ComponentDef {
+interface ComponentDef {
   name: string;
   fn: Node;
 }
@@ -169,7 +169,7 @@ function componentFunction(init: Node | null | undefined): Node | null {
   return null;
 }
 
-export function collectComponents(program: Node): ComponentDef[] {
+function collectComponents(program: Node): ComponentDef[] {
   const defs: ComponentDef[] = [];
   const fromDeclaration = (decl: Node | null | undefined) => {
     if (!decl) return;
@@ -362,7 +362,7 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
 }
 
 /** 컴포넌트 함수 자신이 소유한 변수 선언 (중첩 함수 안의 선언은 제외) */
-export function ownedDeclarators(fn: Node): Node[] {
+function ownedDeclarators(fn: Node): Node[] {
   const found: Node[] = [];
   const visit = (node: Node) => {
     if (node !== fn && isFunctionNode(node)) return;
