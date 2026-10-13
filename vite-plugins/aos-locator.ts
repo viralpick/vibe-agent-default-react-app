@@ -4,7 +4,6 @@ import MagicString from "magic-string";
 import type { Plugin, ResolvedConfig } from "vite";
 import { childNodes, isPascalCase, locOf, type Node, walk } from "./aos-ast";
 import { analyzeDataflow, type DataflowViolation } from "./aos-dataflow";
-import { RecipeContext, singleFileSources } from "./aos-recipe";
 import { type AosVisualization, extractVisualizations } from "./aos-viz";
 
 // 앱빌더 요소 식별 플러그인 (AOS-4173).
@@ -38,9 +37,7 @@ export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v2 (AOS-4888-a): functionsSource / functionsInferred / component / bindings / files 추가.
 // v3 (AOS-4929): visualizations 추가. 이전 필드는 그대로라 이전 소비자도 읽을 수 있다.
 // v4 (AOS-5814): components[].key, 최상위 visualizations(key · component · anchors) 추가.
-// v5 (AOS-6186): visualizations[].recipe(가공 레시피) · parameters(함수 파라미터 레시피) · title, kind TABLE · KPI
-//   (앱이 만든 카드 포함), 표의 spec.props.columns. 가공된 값도 레시피를 옮길 수 있으면 reproducible 이다.
-export const AOS_MANIFEST_VERSION = 5;
+export const AOS_MANIFEST_VERSION = 4;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -267,9 +264,7 @@ export function analyzeAosSource(code: string, file: string, options: { injectLo
   let injected = false;
 
   const flow = analyzeDataflow(ast, file);
-  // 레시피는 이 파일 안에서 따라간다 — 파일을 넘는 추적은 멀티모듈(AOS-4902)이 들어오면 프로젝트 소스로 바꿔 끼운다
-  const recipes = new RecipeContext(singleFileSources(file, (ast.type === "File" ? ast.program : ast) as Node, code, flow));
-  const visualizations = extractVisualizations(ast, file, flow, recipes);
+  const visualizations = extractVisualizations(ast, file, flow);
   const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
   const enclosing = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
   const program = (ast.type === "File" ? ast.program : ast) as Node;
