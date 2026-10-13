@@ -42,6 +42,11 @@ export interface AosVisualization {
    * 함수 결과를 그대로 넘긴 차트는 null — 홈이 행을 그대로 쓴다.
    */
   recipe: AosRecipe | null;
+  /**
+   * 사람이 읽는 이름 (AOS-6186) — KPI 의 label/title, 아니면 같은 컴포넌트 안에서 감싼 엘리먼트의 정적 `title`
+   * (`<Card title="국가별 브랜드 수">`). 홈이 위젯 안 칸 이름으로 쓴다. 없으면 null
+   */
+  title: string | null;
   /** 함수별 파라미터 레시피 (`(__in, __lib) => ({…})`). 앱이 파라미터를 넘긴 함수만 있다 */
   parameters: Record<string, string>;
   /** 정적으로 읽지 못한 표현 prop (재현 판정에 영향) */
@@ -242,7 +247,22 @@ function normalizeRecharts(
 // KPI · 표는 값(value / data · rows)과 컬럼만 본다 — 나머지 동적 prop 은 홈이 다시 정하는 표현이다
 const VALUE_ONLY_KINDS = new Set<VizKind>(["KPI", "TABLE"]);
 
-type VizBase = Omit<AosVisualization, "reproducible" | "reason" | "recipe" | "parameters">;
+type VizBase = Omit<AosVisualization, "reproducible" | "reason" | "recipe" | "parameters" | "title">;
+
+/** 정적 `title` 을 가진 엘리먼트의 범위 — 시각화를 감싼 가장 안쪽 것이 그 이름이다 */
+function titledRanges(program: Node): { start: number; end: number; title: string }[] {
+  const ranges: { start: number; end: number; title: string }[] = [];
+  walk(program, (node) => {
+    if (node.type !== "JSXElement") return;
+    for (const attr of (node.openingElement as Node).attributes as Node[]) {
+      if (attr.type !== "JSXAttribute" || (attr.name as Node).name !== "title") continue;
+      const value = attr.value as Node | null;
+      const title = value?.type === "JSXExpressionContainer" ? literalString(value.expression as Node) : literalString(value);
+      if (title && title.trim()) ranges.push({ start: node.start, end: node.end, title: title.trim() });
+    }
+  });
+  return ranges;
+}
 
 function judge(viz: VizBase, recipe: ReturnType<typeof buildRecipe> | null, columnsReason: string | null): { reproducible: boolean; reason: string | null } {
   if (viz.library === "echarts") return { reproducible: false, reason: "echarts option 직접 구성 — 호스트 재현 미지원" };
@@ -314,6 +334,14 @@ interface Detected {
   dataProp: string;
 }
 
+/** 속성 값 식 (`title="x"` 면 StringLiteral, `title={x}` 면 그 식) */
+function attrValue(opening: Node, name: string): Node | null {
+  const attr = (opening.attributes as Node[]).find((a) => a.type === "JSXAttribute" && (a.name as Node).name === name);
+  const value = attr?.value as Node | null | undefined;
+  if (!value) return null;
+  return value.type === "JSXExpressionContainer" ? (value.expression as Node) : value;
+}
+
 function attrNames(opening: Node): Set<string> {
   const names = new Set<string>();
   for (const attr of opening.attributes as Node[]) {
@@ -362,6 +390,7 @@ export function extractVisualizations(
   const imports = collectImports(program);
   const byComponent = new Map<string, AosVisualization[]>();
   const owner = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
+  const titles = titledRanges(program);
 
   walk(program, (node) => {
     if (node.type !== "JSXElement") return;
@@ -416,9 +445,14 @@ export function extractVisualizations(
     };
     const verdict = judge(base, recipe, columnsReason);
     const needsRecipe = !!base.data && (!base.data.direct || base.data.functions.length !== 1 || kind === "KPI");
+    const label = kind === "KPI" ? (literalString(attrValue(opening, "label")) ?? literalString(attrValue(opening, "title"))) : null;
+    const enclosing = titles
+      .filter((t) => t.start <= node.start && node.end <= t.end && comp.start <= t.start)
+      .sort((a, b) => b.start - a.start)[0];
     const list = byComponent.get(comp.name) ?? [];
     list.push({
       ...base,
+      title: label ?? enclosing?.title ?? null,
       recipe: verdict.reproducible && needsRecipe && recipe?.ok ? recipe.recipe : null,
       parameters: recipe?.ok ? recipe.parameters : {},
       ...verdict,

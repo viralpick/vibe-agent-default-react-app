@@ -92,6 +92,7 @@ describe("가공 레시피 — 파일을 넘는 props 와 헬퍼", () => {
       ["KPI", "custom", "Stat", true],
     ]);
     expect(vizs[0].spec.props).toMatchObject({ label: "전체 브랜드" });
+    expect(vizs.map((v) => v.title)).toEqual(["전체 브랜드", "프리미엄 비중"]);
     expect(vizs[0].recipe).toMatchObject({ functions: ["uuid-summary"], libraries: [] });
 
     const inputs = { "uuid-summary": [{ brand_count: 1200, premium_count: 300 }] };
@@ -217,12 +218,12 @@ describe("가공 레시피 — 차트", () => {
             () => [...regions.data].sort((a: any, b: any) => toNumber(b?.score) - toNumber(a?.score)).slice(0, 2),
             [regions.data],
           );
-          return <div data-aos-id="r"><BarChart data={rows} layout="vertical"><XAxis type="number" /><YAxis type="category" dataKey="region" /><Bar dataKey="score" /></BarChart></div>;`),
+          return <Card title="지역별 점수" data-aos-id="r"><BarChart data={rows} layout="vertical"><XAxis type="number" /><YAxis type="category" dataKey="region" /><Bar dataKey="score" /></BarChart></Card>;`, `import { Card } from "@/modules/ui";`),
       },
       "RegionChart",
     );
 
-    expect(viz).toMatchObject({ kind: "BAR", reproducible: true, spec: { props: { xField: "region", yField: "score" } } });
+    expect(viz).toMatchObject({ kind: "BAR", reproducible: true, title: "지역별 점수", spec: { props: { xField: "region", yField: "score" } } });
     expect(run(viz.recipe!.source, { "uuid-region": [{ region: "a", score: 1 }, { region: "b", score: 3 }, { region: "c", score: "2" }] })).toEqual([
       { region: "b", score: 3 },
       { region: "c", score: "2" },
