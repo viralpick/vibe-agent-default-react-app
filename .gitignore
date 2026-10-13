@@ -25,9 +25,8 @@ dist-ssr
 *.sw?
 
 # for tests
-TestPage.tsx
+# src/ 아래 소스는 무시하지 않는다 — 앱빌더 온톨로지 게이트가 git status 로 "에이전트가 쓴 파일" 을 가려 내므로 무시된 파일은 검사를 빠져나간다 (AOS-4902)
 prompt.py
 .dom
 .llm
 .kiro
-src/pages/*

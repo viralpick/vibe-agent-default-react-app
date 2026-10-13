@@ -1,4 +1,5 @@
 import { childNodes, isFunctionNode, isNode, isPascalCase, locOf, type Node, unwrap, walk } from "./aos-ast";
+import { AosProject } from "./aos-project";
 
 // 컴포넌트 → OntologyFunction 데이터 흐름 추적 (AOS-4888).
 //
@@ -17,6 +18,14 @@ import { childNodes, isFunctionNode, isNode, isPascalCase, locOf, type Node, unw
 //
 // 이 계약을 벗어난 모양은 추적하지 않고 violations 로 보고한다 — 틀린 값을 조용히 내는 대신
 // 거부한다. (예: `apiClient.post(`/ontology-functions/${FUNCTIONS.x.id}/run`)` 직접 호출)
+//
+// 멀티모듈 (AOS-4902): 추적은 파일이 아니라 프로젝트 단위다 (aos-project 인덱스).
+//  - FUNCTIONS 는 그 파일의 선언, 없으면 그 파일이 import 한 모듈의 선언을 쓴다.
+//  - 컴포넌트 정체는 `파일#이름` 이다. `<Comp>` 는 같은 파일의 선언 → import 를 따라간 선언 순으로 찾는다.
+//  - prop 전달은 파일 경계를 넘어 같은 고정점 반복 안에서 퍼진다.
+//  - 운반하는 key 는 "어느 파일의 FUNCTIONS 인가" 를 함께 든다(qualified key). 다른 파일이 같은 key 이름을
+//    다른 UUID 로 선언해도 섞이지 않는다. 결과의 functionKeys 는 예전처럼 key 이름만 싣고, UUID 는
+//    functionIds 로 따로 풀어 둔다.
 
 export const HOOK_NAME = "useOntologyFunction";
 const FUNCTIONS_NAME = "FUNCTIONS";
@@ -36,6 +45,8 @@ export interface DataBinding {
   prop: string;
   loc: string;
   functionKeys: string[];
+  /** functionKeys 를 각자 선언된 FUNCTIONS 로 풀어 낸 OntologyFunction id */
+  functionIds: string[];
   direct: boolean;
 }
 
@@ -52,15 +63,18 @@ export interface DataflowViolation {
 }
 
 export interface ComponentFlow {
+  /** `src/modules/SalesChart.tsx#SalesChart` — 파일이 달라도 같은 이름이 섞이지 않게 */
+  id: string;
   name: string;
   start: number;
   end: number;
   functionKeys: string[];
+  functionIds: string[];
   bindings: DataBinding[];
 }
 
 export interface DataflowResult {
-  /** FUNCTIONS 상수의 key → OntologyFunction UUID */
+  /** 이 파일이 쓰는 FUNCTIONS 상수(자기 선언 또는 import 한 선언)의 key → OntologyFunction UUID */
   functionIds: Map<string, string>;
   components: ComponentFlow[];
   violations: DataflowViolation[];
@@ -150,6 +164,30 @@ function collectFunctionIds(program: Node): Map<string, string> {
     }
   });
   return ids;
+}
+
+/**
+ * hook 자신을 정의한 모듈인가 (`export function useOntologyFunction`). 그 모듈은 `/ontology-functions/{id}/run`
+ * 을 부르는 유일하게 허용된 자리라 위반을 보지 않는다 — 멀티모듈에서 .ts 모듈까지 분석하면서 생긴 구분이다.
+ */
+function definesHook(program: Node): boolean {
+  return (program.body as Node[]).some((stmt) => {
+    const decl = (stmt.type === "ExportNamedDeclaration" ? stmt.declaration : stmt) as Node | null;
+    if (!decl) return false;
+    if (decl.type === "FunctionDeclaration") return (decl.id as Node | null)?.name === HOOK_NAME;
+    if (decl.type === "VariableDeclaration") {
+      return (decl.declarations as Node[]).some((d) => (d.id as Node).type === "Identifier" && (d.id as Node).name === HOOK_NAME);
+    }
+    return false;
+  });
+}
+
+function declaresFunctions(program: Node): boolean {
+  let found = false;
+  walk(program, (node) => {
+    if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === FUNCTIONS_NAME) found = true;
+  });
+  return found;
 }
 
 interface ComponentDef {
@@ -447,7 +485,8 @@ function collectSinks(fn: Node, env: Env): Sink[] {
   return sinks;
 }
 
-function analyzeComponent(def: ComponentDef, propState: PropState, functionIds: Map<string, string>) {
+/** functionTable: 이 파일에서 쓰는 FUNCTIONS 의 key → qualified key */
+function analyzeComponent(def: ComponentDef, propState: PropState, functionTable: Map<string, string>) {
   const env: Env = { bindings: new Map(), queries: new Map(), propsIdent: null, propState };
   bindParams(def.fn, env);
   const declarators = ownedDeclarators(def.fn);
@@ -455,8 +494,9 @@ function analyzeComponent(def: ComponentDef, propState: PropState, functionIds: 
   for (const d of declarators) {
     if (!d.init || !isHookCall(d.init as Node)) continue;
     const call = unwrap(d.init as Node);
-    const key = isFunctionsMember(((call.arguments as Node[])[0] ?? call) as Node);
-    if (!key || !functionIds.has(key)) continue;
+    const bare = isFunctionsMember(((call.arguments as Node[])[0] ?? call) as Node);
+    const key = bare ? functionTable.get(bare) : undefined;
+    if (!key) continue;
     const id = d.id as Node;
     if (id.type === "Identifier") env.queries.set(id.name as string, key);
     else if (id.type === "ObjectPattern") {
@@ -522,6 +562,10 @@ function collectViolations(program: Node, file: string, functionIds: Map<string,
   });
 
   const visit = (node: Node, parent: Node | null) => {
+    // `import { FUNCTIONS } from "@/modules/constants"` · `export { FUNCTIONS }` 는 값을 넘기는 게 아니라 이름을 잇는 것이다
+    if (node.type === "ImportSpecifier" || node.type === "ImportDefaultSpecifier" || node.type === "ImportNamespaceSpecifier" || node.type === "ExportSpecifier") {
+      return;
+    }
     if (node.type === "MemberExpression" && (node.object as Node).type === "Identifier" && (node.object as Node).name === FUNCTIONS_NAME) {
       if (node.computed) {
         violations.push({ rule: "functions-dynamic-key", loc: locOf(file, node), message: "FUNCTIONS[...] 동적 접근은 추적할 수 없습니다" });
@@ -560,23 +604,114 @@ function collectViolations(program: Node, file: string, functionIds: Map<string,
 
 // ─── 진입점 ───────────────────────────────────────────────────────────────────
 
+// qualified key = `<FUNCTIONS 를 선언한 파일>\u0001<key>`
+const QUALIFIER = "\u0001";
+const bareKey = (qualified: string) => qualified.slice(qualified.lastIndexOf(QUALIFIER) + 1);
+
+export interface ProjectFlow {
+  /** 파일 → 그 파일의 분석 결과 (단일 파일 API 와 같은 모양) */
+  files: Map<string, DataflowResult>;
+  /** 파일 안의 JSX 엘리먼트 이름이 가리키는 컴포넌트 id (`파일#이름`). 프로젝트 밖 컴포넌트면 null */
+  resolveElement(file: string, element: string): string | null;
+}
+
+export function analyzeProjectDataflow(project: AosProject): ProjectFlow {
+  return project.memo("dataflow", () => computeProjectFlow(project));
+}
+
+/** 단일 파일 분석 — 파일 하나짜리 프로젝트로 돌린다 (기존 호출부·테스트 호환) */
 export function analyzeDataflow(ast: Node, file: string): DataflowResult {
   const program = (ast.type === "File" ? ast.program : ast) as Node;
-  const functionIds = collectFunctionIds(program);
-  const defs = collectComponents(program);
-  const byName = new Map(defs.map((d) => [d.name, d]));
-  const states = new Map<string, PropState>(defs.map((d) => [d.name, { props: new Map(), spread: EMPTY }]));
-  const results = new Map<string, ReturnType<typeof analyzeComponent>>();
+  return analyzeProjectDataflow(AosProject.fromProgram(file, program)).files.get(file)!;
+}
 
-  // 컴포넌트 간 prop 전달을 따라 수렴할 때까지
-  for (let round = 0, changed = true; changed && round < 32; round++) {
+function computeProjectFlow(project: AosProject): ProjectFlow {
+  const programs = new Map<string, Node>();
+  for (const file of project.files()) {
+    const program = project.module(file)?.program;
+    if (program) programs.set(file, program);
+  }
+
+  // 1. FUNCTIONS — 파일마다 "어느 파일의 선언을 쓰는가"
+  const idOfQualified = new Map<string, string>();
+  const declared = new Map<string, Map<string, string>>();
+  for (const [file, program] of programs) {
+    if (declaresFunctions(program)) declared.set(file, collectFunctionIds(program));
+  }
+  const functionsSourceOf = (file: string): string | null => {
+    if (declared.has(file)) return file;
+    const found = project.resolveName(file, FUNCTIONS_NAME);
+    return typeof found === "object" && declared.has(found.file) ? found.file : null;
+  };
+  const tables = new Map<string, Map<string, string>>();
+  const effectiveIds = new Map<string, Map<string, string>>();
+  for (const file of programs.keys()) {
+    const source = functionsSourceOf(file);
+    const ids = source ? declared.get(source)! : new Map<string, string>();
+    const table = new Map<string, string>();
+    for (const [key, id] of ids) {
+      const qualified = `${source}${QUALIFIER}${key}`;
+      idOfQualified.set(qualified, id);
+      table.set(key, qualified);
+    }
+    tables.set(file, table);
+    effectiveIds.set(file, ids);
+  }
+
+  // 2. 컴포넌트 — `파일#이름`
+  const defs = new Map<string, { file: string; def: ComponentDef }>();
+  const localDefs = new Map<string, Map<string, string>>();
+  const byName = new Map<string, string[]>();
+  for (const [file, program] of programs) {
+    const local = new Map<string, string>();
+    for (const def of collectComponents(program)) {
+      const id = `${file}#${def.name}`;
+      defs.set(id, { file, def });
+      local.set(def.name, id);
+      byName.set(def.name, [...(byName.get(def.name) ?? []), id]);
+    }
+    localDefs.set(file, local);
+  }
+
+  const resolved = new Map<string, string | null>();
+  const resolveElement = (file: string, element: string): string | null => {
+    const cacheKey = `${file}\n${element}`;
+    if (resolved.has(cacheKey)) return resolved.get(cacheKey)!;
+    let target: string | null = null;
+    if (!element.includes(".")) {
+      target = localDefs.get(file)?.get(element) ?? null;
+      if (!target) {
+        const found = project.resolveName(file, element);
+        if (typeof found === "object") {
+          const id = `${found.file}#${found.local}`;
+          target = defs.has(id) ? id : uniqueByName(element);
+        } else if (found !== "external") {
+          // import 를 끝까지 못 따라갔거나(missing) 바인딩이 없으면(unbound) 이름이 하나뿐일 때만 잇는다
+          target = uniqueByName(element);
+        }
+      }
+    }
+    resolved.set(cacheKey, target);
+    return target;
+  };
+  function uniqueByName(name: string): string | null {
+    const candidates = byName.get(name) ?? [];
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  // 3. 컴포넌트 간(파일 경계 포함) prop 전달을 따라 수렴할 때까지
+  const states = new Map<string, PropState>([...defs.keys()].map((id) => [id, { props: new Map(), spread: EMPTY }]));
+  const results = new Map<string, ReturnType<typeof analyzeComponent>>();
+  for (let round = 0, changed = true; changed && round < 64; round++) {
     changed = false;
-    for (const def of defs) {
-      const result = analyzeComponent(def, states.get(def.name)!, functionIds);
-      results.set(def.name, result);
+    for (const [id, { file, def }] of defs) {
+      const result = analyzeComponent(def, states.get(id)!, tables.get(file)!);
+      results.set(id, result);
       for (const sink of result.sinks) {
-        const target = states.get(sink.element);
-        if (!target || !byName.has(sink.element) || sink.taint.keys.size === 0) continue;
+        if (sink.taint.keys.size === 0) continue;
+        const targetId = resolveElement(file, sink.element);
+        const target = targetId ? states.get(targetId) : undefined;
+        if (!target) continue;
         if (sink.prop === null) {
           const next = merge(target.spread, sink.taint);
           if (!sameTaint(target.spread, next)) {
@@ -594,34 +729,57 @@ export function analyzeDataflow(ast: Node, file: string): DataflowResult {
     }
   }
 
-  const components: ComponentFlow[] = defs.map((def) => {
-    const result = results.get(def.name)!;
-    const state = states.get(def.name)!;
-    const keys = new Set(result.ownKeys);
-    for (const t of [...state.props.values(), state.spread]) for (const k of t.keys) keys.add(k);
-    return {
-      name: def.name,
-      start: def.fn.start,
-      end: def.fn.end,
-      functionKeys: [...keys].sort(),
-      // 위젯 판정에 쓰는 것은 컴포넌트(대문자)로 들어가는 데이터 prop 이다. host 엘리먼트 속성
-      // (`button.disabled`, `span.className`)과 React `key` 는 데이터가 아니라 기록하지 않는다.
-      bindings: result.sinks
-        .filter((s) => s.taint.keys.size > 0 && s.prop !== null && s.prop !== "key" && isPascalCase(s.element))
-        .map((s) => ({
-          element: s.element,
-          prop: s.prop as string,
-          loc: locOf(file, s.node),
-          functionKeys: [...s.taint.keys].sort(),
-          direct: s.taint.direct,
-        })),
-    };
-  });
+  const keysOf = (keys: Iterable<string>) => [...new Set([...keys].map(bareKey))].sort();
+  const idsOf = (keys: Iterable<string>) => {
+    const ordered = [...keys].sort((a, b) => bareKey(a).localeCompare(bareKey(b)) || a.localeCompare(b));
+    const ids: string[] = [];
+    for (const qualified of ordered) {
+      const id = idOfQualified.get(qualified);
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    return ids;
+  };
 
-  let usesHook = false;
-  walk(program, (node) => {
-    if (node.type === "CallExpression" && isHookCall(node)) usesHook = true;
-  });
+  // 4. 파일별 결과
+  const files = new Map<string, DataflowResult>();
+  for (const [file, program] of programs) {
+    const components: ComponentFlow[] = [...localDefs.get(file)!.values()].map((id) => {
+      const { def } = defs.get(id)!;
+      const result = results.get(id)!;
+      const state = states.get(id)!;
+      const keys = new Set(result.ownKeys);
+      for (const t of [...state.props.values(), state.spread]) for (const k of t.keys) keys.add(k);
+      return {
+        id,
+        name: def.name,
+        start: def.fn.start,
+        end: def.fn.end,
+        functionKeys: keysOf(keys),
+        functionIds: idsOf(keys),
+        // 위젯 판정에 쓰는 것은 컴포넌트(대문자)로 들어가는 데이터 prop 이다. host 엘리먼트 속성
+        // (`button.disabled`, `span.className`)과 React `key` 는 데이터가 아니라 기록하지 않는다.
+        bindings: result.sinks
+          .filter((s) => s.taint.keys.size > 0 && s.prop !== null && s.prop !== "key" && isPascalCase(s.element))
+          .map((s) => ({
+            element: s.element,
+            prop: s.prop as string,
+            loc: locOf(file, s.node),
+            functionKeys: keysOf(s.taint.keys),
+            functionIds: idsOf(s.taint.keys),
+            direct: s.taint.direct,
+          })),
+      };
+    });
 
-  return { functionIds, components, violations: collectViolations(program, file, functionIds), usesHook };
+    let usesHook = false;
+    walk(program, (node) => {
+      if (node.type === "CallExpression" && isHookCall(node)) usesHook = true;
+    });
+
+    const functionIds = effectiveIds.get(file)!;
+    const violations = definesHook(program) ? [] : collectViolations(program, file, functionIds);
+    files.set(file, { functionIds, components, violations, usesHook });
+  }
+
+  return { files, resolveElement };
 }
