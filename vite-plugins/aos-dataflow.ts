@@ -622,6 +622,8 @@ export interface ProjectFlow {
   files: Map<string, DataflowResult>;
   /** 파일 안의 JSX 엘리먼트 이름이 가리키는 컴포넌트 id (`파일#이름`). 프로젝트 밖 컴포넌트면 null */
   resolveElement(file: string, element: string): string | null;
+  /** 패키지에서 import 한 엘리먼트인가 (`@enhans/synapse` 의 Card 등) — 이름이 같아도 앱 컴포넌트가 아니다 */
+  isForeignElement(file: string, element: string): boolean;
 }
 
 export function analyzeProjectDataflow(project: AosProject): ProjectFlow {
@@ -692,10 +694,13 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       if (!target) {
         const found = project.resolveName(file, element);
         if (typeof found === "object") {
+          // 파일까지 풀렸는데 그 파일에서 컴포넌트로 인식하지 못했으면(익명 default export 등) 잇지 않는다.
+          // 이름으로 다른 파일의 컴포넌트에 이으면 틀린 data-aos-functions 가 들어간다.
           const id = `${found.file}#${found.local}`;
-          target = defs.has(id) ? id : uniqueByName(element);
-        } else if (found !== "external") {
-          // import 를 끝까지 못 따라갔거나(missing) 바인딩이 없으면(unbound) 이름이 하나뿐일 때만 잇는다
+          target = defs.has(id) ? id : null;
+        } else if (found === "missing") {
+          // import 를 끝까지 못 따라갔을 때만 이름이 하나뿐인 컴포넌트에 잇는다. 바인딩이 없으면(unbound —
+          // 함수 안 지역 컴포넌트 등) 다른 파일의 같은 이름이 아니다.
           target = uniqueByName(element);
         }
       }
@@ -800,5 +805,8 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     files.set(file, { functionIds, components, violations, usesHook: usesHook || redefined !== null });
   }
 
-  return { files, resolveElement };
+  const isForeignElement = (file: string, element: string): boolean =>
+    !element.includes(".") && !localDefs.get(file)?.has(element) && project.resolveName(file, element) === "external";
+
+  return { files, resolveElement, isForeignElement };
 }

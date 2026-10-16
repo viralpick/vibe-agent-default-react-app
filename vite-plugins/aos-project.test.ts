@@ -265,6 +265,70 @@ describe("멀티모듈 anchors — 컴포넌트 정체는 파일#이름", () => 
   });
 });
 
+describe("컴포넌트 해석 — 이름만으로 다른 파일에 잇지 않는다", () => {
+  const functionsOf = (project: ReturnType<typeof dashboard>, file: string) =>
+    analyzeProjectDataflow(project).files.get(file)!.components[0].functionIds;
+
+  it("함수 안 지역 컴포넌트에 넘긴 데이터는 같은 이름의 다른 파일 컴포넌트로 가지 않는다", () => {
+    const project = dashboard({
+      "src/App.tsx": `
+        import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+        import { FUNCTIONS, TENANT_ID } from "@/modules/constants";
+        export default function App() {
+          const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+          const Row = ({ rows }) => <div>{rows.length}</div>;
+          return <Row rows={orders.data} />;
+        }
+      `,
+      "src/modules/Row.tsx": `export function Row({ rows }) { return <div data-aos-id="row-unrelated">{rows}</div>; }`,
+    });
+    expect(functionsOf(project, "src/modules/Row.tsx")).toEqual([]);
+  });
+
+  it("import 가 풀린 파일에서 컴포넌트를 못 찾으면(익명 default export) 같은 이름의 다른 파일에 잇지 않는다", () => {
+    const project = dashboard({
+      "src/App.tsx": `
+        import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+        import { FUNCTIONS, TENANT_ID } from "@/modules/constants";
+        import Card from "./modules/Anonymous";
+        export default function App() {
+          const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+          return <Card rows={orders.data} />;
+        }
+      `,
+      "src/modules/Anonymous.tsx": `export default (props) => <div data-aos-id="anon">{props.rows}</div>;`,
+      "src/modules/Card.tsx": `export function Card({ rows }) { return <div data-aos-id="card">{rows}</div>; }`,
+    });
+    expect(functionsOf(project, "src/modules/Card.tsx")).toEqual([]);
+  });
+
+  it("패키지 컴포넌트는 이름이 같아도 앱 차트의 anchor 가 아니다", () => {
+    const project = dashboard({
+      "src/App.tsx": `
+        import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+        import { FUNCTIONS, TENANT_ID } from "@/modules/constants";
+        import { TrendChart } from "@/modules/TrendChart";
+        export default function App() {
+          const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+          return <main><div className="mine"><TrendChart rows={orders.data} /></div></main>;
+        }
+      `,
+      "src/modules/TrendChart.tsx": `
+        import { LineChart } from "@enhans/synapse/charts";
+        export function TrendChart({ rows }) { return <LineChart data={rows} xField="month" yField="v" />; }
+      `,
+      "src/modules/Other.tsx": `
+        import { TrendChart } from "some-chart-kit";
+        export function Other() { return <section className="theirs"><TrendChart /></section>; }
+      `,
+    });
+    const { manifest } = analyzeProject(project, { injectLoc: false });
+    const trend = manifest.visualizations.find((v) => v.component === "TrendChart")!;
+    // App 의 사용처 한 곳뿐 — Other 의 패키지 TrendChart 자리는 들지 않는다
+    expect(trend.anchors).toEqual([aosKey("src/App.tsx:7:24")]);
+  });
+});
+
 describe("import 그래프 — modules · cycles", () => {
   it("실행 시점 import 만 싣고 순환을 찾는다 (선언 전체가 import type 이면 순환이 아니다)", () => {
     const project = dashboard({

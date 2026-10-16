@@ -59,7 +59,14 @@ export interface ModuleInfo {
 }
 
 /** 이름 해석 결과 — 프로젝트 안의 선언 / 프로젝트 밖(패키지·namespace) / 끝까지 못 찾음 / 바인딩 없음 */
-export type Resolution = { file: string; local: string } | "external" | "missing" | "unbound";
+/**
+ * 이름 해석 결과.
+ * - external: 패키지에서 온 이름
+ * - missing: 프로젝트 경로인데 파일을 찾지 못했다 (인덱스에 없음 · 너무 깊은 재수출)
+ * - no-export: 파일은 찾았지만 그 이름의 선언을 알아보지 못했다 (익명 default export 등)
+ * - unbound: 이 파일에 그런 import 가 없다 (지역 이름)
+ */
+export type Resolution = { file: string; local: string } | "external" | "missing" | "no-export" | "unbound";
 
 function parserPlugins(file: string): ("typescript" | "jsx")[] {
   // .ts 에 jsx 를 켜면 `<T>(x: T) => x` 제네릭 화살표 함수가 JSX 로 읽힌다
@@ -304,12 +311,11 @@ export class AosProject {
   unresolvedImports(file: string): string[] {
     const info = this.module(file);
     if (!info) return [];
-    const local = (s: string) => s.startsWith("@/") || s.startsWith("./") || s.startsWith("../");
     const sources = new Set<string>([
       ...[...info.imports.values()].map((b) => b.source),
       ...info.runtimeSources,
     ]);
-    return [...sources].filter((s) => local(s) && isSourceLike(s) && this.resolve(file, s) === null).sort();
+    return [...sources].filter((s) => isLocalSpecifier(s) && isSourceLike(s) && this.resolve(file, s) === null).sort();
   }
 
   /** 파일 안의 지역 이름이 가리키는 선언을 import 를 따라 찾는다 */
@@ -319,7 +325,8 @@ export class AosProject {
     if (!binding) return "unbound";
     if (binding.imported === "*") return "external";
     const target = this.resolve(file, binding.source);
-    if (!target) return "external";
+    // 프로젝트 경로인데 풀리지 않으면 패키지가 아니라 빠진 파일이다
+    if (!target) return isLocalSpecifier(binding.source) ? "missing" : "external";
     return this.resolveExport(target, binding.imported, depth + 1);
   }
 
@@ -335,7 +342,8 @@ export class AosProject {
         return info.imports.has(entry.local) ? this.resolveName(file, entry.local, depth + 1) : { file, local: entry.local };
       }
       const target = this.resolve(file, entry.source);
-      return target ? this.resolveExport(target, entry.imported, depth + 1) : "external";
+      if (!target) return isLocalSpecifier(entry.source) ? "missing" : "external";
+      return this.resolveExport(target, entry.imported, depth + 1);
     }
     if (exported !== "default") {
       for (const source of info.starSources) {
@@ -345,8 +353,13 @@ export class AosProject {
         if (typeof found === "object") return found;
       }
     }
-    return "missing";
+    return "no-export";
   }
+}
+
+/** `@/` · 상대 경로 — 프로젝트 파일을 가리키는 지정자 (그 밖은 패키지) */
+function isLocalSpecifier(specifier: string): boolean {
+  return specifier.startsWith("@/") || specifier.startsWith("./") || specifier.startsWith("../");
 }
 
 // 확장자가 소스가 아닌 import(`./theme.css`, `./logo.svg`)는 인덱스 대상이 아니므로 미해석으로 치지 않는다

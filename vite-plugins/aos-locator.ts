@@ -112,6 +112,8 @@ export interface AosUsage {
   owner: string | null;
   /** import 를 따라 해석한 대상 컴포넌트 `파일#이름` (해석 못 하면 null — 이름으로 맞춘다) */
   target?: string | null;
+  /** 패키지 컴포넌트다 — 이름이 같아도 앱 컴포넌트의 사용처가 아니다 */
+  foreign?: boolean;
   /** owner 의 `파일#이름` */
   ownerId?: string | null;
 }
@@ -315,6 +317,7 @@ export function analyzeAosSource(
       anchorLoc: u.anchorLoc,
       owner: owner?.name ?? null,
       target: projectFlow.resolveElement(file, u.name),
+      foreign: projectFlow.isForeignElement(file, u.name),
       ownerId: owner?.id ?? null,
     };
   });
@@ -412,10 +415,14 @@ function resolveAnchors(viz: AosVizRecord, usages: AosUsage[]): string[] {
   if (viz.anchorLoc) return [aosKey(viz.anchorLoc)];
   const keys = new Set<string>();
   const visited = new Set<string>();
-  // 사용처가 import 를 따라 해석됐으면 `파일#이름` 으로, 아니면 이름으로 맞춘다 — 다른 파일의 같은 이름
-  // 컴포넌트나 별칭 import(`import { A as B }`)가 섞이지 않게
-  const usedHere = (usage: AosUsage, id: string | null, name: string) =>
-    usage.target && id ? usage.target === id : usage.name === name;
+  // 사용처가 import 를 따라 해석됐으면 `파일#이름` 으로 맞춘다 — 다른 파일의 같은 이름 컴포넌트나 별칭
+  // import(`import { A as B }`)가 섞이지 않게. 패키지 컴포넌트는 이름이 같아도 맞추지 않는다. 그 밖(해석
+  // 정보 없음 · 파일 하나만 분석)은 이름으로 맞춘다.
+  const usedHere = (usage: AosUsage, id: string | null, name: string) => {
+    if (usage.target && id) return usage.target === id;
+    if (usage.foreign) return false;
+    return usage.name === name;
+  };
   const fromComponent = (id: string | null, name: string) => {
     const visitKey = id ?? name;
     if (visited.has(visitKey)) return;
