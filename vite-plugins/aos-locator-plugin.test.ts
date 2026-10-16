@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { Plugin, ResolvedConfig } from "vite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aosLocator } from "./aos-locator";
 
 // 플러그인 훅 자체 — 파일 하나만 보는 analyzeAosSource 테스트로는 잡히지 않는, 프로젝트 인덱스를
@@ -26,6 +26,7 @@ const SALES_CHART = `export function SalesChart({ rows }) {
 type Transform = (code: string, id: string) => { code: string } | null;
 
 let root: string;
+let plugin: Plugin;
 let transform: Transform;
 
 const abs = (relative: string) => path.join(root, relative);
@@ -44,7 +45,7 @@ beforeEach(() => {
   write("src/modules/constants.ts", CONSTANTS);
   write("src/App.tsx", APP);
   write("src/modules/SalesChart.tsx", SALES_CHART);
-  const plugin: Plugin = aosLocator();
+  plugin = aosLocator();
   (plugin.configResolved as (config: ResolvedConfig) => void)({ root, command: "serve" } as ResolvedConfig);
   transform = (plugin.transform as unknown as Transform).bind({});
 });
@@ -64,4 +65,35 @@ describe("aosLocator — transform", () => {
       expect(chartFunctions()).toBe("uuid-orders");
     },
   );
+});
+
+describe("aosLocator — 파일 추가 · 삭제", () => {
+  it("다른 파일의 주입값이 바뀌면 그 모듈을 HMR 로 다시 보낸다", () => {
+    // Vite 는 add/unlink 에 handleHotUpdate 를 부르지 않는다 — 무효화만 하면 새로고침 전까지 옛 값이다
+    const handlers = new Map<string, (file: string) => void>();
+    const modules = new Map<string, ModuleNode>();
+    const moduleOf = (file: string) => {
+      if (!modules.has(file)) modules.set(file, { file } as ModuleNode);
+      return modules.get(file)!;
+    };
+    const reloadModule = vi.fn(async (_mod: ModuleNode) => {});
+    const server = {
+      watcher: { on: (event: string, handler: (file: string) => void) => handlers.set(event, handler) },
+      moduleGraph: {
+        getModulesByFile: (file: string) => new Set([moduleOf(file)]),
+        invalidateModule: vi.fn(),
+      },
+      reloadModule,
+    } as unknown as ViteDevServer;
+    (plugin.configureServer as (server: ViteDevServer) => void)(server);
+    expect(chartFunctions()).toBe("uuid-orders");
+
+    // FUNCTIONS 를 선언한 파일이 사라지면 App 이 넘기던 데이터의 출처가 없어진다 — SalesChart 가 낡는다
+    fs.rmSync(abs("src/modules/constants.ts"));
+    handlers.get("unlink")!(abs("src/modules/constants.ts"));
+
+    const reloaded = reloadModule.mock.calls.map(([mod]) => mod.file);
+    expect(reloaded).toContain(abs("src/modules/SalesChart.tsx"));
+    expect(reloaded).not.toContain(abs("src/modules/constants.ts"));
+  });
 });

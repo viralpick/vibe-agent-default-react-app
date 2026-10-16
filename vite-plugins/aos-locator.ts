@@ -579,11 +579,13 @@ export function aosLocator(): Plugin {
       project = AosProject.fromDisk(config.root);
     },
     configureServer(server) {
-      // 새 파일·삭제는 handleHotUpdate 로 오지 않을 수 있어 watcher 에서 인덱스를 맞춘다
+      // 새 파일·삭제는 handleHotUpdate 로 오지 않는다(Vite 는 update 에만 부른다). watcher 에서 인덱스를
+      // 맞추고, 그 때문에 주입값이 달라진 다른 파일은 직접 다시 보낸다 — 무효화만 하면 다음 요청 때까지
+      // 미리보기 DOM 의 data-aos-functions 가 옛 값이다.
       const onAddOrUnlink = (absolute: string, removed: boolean) => {
         const relative = relativeOf(absolute);
         if (!relative) return;
-        syncFile(server, relative, (p) => {
+        const stale = syncFile(server, relative, (p) => {
           if (removed) return p.delete(relative);
           try {
             return p.set(relative, fs.readFileSync(absolute, "utf8"));
@@ -591,6 +593,7 @@ export function aosLocator(): Plugin {
             return false;
           }
         });
+        for (const mod of stale) void server.reloadModule(mod);
       };
       server.watcher.on("add", (file) => onAddOrUnlink(file, false));
       server.watcher.on("unlink", (file) => onAddOrUnlink(file, true));
