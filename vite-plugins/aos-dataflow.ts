@@ -28,6 +28,8 @@ import { AosProject } from "./aos-project";
 //    functionIds 로 따로 풀어 둔다.
 
 export const HOOK_NAME = "useOntologyFunction";
+/** 템플릿이 제공하는 hook 모듈 — `/ontology-functions/{id}/run` 을 직접 부를 수 있는 유일한 자리 */
+export const HOOK_FILE = "src/hooks/useOntologyFunction.ts";
 const FUNCTIONS_NAME = "FUNCTIONS";
 // hook 결과에서 함수 데이터를 운반하지 않는 필드
 const CLEAN_RESULT_FIELDS = new Set(["isLoading", "error", "refetch"]);
@@ -57,7 +59,8 @@ export interface DataflowViolation {
     | "functions-escape"
     | "hook-arg-not-functions"
     | "unknown-function-key"
-    | "direct-run-call";
+    | "direct-run-call"
+    | "hook-redefined";
   loc: string;
   message: string;
 }
@@ -167,19 +170,25 @@ function collectFunctionIds(program: Node): Map<string, string> {
 }
 
 /**
- * hook 자신을 정의한 모듈인가 (`export function useOntologyFunction`). 그 모듈은 `/ontology-functions/{id}/run`
- * 을 부르는 유일하게 허용된 자리라 위반을 보지 않는다 — 멀티모듈에서 .ts 모듈까지 분석하면서 생긴 구분이다.
+ * 이 모듈이 top-level 에 `useOntologyFunction` 을 선언했으면 그 선언. 템플릿 hook 모듈(HOOK_FILE)만 그래도 되고,
+ * 그 모듈은 `/ontology-functions/{id}/run` 을 부르는 유일하게 허용된 자리라 위반을 보지 않는다.
+ *
+ * 이름만으로 면제하면 안 된다 — 앱 코드에 같은 이름의 함수를 두기만 해도 그 파일의 위반 검사가 통째로
+ * 꺼지고, 그 가짜 hook 호출이 추적에 집계된다. 그래서 다른 파일의 선언은 `hook-redefined` 위반이다.
  */
-function definesHook(program: Node): boolean {
-  return (program.body as Node[]).some((stmt) => {
+function hookDeclaration(program: Node): Node | null {
+  for (const stmt of program.body as Node[]) {
     const decl = (stmt.type === "ExportNamedDeclaration" ? stmt.declaration : stmt) as Node | null;
-    if (!decl) return false;
-    if (decl.type === "FunctionDeclaration") return (decl.id as Node | null)?.name === HOOK_NAME;
+    if (!decl) continue;
+    if (decl.type === "FunctionDeclaration" && (decl.id as Node | null)?.name === HOOK_NAME) return decl;
     if (decl.type === "VariableDeclaration") {
-      return (decl.declarations as Node[]).some((d) => (d.id as Node).type === "Identifier" && (d.id as Node).name === HOOK_NAME);
+      const found = (decl.declarations as Node[]).find(
+        (d) => (d.id as Node).type === "Identifier" && (d.id as Node).name === HOOK_NAME,
+      );
+      if (found) return found;
     }
-    return false;
-  });
+  }
+  return null;
 }
 
 function declaresFunctions(program: Node): boolean {
@@ -777,8 +786,18 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     });
 
     const functionIds = effectiveIds.get(file)!;
-    const violations = definesHook(program) ? [] : collectViolations(program, file, functionIds);
-    files.set(file, { functionIds, components, violations, usesHook });
+    const isHookModule = file === HOOK_FILE;
+    const violations = isHookModule ? [] : collectViolations(program, file, functionIds);
+    const redefined = isHookModule ? null : hookDeclaration(program);
+    if (redefined) {
+      violations.push({
+        rule: "hook-redefined",
+        loc: locOf(file, redefined),
+        message: `${HOOK_NAME} 는 템플릿(${HOOK_FILE})이 제공합니다 — 같은 이름으로 새로 만들지 말고 import 해서 쓰세요`,
+      });
+    }
+    // hook 을 새로 만든 파일은 hook 계약 안의 파일이다 — 예전 앱 예외(usesHook=false)로 위반이 묻히지 않게.
+    files.set(file, { functionIds, components, violations, usesHook: usesHook || redefined !== null });
   }
 
   return { files, resolveElement };

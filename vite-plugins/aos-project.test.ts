@@ -189,6 +189,38 @@ describe("멀티모듈 데이터 흐름", () => {
   });
 });
 
+describe("hook 면제는 템플릿 hook 파일만", () => {
+  it("앱 코드에 같은 이름의 hook 을 만들면 위반이고, 그 파일의 다른 위반도 그대로 잡힌다", () => {
+    // 이름만으로 면제하던 때는 이 파일의 위반이 통째로 사라졌다
+    const fake = `
+import { apiClient } from "@/api/api.client";
+import { FUNCTIONS } from "@/modules/constants";
+
+function useOntologyFunction() {
+  return apiClient.post(\`/ontology-functions/\${FUNCTIONS.orders.id}/run\`);
+}
+
+export default function App() {
+  const k = "orders";
+  const rows = useOntologyFunction(FUNCTIONS[k]);
+  return <main>{rows}</main>;
+}
+`;
+    const flows = analyzeProjectDataflow(dashboard({ "src/App.tsx": fake }));
+    const app = flows.files.get("src/App.tsx")!;
+    expect(app.violations.map((v) => v.rule)).toEqual(
+      expect.arrayContaining(["hook-redefined", "direct-run-call", "functions-dynamic-key"]),
+    );
+    // 예전 앱 예외(usesHook=false)로 묻히지 않는다
+    expect(app.usesHook).toBe(true);
+  });
+
+  it("템플릿 hook 파일은 /run 을 직접 불러도 위반이 아니다", () => {
+    const flows = analyzeProjectDataflow(dashboard());
+    expect(flows.files.get("src/hooks/useOntologyFunction.ts")!.violations).toEqual([]);
+  });
+});
+
 describe("멀티모듈 anchors — 컴포넌트 정체는 파일#이름", () => {
   const CHART = (field: string) => `
     import { LineChart } from "@enhans/synapse/charts";
