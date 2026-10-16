@@ -600,6 +600,10 @@ export function aosLocator(): Plugin {
     },
     transform(code, id) {
       if (!config) return null;
+      // 쿼리가 붙은 id 는 같은 파일을 다른 꼴로 읽는 요청이다 — `?raw` 는 `export default "<원문>"` 으로
+      // 온다. 소스로 보면 인덱스의 그 파일이 덮여 import · props 추적이 사라진다 (앱빌더가 iframe 로드마다
+      // App.tsx?raw 를 읽는다). Vite 는 HMR 타임스탬프(?t=)를 transform 전에 떼므로 소스 모듈에는 쿼리가 없다.
+      if (id.includes("?")) return null;
       const relative = relativeOf(id);
       if (!relative) return null;
       const isServe = config.command === "serve";
