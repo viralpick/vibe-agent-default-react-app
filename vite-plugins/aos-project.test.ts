@@ -266,11 +266,11 @@ describe("멀티모듈 anchors — 컴포넌트 정체는 파일#이름", () => 
 });
 
 describe("import 그래프 — modules · cycles", () => {
-  it("실행 시점 import 만 싣고 순환을 찾는다 (import type 은 순환이 아니다)", () => {
+  it("실행 시점 import 만 싣고 순환을 찾는다 (선언 전체가 import type 이면 순환이 아니다)", () => {
     const project = dashboard({
       "src/modules/a.ts": `import { b } from "./b";\nexport const a = () => b;`,
       "src/modules/b.ts": `import { a } from "./a";\nexport const b = () => a;`,
-      "src/modules/c.ts": `import type { A } from "./a";\nimport { type B } from "./b";\nexport const c = 1;`,
+      "src/modules/c.ts": `import type { A } from "./a";\nexport type { B } from "./b";\nexport const c = 1;`,
       "src/modules/d.ts": `import { a } from "./a";\nimport { gone } from "@/modules/gone";\nimport "./theme.css";`,
     });
     const { manifest } = analyzeProject(project, { injectLoc: false });
@@ -285,6 +285,19 @@ describe("import 그래프 — modules · cycles", () => {
       "src/modules/constants.ts",
     ]);
     expect(manifest.cycles).toEqual([["src/modules/a.ts", "src/modules/b.ts"]]);
+  });
+
+  it("지정자만 type 인 import · export 는 실행 시점에 남는다 — 그 꼴로만 이어진 순환도 찾는다", () => {
+    // verbatimModuleSyntax: `import { type B } from "./b"` → `import {} from "./b"` (b 를 평가한다)
+    const project = dashboard({
+      "src/modules/e.ts": `import { type F } from "./f";\nexport type E = F;\nexport const e = 1;`,
+      "src/modules/f.ts": `export { type E } from "./e";\nexport type F = number;\nexport const f = 2;`,
+    });
+    const { manifest } = analyzeProject(project, { injectLoc: false });
+    const mod = (file: string) => manifest.modules.find((m) => m.file === file)!;
+    expect(mod("src/modules/e.ts").imports).toEqual(["src/modules/f.ts"]);
+    expect(mod("src/modules/f.ts").imports).toEqual(["src/modules/e.ts"]);
+    expect(manifest.cycles).toEqual([["src/modules/e.ts", "src/modules/f.ts"]]);
   });
 
   it("자기 자신을 import 하면 크기 1 순환이다", () => {

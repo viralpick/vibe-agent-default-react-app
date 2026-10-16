@@ -125,11 +125,13 @@ export function buildModuleInfo(file: string, program: Node | null): ModuleInfo 
       const source = (stmt.source as Node).value as string;
       const declType = stmt.importKind === "type";
       const specifiers = stmt.specifiers as Node[];
-      let runtime = !declType && specifiers.length === 0; // `import "./x.css"` 같은 부수효과 import
+      // 실행 시점 간선은 선언 단위로 정한다. verbatimModuleSyntax(tsconfig.app)에서는 선언 전체가
+      // `import type` 일 때만 지워지고, `import { type B } from "./b"` 는 `import {} from "./b"` 로 남아
+      // b 를 평가한다 — 지정자 단위로 빼면 이 꼴로만 이어진 순환을 놓친다.
+      const runtime = !declType;
       for (const spec of specifiers) {
         const local = (spec.local as Node).name as string;
         const typeOnly = declType || spec.importKind === "type";
-        if (!typeOnly) runtime = true;
         const imported =
           spec.type === "ImportDefaultSpecifier"
             ? "default"
@@ -145,15 +147,14 @@ export function buildModuleInfo(file: string, program: Node | null): ModuleInfo 
       if (stmt.declaration) {
         for (const name of declaredNames(stmt.declaration as Node)) info.exports.set(name, { local: name });
       }
-      let runtime = false;
       for (const spec of (stmt.specifiers as Node[]) ?? []) {
         if (spec.type !== "ExportSpecifier") continue; // `export * as ns from` — namespace 는 따라가지 않는다
         const exported = nameOf(spec.exported as Node);
         const local = nameOf(spec.local as Node);
-        if (!declType && spec.exportKind !== "type") runtime = true;
         info.exports.set(exported, source ? { source, imported: local } : { local });
       }
-      if (source && runtime) info.runtimeSources.push(source);
+      // import 와 같다 — `export { type X } from "./b"` 도 `export {} from "./b"` 로 남는다.
+      if (source && !declType) info.runtimeSources.push(source);
     } else if (stmt.type === "ExportDefaultDeclaration") {
       const local = defaultExportLocal(stmt.declaration as Node);
       if (local) info.exports.set("default", { local });
