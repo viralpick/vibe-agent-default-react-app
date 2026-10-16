@@ -143,11 +143,11 @@ describe("멀티모듈 데이터 흐름", () => {
   it("앱 쪽 .ts 모듈의 직접 /run 호출은 여전히 위반이다", () => {
     const flows = analyzeProjectDataflow(
       dashboard({
-        "src/modules/utils/api.ts": `import { FUNCTIONS } from "@/modules/constants";\nexport const run = (c) => c.post(\`/ontology-functions/\${FUNCTIONS.orders.id}/run\`);`,
+        "src/modules/api.ts": `import { FUNCTIONS } from "@/modules/constants";\nexport const run = (c) => c.post(\`/ontology-functions/\${FUNCTIONS.orders.id}/run\`);`,
       }),
     );
 
-    expect(flows.files.get("src/modules/utils/api.ts")!.violations.map((v) => v.rule).sort()).toEqual(["direct-run-call", "functions-outside-hook"]);
+    expect(flows.files.get("src/modules/api.ts")!.violations.map((v) => v.rule).sort()).toEqual(["direct-run-call", "functions-outside-hook"]);
   });
 
   it("FUNCTIONS 를 못 찾는 hook 호출은 예전처럼 unknown-function-key 다", () => {
@@ -233,8 +233,8 @@ describe("멀티모듈 anchors — 컴포넌트 정체는 파일#이름", () => 
       "src/App.tsx": `
         import { useOntologyFunction } from "@/hooks/useOntologyFunction";
         import { FUNCTIONS, TENANT_ID } from "@/modules/constants";
-        import { Chart as SalesTrend } from "./modules/a/Chart";
-        import { Chart } from "@/modules/b/Chart";
+        import { Chart as SalesTrend } from "./modules/SalesTrend";
+        import { Chart } from "@/modules/BrandTrend";
         export default function App() {
           const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
           const brands = useOntologyFunction(FUNCTIONS.brands, { tenantId: TENANT_ID });
@@ -246,15 +246,15 @@ describe("멀티모듈 anchors — 컴포넌트 정체는 파일#이름", () => 
           );
         }
       `,
-      "src/modules/a/Chart.tsx": CHART("month"),
-      "src/modules/b/Chart.tsx": CHART("brand"),
+      "src/modules/SalesTrend.tsx": CHART("period"),
+      "src/modules/BrandTrend.tsx": CHART("brand"),
     });
 
   it("같은 이름의 두 컴포넌트를 섞지 않고, 별칭 import 도 제자리로 잇는다", () => {
     const { manifest } = analyzeProject(project(), { injectLoc: false });
     const byField = (field: string) => manifest.visualizations.find((v) => v.spec.props.xField === field)!;
 
-    expect(byField("month")).toMatchObject({
+    expect(byField("period")).toMatchObject({
       data: { functions: ["uuid-orders"], direct: true },
       anchors: [aosKey("src/App.tsx:11:15")],
     });
