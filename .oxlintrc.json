@@ -86,7 +86,8 @@
 
     "react/no-did-mount-set-state": "off",
     "react/no-did-update-set-state": "off",
-    "react/no-will-update-set-state": "off"
+    "react/no-will-update-set-state": "off",
+    "react/set-state-in-effect": "off"
   },
 
   "ignorePatterns": [
