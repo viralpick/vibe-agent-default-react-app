@@ -37,21 +37,6 @@ export function validateOrigin(
 }
 
 /**
- * 타임스탬프 유효성 검증
- * @param timestamp Unix timestamp (밀리초)
- * @param validityMs 유효 시간 (밀리초)
- * @returns 검증 결과
- */
-export function validateTimestamp(
-  timestamp: number,
-  validityMs: number = DEFAULT_SECURITY_CONFIG.timestampValidityMs
-): boolean {
-  const now = Date.now();
-  const diff = Math.abs(now - timestamp);
-  return diff <= validityMs;
-}
-
-/**
  * Nonce 생성
  *
  * `crypto.randomUUID()` 는 Secure Context(https / localhost) 에서만 제공된다.
