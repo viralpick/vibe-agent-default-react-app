@@ -58,6 +58,11 @@ describe("aosLocator — transform", () => {
     expect(chartFunctions()).toBe("uuid-orders");
   });
 
+  it("가져와서 잇기 전인 앱은 자리표시를 그대로 주입한다 — 미리보기가 이걸로 샘플 위젯을 표시한다", () => {
+    write("src/modules/constants.ts", CONSTANTS.replace("uuid-orders", "aos-unbound:function:orders"));
+    expect(chartFunctions()).toBe("aos-unbound:function:orders");
+  });
+
   it.each(["?raw", "?url", "?inline", "?import&raw"])(
     "쿼리가 붙은 요청(%s)은 소스가 아니다 — 인덱스를 덮지 않는다",
     (query) => {

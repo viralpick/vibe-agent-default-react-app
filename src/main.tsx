@@ -14,6 +14,7 @@ import { useUrlToken } from "./hooks/useUrlToken.ts";
 import { useEnableEditMode } from "./hooks/useEnableEditMode.ts";
 import { usePreviewErrorReporter } from "./hooks/usePreviewErrorReporter.ts";
 import { usePreviewConsoleMirror } from "./hooks/usePreviewConsoleMirror.ts";
+import { useUnboundSampleNotice } from "./hooks/useUnboundSampleNotice.ts";
 
 function AppWithHooks() {
   useEnableEditMode();
@@ -22,6 +23,7 @@ function AppWithHooks() {
   useUrlToken();
   usePreviewErrorReporter();
   usePreviewConsoleMirror();
+  useUnboundSampleNotice();
 
   return <App />;
 }

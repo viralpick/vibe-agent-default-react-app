@@ -21,6 +21,27 @@ interface MockShapes {
 
 const SAMPLE_ROWS = 6;
 
+// 샘플 행을 한 번이라도 내려줬는가 — 화면이 진짜 데이터처럼 보이지 않게 표시하는 쪽(useUnboundSampleNotice)이 듣는다
+let sampleServed = false;
+const sampleListeners = new Set<() => void>();
+
+export function hasServedSample(): boolean {
+  return sampleServed;
+}
+
+export function onSampleServed(listener: () => void): () => void {
+  sampleListeners.add(listener);
+  return () => {
+    sampleListeners.delete(listener);
+  };
+}
+
+function markSampleServed() {
+  if (sampleServed) return;
+  sampleServed = true;
+  sampleListeners.forEach((listener) => listener());
+}
+
 export function isUnboundRequest(url: string | undefined): boolean {
   return !!url && decodeURIComponent(url).includes(UNBOUND_PREFIX);
 }
@@ -72,6 +93,7 @@ export function unboundAdapter(source: MockShapes = shapes as MockShapes): Axios
     const placeholder = placeholderOf(config.url ?? "") ?? "";
     const isAction = placeholder.startsWith(`${UNBOUND_PREFIX}action:`);
     const columns = source.functions?.[placeholder]?.columns ?? [];
+    if (!isAction) markSampleServed();
     const data = isAction
       ? { status: "SUCCEEDED", unbound: true, message: "아직 이 환경의 액션에 잇지 않아 실행하지 않았어요." }
       : { result: columns.length ? sampleRows(columns) : [], unbound: true };
