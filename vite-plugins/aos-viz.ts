@@ -390,7 +390,6 @@ export function extractVisualizations(
   const imports = collectImports(program);
   const byComponent = new Map<string, AosVisualization[]>();
   const owner = (pos: number) => flow.components.find((c) => c.start <= pos && pos < c.end) ?? null;
-  const toIds = (keys: string[]) => keys.map((k) => flow.functionIds.get(k)).filter((id): id is string => !!id);
   const titles = titledRanges(program);
 
   walk(program, (node) => {
@@ -440,7 +439,8 @@ export function extractVisualizations(
       kind,
       loc: locOf(file, opening),
       spec: { component: element, props: specProps },
-      data: binding ? { functions: toIds(binding.functionKeys), direct: binding.direct } : null,
+      // UUID 는 key 가 선언된 FUNCTIONS 로 이미 풀려 있다 — 다른 파일에서 props 로 넘어온 데이터도 같다
+      data: binding ? { functions: binding.functionIds, direct: binding.direct } : null,
       dynamicProps: [...new Set(dynamicProps)],
     };
     const verdict = judge(base, recipe, columnsReason);

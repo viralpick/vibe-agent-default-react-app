@@ -1,5 +1,8 @@
+# 디렉터리 이름은 / 로 루트에만 묶는다 — 묶지 않으면 src/modules/dist/ 처럼 src 아래 같은 이름에도
+# 걸려, 그 안의 소스가 앱빌더 온톨로지 게이트를 빠져나간다 (맨 아래 참고).
+
 # Logs
-logs
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,17 +10,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+/node_modules
+/dist
+/dist-ssr
 *.local
 
 # Editor directories and files
-.vscode
-!.vscode/extensions.json
-.idea
+/.vscode
+!/.vscode/extensions.json
+/.idea
 .DS_Store
-.claude
+/.claude
 *.suo
 *.ntvs*
 *.njsproj
@@ -25,9 +28,12 @@ dist-ssr
 *.sw?
 
 # for tests
-TestPage.tsx
-prompt.py
-.dom
-.llm
-.kiro
-src/pages/*
+/prompt.py
+/.dom
+/.llm
+/.kiro
+
+# src/ 아래는 이름이 무엇이든 무시하지 않는다 — 앱빌더 온톨로지 게이트가 git status 로 "에이전트가 쓴 파일"
+# 을 가려 내므로, 무시된 파일은 Vite 가 번들해도 검사를 빠져나간다 (AOS-4902). 위의 확장자 패턴(*.local 등)
+# 까지 풀려고 마지막에 둔다. vite-plugins/gitignore.test.ts 가 고정한다.
+!src/**

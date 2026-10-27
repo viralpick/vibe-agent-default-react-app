@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
+import { isUnboundRequest, unboundAdapter } from "./unbound-mocks";
 
 type ConsoleEnv = "local" | "dev" | "stg" | "prod";
 
@@ -119,6 +120,11 @@ function getTokenFromCookie(): string | null {
 
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    // 가져온 앱의 잇기 전 호출 — 서버로 보내지 않고 샘플로 답한다 (unbound-mocks.ts)
+    if (isUnboundRequest(config.url)) {
+      config.adapter = unboundAdapter();
+      return config;
+    }
     try {
       // 우선순위: URL token → same-origin 쿠키 → postMessage(cross-origin 폴백)
       const cookieToken = getTokenFromCookie();
