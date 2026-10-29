@@ -361,8 +361,14 @@ interface Env {
   propState: PropState;
 }
 
-function propTaint(state: PropState, prop: string): Taint {
-  return merge(state.props.get(prop) ?? EMPTY, state.spread);
+/** spread 로 받은 핸들에서 prop 하나를 꺼낸 값 — 운반하지 않는 필드면 없음 */
+function spreadField(state: PropState, prop: string, space: KeySpace): Taint {
+  if (!space.handleResult || !isHandle(state.spread)) return state.spread;
+  return space.cleanFields.has(prop) ? EMPTY : undirect(state.spread);
+}
+
+function propTaint(state: PropState, prop: string, space: KeySpace): Taint {
+  return merge(state.props.get(prop) ?? EMPTY, spreadField(state, prop, space));
 }
 
 function allPropsTaint(state: PropState): Taint {
@@ -478,7 +484,7 @@ function handleOf(object: Node, env: Env, locals: Map<string, Taint> = new Map()
     const base = unwrap(target.object as Node);
     const prop = propertyName(target.property as Node, false);
     if (base.type === "Identifier" && base.name === env.propsIdent && !locals.has(base.name as string) && prop) {
-      t = propTaint(env.propState, prop);
+      t = propTaint(env.propState, prop, env.space);
     }
   }
   return t && isHandle(t) ? t : null;
@@ -515,7 +521,7 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
           return;
         }
         if (!locals.has(base) && env.propsIdent === base && prop) {
-          add(propTaint(env.propState, prop));
+          add(propTaint(env.propState, prop, env.space));
           return;
         }
       }
@@ -587,7 +593,7 @@ function bindParams(fn: Node, env: Env): void {
     const key = propertyName(prop.key as Node, prop.computed as boolean);
     if (!key) continue;
     for (const local of patternNames(prop.value as Node)) {
-      env.bindings.set(local, propTaint(env.propState, key));
+      env.bindings.set(local, propTaint(env.propState, key, env.space));
     }
   }
 }
@@ -700,16 +706,37 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
   return { sinks: collectSinks(def.fn, env), ownKeys };
 }
 
-/** 컴포넌트 본문에서 핸들의 운반 필드를 꺼낸 곳 (`action.execute()`, `props.action.execute`) 의 key */
+/**
+ * 컴포넌트가 핸들의 운반 필드를 꺼낸 곳의 key — `action.execute()`, `props.action.execute`, 그리고 핸들을 spread 로
+ * 받았을 때 `({ execute })` · `props.execute`
+ */
 function handleUses(fn: Node, env: Env): Set<string> {
   const used = new Set<string>();
+  const carried = (prop: string | null) => !(prop && env.space.cleanFields.has(prop));
+  const spread = env.propState.spread;
+  const useSpread = () => {
+    for (const k of spread.keys) used.add(k);
+  };
+  if (isHandle(spread)) {
+    const first = (fn.params as Node[])[0];
+    const param = first?.type === "AssignmentPattern" ? (first.left as Node) : first;
+    if (param?.type === "ObjectPattern") {
+      for (const prop of param.properties as Node[]) {
+        if (prop.type === "ObjectProperty" && carried(propertyName(prop.key as Node, prop.computed as boolean))) useSpread();
+      }
+    }
+  }
   walk(fn.body as Node, (node) => {
     if (node.type !== "MemberExpression" && node.type !== "OptionalMemberExpression") return;
-    const handle = handleOf(node.object as Node, env);
-    if (!handle) return;
     const prop = propertyName(node.property as Node, node.computed as boolean);
-    if (prop && env.space.cleanFields.has(prop)) return;
-    for (const k of handle.keys) used.add(k);
+    if (!carried(prop)) return;
+    const object = unwrap(node.object as Node);
+    if (isHandle(spread) && object.type === "Identifier" && object.name === env.propsIdent) {
+      useSpread();
+      return;
+    }
+    const handle = handleOf(object, env);
+    if (handle) for (const k of handle.keys) used.add(k);
   });
   return used;
 }

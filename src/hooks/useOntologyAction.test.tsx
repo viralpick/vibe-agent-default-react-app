@@ -238,6 +238,24 @@ describe("useOntologyAction", () => {
     expect(hook.result.current).toMatchObject({ status: "waiting", error: null });
   });
 
+  it("응답이 오지 않는 조회도 상한에서 끊고 waiting 이다", async () => {
+    post.mockResolvedValue(workflowWait());
+    get.mockReturnValue(new Promise(() => {}));
+    const hook = mount({ maxWaitMs: 5000 });
+
+    const promise = start(hook);
+    await tick(1000);
+    const signal = (get.mock.calls[0][1] as { signal: AbortSignal }).signal;
+    expect(hook.result.current.isRunning).toBe(true);
+
+    await tick(4000);
+
+    expect(signal.aborted).toBe(true);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect((await promise)?.status).toBe("WAITING_CALLBACK");
+    expect(hook.result.current).toMatchObject({ status: "waiting", isRunning: false });
+  });
+
   it("조회 중 웹훅 대기로 바뀌면 더 조회하지 않고 waiting 이다", async () => {
     post.mockResolvedValue(workflowWait());
     get.mockResolvedValue(respond("WAITING_CALLBACK", { waitingFor: "WEBHOOK" }));

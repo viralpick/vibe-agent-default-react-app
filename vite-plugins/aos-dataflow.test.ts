@@ -328,6 +328,23 @@ const TENANT_ID = "1";
     expect(componentOf(result, "Panel").actionKeys).toEqual(["approve"]);
   });
 
+  it("결과를 spread 로 넘기면 execute 를 꺼낸 자식만 액션을 쓴다", () => {
+    const result = analyzeActions(`
+      function Row({ execute, isRunning }) { return <button disabled={isRunning} onClick={execute} />; }
+      function Badge({ status }) { return <span>{status}</span>; }
+      function Via(props) { return <button onClick={() => props.execute()} />; }
+      function Inner({ onRun }) { return <button onClick={onRun} />; }
+      function Relay({ execute }) { return <Inner onRun={execute} />; }
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        return <main><Row {...approve} /><Badge {...approve} /><Via {...approve} /><Relay {...approve} /></main>;
+      }
+    `);
+
+    for (const name of ["Row", "Via", "Relay", "Inner"]) expect(componentOf(result, name).actionKeys).toEqual(["approve"]);
+    expect(componentOf(result, "Badge").actionKeys).toEqual([]);
+  });
+
   it("FUNCTIONS 와 ACTIONS 의 같은 key 는 섞이지 않는다", () => {
     const result = analyzeActions(`
       function Panel({ rows, onSave }) { return <div>{rows.length}<button onClick={() => onSave()} /></div>; }

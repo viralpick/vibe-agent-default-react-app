@@ -116,6 +116,22 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
+/** 바깥 signal 이 끊기거나 ms 가 지나면 끊기는 signal — 상한을 넘긴 조회 요청을 기다리지 않게 */
+function withDeadline(signal: AbortSignal, ms: number): { signal: AbortSignal; dispose: () => void } {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timer = setTimeout(abort, Math.max(ms, 0));
+  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) abort();
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+    },
+  };
+}
+
 export function useOntologyAction(
   action: OntologyActionRef,
   { tenantId, maxWaitMs = DEFAULT_MAX_WAIT_MS }: UseOntologyActionOptions,
@@ -168,12 +184,16 @@ export function useOntologyAction(
         await sleep(Math.min(pollDelayMs(elapsed), maxWaitMs - elapsed), signal);
         if (signal.aborted) return run;
         if (pastDeadline()) break;
+        const poll = withDeadline(signal, maxWaitMs - (Date.now() - startedAt));
         try {
           const response = await abortable(
-            apiClient.get(`/ontology-actions/${action.id}/runs/${run.id}`, config),
-            signal,
+            apiClient.get(`/ontology-actions/${action.id}/runs/${run.id}`, { ...config, signal: poll.signal }),
+            poll.signal,
           );
-          if (response === ABORTED) return run;
+          if (response === ABORTED) {
+            if (signal.aborted) return run;
+            break;
+          }
           run = runOf(response);
           failures = 0;
         } catch (cause) {
@@ -183,6 +203,8 @@ export function useOntologyAction(
             update({ status: "error", data: run, error: toError(cause) });
             return run;
           }
+        } finally {
+          poll.dispose();
         }
       }
 
