@@ -465,6 +465,25 @@ function handleFields(pattern: Node, handle: Taint, cleanFields: Set<string>): [
   return pairs;
 }
 
+/** 멤버 접근의 대상이 핸들이면 그 핸들 — `approve` · `alias` · `action`(prop) · `props.action` */
+function handleOf(object: Node, env: Env, locals: Map<string, Taint> = new Map()): Taint | null {
+  const target = unwrap(object);
+  let t: Taint | null = null;
+  if (target.type === "Identifier") {
+    const name = target.name as string;
+    if (locals.has(name)) t = locals.get(name)!;
+    else if (env.queries.has(name)) t = { keys: new Set([env.queries.get(name)!]), direct: true };
+    else if (env.propsIdent !== name) t = env.bindings.get(name) ?? null;
+  } else if ((target.type === "MemberExpression" || target.type === "OptionalMemberExpression") && !target.computed) {
+    const base = unwrap(target.object as Node);
+    const prop = propertyName(target.property as Node, false);
+    if (base.type === "Identifier" && base.name === env.propsIdent && !locals.has(base.name as string) && prop) {
+      t = propTaint(env.propState, prop);
+    }
+  }
+  return t && isHandle(t) ? t : null;
+}
+
 /** 식이 운반하는 taint. direct 는 식이 별칭 형태(식별자·멤버 접근)일 때만 유지된다 */
 function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map()): Taint {
   let acc: Taint = EMPTY;
@@ -481,6 +500,12 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
   const visit = (node: Node) => {
     if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
       const object = unwrap(node.object as Node);
+      const handle = env.space.handleResult ? handleOf(object, env, locals) : null;
+      if (handle) {
+        const prop = propertyName(node.property as Node, node.computed as boolean);
+        if (!(prop && env.space.cleanFields.has(prop))) add(undirect(handle));
+        return;
+      }
       if (object.type === "Identifier") {
         const base = object.name as string;
         const prop = propertyName(node.property as Node, node.computed as boolean);
@@ -491,11 +516,6 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
         }
         if (!locals.has(base) && env.propsIdent === base && prop) {
           add(propTaint(env.propState, prop));
-          return;
-        }
-        const handle = env.space.handleResult ? lookup(base) : null;
-        if (handle && isHandle(handle)) {
-          if (!(prop && env.space.cleanFields.has(prop))) add(undirect(handle));
           return;
         }
       }
@@ -683,24 +703,10 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
 /** 컴포넌트 본문에서 핸들의 운반 필드를 꺼낸 곳 (`action.execute()`, `props.action.execute`) 의 key */
 function handleUses(fn: Node, env: Env): Set<string> {
   const used = new Set<string>();
-  const handleOf = (object: Node): Taint | null => {
-    const target = unwrap(object);
-    if (target.type === "Identifier") {
-      const name = target.name as string;
-      if (env.queries.has(name) || env.propsIdent === name) return null;
-      return env.bindings.get(name) ?? null;
-    }
-    if ((target.type === "MemberExpression" || target.type === "OptionalMemberExpression") && !target.computed) {
-      const base = unwrap(target.object as Node);
-      const prop = propertyName(target.property as Node, false);
-      if (base.type === "Identifier" && base.name === env.propsIdent && prop) return propTaint(env.propState, prop);
-    }
-    return null;
-  };
   walk(fn.body as Node, (node) => {
     if (node.type !== "MemberExpression" && node.type !== "OptionalMemberExpression") return;
-    const handle = handleOf(node.object as Node);
-    if (!handle || !isHandle(handle)) return;
+    const handle = handleOf(node.object as Node, env);
+    if (!handle) return;
     const prop = propertyName(node.property as Node, node.computed as boolean);
     if (prop && env.space.cleanFields.has(prop)) return;
     for (const k of handle.keys) used.add(k);

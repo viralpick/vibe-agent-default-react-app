@@ -353,6 +353,31 @@ describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
     ]);
   });
 
+  it("파일을 넘어 같은 key 의 FUNCTIONS · ACTIONS 를 넘겨도 함수 목록과 액션 목록이 섞이지 않는다", () => {
+    const app = `
+      import { useOntologyAction } from "@/hooks/useOntologyAction";
+      import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+      import { ACTIONS, FUNCTIONS, TENANT_ID } from "@/modules/constants";
+      import { ApprovePanel } from "@/modules/ApprovePanel";
+      export default function App() {
+        const pending = useOntologyFunction(FUNCTIONS.approve, { tenantId: TENANT_ID });
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        return <ApprovePanel rows={pending.data} onApprove={approve.execute} busy={approve.isRunning} />;
+      }
+    `;
+    const panel = `
+      export function ApprovePanel({ rows, onApprove, busy }) {
+        return <section data-aos-id="approve-panel"><button disabled={busy} onClick={() => onApprove({ id: rows[0].id })} /></section>;
+      }
+    `;
+    const { manifest } = analyzeProject(sources({ "src/App.tsx": app, "src/modules/ApprovePanel.tsx": panel }), { injectLoc: false });
+
+    expect(manifest.components.find((c) => c.id === "approve-panel")).toMatchObject({
+      functions: ["uuid-fn-approve"],
+      actions: ["uuid-approve"],
+    });
+  });
+
   it("/execute 를 직접 부르는 옛 파일은 actionViolations 에만 들어간다", () => {
     const legacy = `
       import { useOntologyFunction } from "@/hooks/useOntologyFunction";

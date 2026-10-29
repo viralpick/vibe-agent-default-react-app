@@ -310,6 +310,24 @@ const TENANT_ID = "1";
     for (const name of ["Runner", "Forward", "Picked", "SaveBar", "App"]) expect(componentOf(result, name).actionKeys).toEqual(["approve"]);
   });
 
+  it("props.action.execute 는 실행을, props.action.isRunning 은 표시만 넘긴다", () => {
+    const result = analyzeActions(`
+      function SaveBar({ onSave }) { return <button onClick={() => onSave()} />; }
+      function Spinner({ busy }) { return <span>{busy ? "..." : ""}</span>; }
+      function Panel(props) {
+        return <div><SaveBar onSave={props.action.execute} /><Spinner busy={!!props.action.isRunning} /></div>;
+      }
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        return <Panel action={approve} />;
+      }
+    `);
+
+    expect(componentOf(result, "SaveBar").actionKeys).toEqual(["approve"]);
+    expect(componentOf(result, "Spinner").actionKeys).toEqual([]);
+    expect(componentOf(result, "Panel").actionKeys).toEqual(["approve"]);
+  });
+
   it("FUNCTIONS 와 ACTIONS 의 같은 key 는 섞이지 않는다", () => {
     const result = analyzeActions(`
       function Panel({ rows, onSave }) { return <div>{rows.length}<button onClick={() => onSave()} /></div>; }

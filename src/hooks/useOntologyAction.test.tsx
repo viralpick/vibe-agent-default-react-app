@@ -222,6 +222,22 @@ describe("useOntologyAction", () => {
     expect(hook.result.current.error?.message).toBe("502");
   });
 
+  it("상한 전에 시작한 조회가 상한 뒤에 실패해도 error 가 아니라 waiting 이다", async () => {
+    post.mockResolvedValue(workflowWait());
+    get
+      .mockRejectedValueOnce(new Error("502"))
+      .mockRejectedValueOnce(new Error("502"))
+      .mockImplementationOnce(() => new Promise((_, reject) => setTimeout(() => reject(new Error("502")), 1000)));
+    const hook = mount({ maxWaitMs: 3500 });
+
+    const promise = start(hook);
+    await tick(10_000);
+
+    expect(get).toHaveBeenCalledTimes(3);
+    expect((await promise)?.status).toBe("WAITING_CALLBACK");
+    expect(hook.result.current).toMatchObject({ status: "waiting", error: null });
+  });
+
   it("조회 중 웹훅 대기로 바뀌면 더 조회하지 않고 waiting 이다", async () => {
     post.mockResolvedValue(workflowWait());
     get.mockResolvedValue(respond("WAITING_CALLBACK", { waitingFor: "WEBHOOK" }));
