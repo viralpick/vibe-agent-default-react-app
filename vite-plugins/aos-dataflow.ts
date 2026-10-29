@@ -26,6 +26,11 @@ import { AosProject } from "./aos-project";
 //  - 운반하는 key 는 "어느 파일의 FUNCTIONS 인가" 를 함께 든다(qualified key). 다른 파일이 같은 key 이름을
 //    다른 UUID 로 선언해도 섞이지 않는다. 결과의 functionKeys 는 예전처럼 key 이름만 싣고, UUID 는
 //    functionIds 로 따로 풀어 둔다.
+//
+// 액션 (AOS-7001): `useOntologyAction(ACTIONS.k)` 결과도 같은 엔진을 두 번째 key 공간으로 돌려 추적한다.
+// 결과 객체 전체와 `execute` 가 k 를 운반하고 `status` / `isRunning` / `data` / `error` 는 운반하지 않는다.
+// 액션 위반은 actionViolations 로 따로 싣는다 — 기존 앱의 `/execute` 직접 호출이 함수 위반(violations)을
+// 보는 소비자를 깨지 않게.
 
 export const HOOK_NAME = "useOntologyFunction";
 /** 템플릿이 제공하는 hook 모듈 — `/ontology-functions/{id}/run` 을 직접 부를 수 있는 유일한 자리 */
@@ -33,6 +38,77 @@ export const HOOK_FILE = "src/hooks/useOntologyFunction.ts";
 const FUNCTIONS_NAME = "FUNCTIONS";
 // hook 결과에서 함수 데이터를 운반하지 않는 필드
 const CLEAN_RESULT_FIELDS = new Set(["isLoading", "error", "refetch"]);
+
+export const ACTION_HOOK_NAME = "useOntologyAction";
+/** 템플릿이 제공하는 액션 hook 모듈 — `/ontology-actions/` 를 직접 부를 수 있는 유일한 자리 */
+export const ACTION_HOOK_FILE = "src/hooks/useOntologyAction.ts";
+export const ACTIONS_NAME = "ACTIONS";
+// 액션 hook 결과에서 액션을 운반하지 않는 필드 — 실행 중 표시를 넘겨받은 컴포넌트가 액션을 쓰는 것으로 오염되지 않게
+const CLEAN_ACTION_RESULT_FIELDS = new Set(["status", "isRunning", "data", "error"]);
+
+type RuleName = DataflowViolation["rule"];
+
+interface KeySpace {
+  hook: string;
+  hookFile: string;
+  constants: string;
+  /** 이 이름의 결과 필드만 direct 로 운반한다 (함수의 data) */
+  directField: string | null;
+  cleanFields: Set<string>;
+  /** 구조 분해한 결과 필드 중 directField 밖의 것도 운반하고, 구조 분해한 hook 도 그 컴포넌트가 쓰는 것으로 세는가 */
+  destructureCarries: boolean;
+  target: string;
+  directPath: string;
+  rules: {
+    hookArg: RuleName;
+    unknownKey: RuleName;
+    dynamicKey: RuleName;
+    outside: RuleName;
+    escape: RuleName;
+    directCall: RuleName;
+    redefined: RuleName;
+  };
+}
+
+const FUNCTION_SPACE: KeySpace = {
+  hook: HOOK_NAME,
+  hookFile: HOOK_FILE,
+  constants: FUNCTIONS_NAME,
+  directField: "data",
+  cleanFields: CLEAN_RESULT_FIELDS,
+  destructureCarries: false,
+  target: "OntologyFunction",
+  directPath: "/ontology-functions/",
+  rules: {
+    hookArg: "hook-arg-not-functions",
+    unknownKey: "unknown-function-key",
+    dynamicKey: "functions-dynamic-key",
+    outside: "functions-outside-hook",
+    escape: "functions-escape",
+    directCall: "direct-run-call",
+    redefined: "hook-redefined",
+  },
+};
+
+const ACTION_SPACE: KeySpace = {
+  hook: ACTION_HOOK_NAME,
+  hookFile: ACTION_HOOK_FILE,
+  constants: ACTIONS_NAME,
+  directField: null,
+  cleanFields: CLEAN_ACTION_RESULT_FIELDS,
+  destructureCarries: true,
+  target: "OntologyAction",
+  directPath: "/ontology-actions/",
+  rules: {
+    hookArg: "hook-arg-not-actions",
+    unknownKey: "unknown-action-key",
+    dynamicKey: "actions-dynamic-key",
+    outside: "actions-outside-hook",
+    escape: "actions-escape",
+    directCall: "direct-action-call",
+    redefined: "action-hook-redefined",
+  },
+};
 
 export interface Taint {
   /** FUNCTIONS 의 key */
@@ -60,7 +136,14 @@ export interface DataflowViolation {
     | "hook-arg-not-functions"
     | "unknown-function-key"
     | "direct-run-call"
-    | "hook-redefined";
+    | "hook-redefined"
+    | "hook-arg-not-actions"
+    | "unknown-action-key"
+    | "actions-dynamic-key"
+    | "actions-outside-hook"
+    | "actions-escape"
+    | "direct-action-call"
+    | "action-hook-redefined";
   loc: string;
   message: string;
 }
@@ -73,6 +156,9 @@ export interface ComponentFlow {
   end: number;
   functionKeys: string[];
   functionIds: string[];
+  /** 이 컴포넌트가 실행하는 ACTIONS 의 key (직접 부르거나 prop 으로 받은 execute) */
+  actionKeys: string[];
+  actionIds: string[];
   bindings: DataBinding[];
 }
 
@@ -83,6 +169,11 @@ export interface DataflowResult {
   violations: DataflowViolation[];
   /** 파일이 hook 을 한 번이라도 쓰는가 (기존 앱 = Promise.all 패턴 판별용) */
   usesHook: boolean;
+  /** 이 파일이 쓰는 ACTIONS 상수의 key → OntologyAction UUID */
+  actionIds: Map<string, string>;
+  /** 액션 추적 계약(useOntologyAction)을 벗어난 위치 — violations 와 따로 둔다 */
+  actionViolations: DataflowViolation[];
+  usesActionHook: boolean;
 }
 
 const EMPTY: Taint = { keys: new Set(), direct: true };
@@ -128,30 +219,38 @@ export function patternNames(pattern: Node | null | undefined): string[] {
   }
 }
 
-export function isFunctionsMember(node: Node): string | null {
+function constantMember(node: Node, constants: string): string | null {
   if (node.type !== "MemberExpression" || node.computed) return null;
   const object = node.object as Node;
-  if (object.type !== "Identifier" || object.name !== FUNCTIONS_NAME) return null;
+  if (object.type !== "Identifier" || object.name !== constants) return null;
   return propertyName(node.property as Node, false);
 }
 
-export function isHookCall(node: Node): boolean {
+export function isFunctionsMember(node: Node): string | null {
+  return constantMember(node, FUNCTIONS_NAME);
+}
+
+function isCallOf(node: Node, hook: string): boolean {
   const call = unwrap(node);
   return (
     call.type === "CallExpression" &&
     (call.callee as Node).type === "Identifier" &&
-    (call.callee as Node).name === HOOK_NAME
+    (call.callee as Node).name === hook
   );
 }
 
-// ─── 수집: FUNCTIONS 상수, top-level 컴포넌트 ─────────────────────────────────
+export function isHookCall(node: Node): boolean {
+  return isCallOf(node, HOOK_NAME);
+}
 
-function collectFunctionIds(program: Node): Map<string, string> {
+// ─── 수집: FUNCTIONS · ACTIONS 상수, top-level 컴포넌트 ───────────────────────
+
+function collectConstantIds(program: Node, constants: string): Map<string, string> {
   const ids = new Map<string, string>();
   walk(program, (node) => {
     if (node.type !== "VariableDeclarator") return;
     const id = node.id as Node;
-    if (id.type !== "Identifier" || id.name !== FUNCTIONS_NAME || !node.init) return;
+    if (id.type !== "Identifier" || id.name !== constants || !node.init) return;
     const init = unwrap(node.init as Node);
     if (init.type !== "ObjectExpression") return;
     for (const prop of init.properties as Node[]) {
@@ -176,14 +275,14 @@ function collectFunctionIds(program: Node): Map<string, string> {
  * 이름만으로 면제하면 안 된다 — 앱 코드에 같은 이름의 함수를 두기만 해도 그 파일의 위반 검사가 통째로
  * 꺼지고, 그 가짜 hook 호출이 추적에 집계된다. 그래서 다른 파일의 선언은 `hook-redefined` 위반이다.
  */
-function hookDeclaration(program: Node): Node | null {
+function hookDeclaration(program: Node, hook: string): Node | null {
   for (const stmt of program.body as Node[]) {
     const decl = (stmt.type === "ExportNamedDeclaration" ? stmt.declaration : stmt) as Node | null;
     if (!decl) continue;
-    if (decl.type === "FunctionDeclaration" && (decl.id as Node | null)?.name === HOOK_NAME) return decl;
+    if (decl.type === "FunctionDeclaration" && (decl.id as Node | null)?.name === hook) return decl;
     if (decl.type === "VariableDeclaration") {
       const found = (decl.declarations as Node[]).find(
-        (d) => (d.id as Node).type === "Identifier" && (d.id as Node).name === HOOK_NAME,
+        (d) => (d.id as Node).type === "Identifier" && (d.id as Node).name === hook,
       );
       if (found) return found;
     }
@@ -191,10 +290,10 @@ function hookDeclaration(program: Node): Node | null {
   return null;
 }
 
-function declaresFunctions(program: Node): boolean {
+function declaresConstant(program: Node, constants: string): boolean {
   let found = false;
   walk(program, (node) => {
-    if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === FUNCTIONS_NAME) found = true;
+    if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === constants) found = true;
   });
   return found;
 }
@@ -250,6 +349,7 @@ interface PropState {
 }
 
 interface Env {
+  space: KeySpace;
   bindings: Map<string, Taint>;
   /** `const brand = useOntologyFunction(FUNCTIONS.k)` → brand → k */
   queries: Map<string, string>;
@@ -361,8 +461,8 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
         const base = object.name as string;
         const prop = propertyName(node.property as Node, node.computed as boolean);
         if (!locals.has(base) && env.queries.has(base)) {
-          if (prop === "data") add({ keys: new Set([env.queries.get(base)!]), direct: true });
-          else if (!(prop && CLEAN_RESULT_FIELDS.has(prop))) add({ keys: new Set([env.queries.get(base)!]), direct: false });
+          if (prop !== null && prop === env.space.directField) add({ keys: new Set([env.queries.get(base)!]), direct: true });
+          else if (!(prop && env.space.cleanFields.has(prop))) add({ keys: new Set([env.queries.get(base)!]), direct: false });
           return;
         }
         if (!locals.has(base) && env.propsIdent === base && prop) {
@@ -494,24 +594,32 @@ function collectSinks(fn: Node, env: Env): Sink[] {
   return sinks;
 }
 
-/** functionTable: 이 파일에서 쓰는 FUNCTIONS 의 key → qualified key */
-function analyzeComponent(def: ComponentDef, propState: PropState, functionTable: Map<string, string>) {
-  const env: Env = { bindings: new Map(), queries: new Map(), propsIdent: null, propState };
+/** table: 이 파일에서 쓰는 상수(FUNCTIONS · ACTIONS)의 key → qualified key */
+function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<string, string>, space: KeySpace) {
+  const env: Env = { space, bindings: new Map(), queries: new Map(), propsIdent: null, propState };
   bindParams(def.fn, env);
   const declarators = ownedDeclarators(def.fn);
+  const isSpaceHook = (node: Node) => isCallOf(node, space.hook);
+  const ownKeys = new Set<string>();
 
   for (const d of declarators) {
-    if (!d.init || !isHookCall(d.init as Node)) continue;
+    if (!d.init || !isSpaceHook(d.init as Node)) continue;
     const call = unwrap(d.init as Node);
-    const bare = isFunctionsMember(((call.arguments as Node[])[0] ?? call) as Node);
-    const key = bare ? functionTable.get(bare) : undefined;
+    const bare = constantMember(((call.arguments as Node[])[0] ?? call) as Node, space.constants);
+    const key = bare ? table.get(bare) : undefined;
     if (!key) continue;
     const id = d.id as Node;
-    if (id.type === "Identifier") env.queries.set(id.name as string, key);
-    else if (id.type === "ObjectPattern") {
+    if (id.type === "Identifier") {
+      env.queries.set(id.name as string, key);
+      ownKeys.add(key);
+    } else if (id.type === "ObjectPattern") {
+      if (space.destructureCarries) ownKeys.add(key);
       for (const prop of id.properties as Node[]) {
-        if (prop.type !== "ObjectProperty" || propertyName(prop.key as Node, false) !== "data") continue;
-        for (const local of patternNames(prop.value as Node)) env.bindings.set(local, { keys: new Set([key]), direct: true });
+        if (prop.type !== "ObjectProperty") continue;
+        const field = propertyName(prop.key as Node, false);
+        const direct = field !== null && field === space.directField;
+        if (!direct && !(space.destructureCarries && field !== null && !space.cleanFields.has(field))) continue;
+        for (const local of patternNames(prop.value as Node)) env.bindings.set(local, { keys: new Set([key]), direct });
       }
     }
   }
@@ -520,7 +628,7 @@ function analyzeComponent(def: ComponentDef, propState: PropState, functionTable
   for (let round = 0, changed = true; changed && round < 32; round++) {
     changed = false;
     for (const d of declarators) {
-      if (!d.init || isHookCall(d.init as Node)) continue;
+      if (!d.init || isSpaceHook(d.init as Node)) continue;
       const t = exprTaint(d.init as Node, env);
       const id = d.id as Node;
       const assigned = id.type === "Identifier" ? t : undirect(t);
@@ -534,38 +642,38 @@ function analyzeComponent(def: ComponentDef, propState: PropState, functionTable
     }
   }
 
-  const ownKeys = new Set(env.queries.values());
   return { sinks: collectSinks(def.fn, env), ownKeys };
 }
 
 // ─── 위반 (추적 계약을 벗어난 모양) ─────────────────────────────────────────
 
-function collectViolations(program: Node, file: string, functionIds: Map<string, string>): DataflowViolation[] {
+function collectViolations(program: Node, file: string, ids: Map<string, string>, space: KeySpace): DataflowViolation[] {
   const violations: DataflowViolation[] = [];
   const allowedArgs = new Set<Node>();
   const declarationIds = new Set<Node>();
+  const { constants, hook, rules } = space;
 
   walk(program, (node) => {
-    if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === FUNCTIONS_NAME) {
+    if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === constants) {
       declarationIds.add(node.id as Node);
     }
-    if (node.type !== "CallExpression" || !isHookCall(node)) return;
+    if (node.type !== "CallExpression" || !isCallOf(node, hook)) return;
     const arg = (node.arguments as Node[])[0];
-    const key = arg ? isFunctionsMember(arg) : null;
+    const key = arg ? constantMember(arg, constants) : null;
     if (!arg || !key) {
       violations.push({
-        rule: "hook-arg-not-functions",
+        rule: rules.hookArg,
         loc: locOf(file, node),
-        message: `${HOOK_NAME} 의 첫 인자는 FUNCTIONS.<key> 여야 합니다`,
+        message: `${hook} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
       });
       return;
     }
     allowedArgs.add(arg);
-    if (!functionIds.has(key)) {
+    if (!ids.has(key)) {
       violations.push({
-        rule: "unknown-function-key",
+        rule: rules.unknownKey,
         loc: locOf(file, arg),
-        message: `FUNCTIONS 에 없는 key: ${key}`,
+        message: `${constants} 에 없는 key: ${key}`,
       });
     }
   });
@@ -575,33 +683,33 @@ function collectViolations(program: Node, file: string, functionIds: Map<string,
     if (node.type === "ImportSpecifier" || node.type === "ImportDefaultSpecifier" || node.type === "ImportNamespaceSpecifier" || node.type === "ExportSpecifier") {
       return;
     }
-    if (node.type === "MemberExpression" && (node.object as Node).type === "Identifier" && (node.object as Node).name === FUNCTIONS_NAME) {
+    if (node.type === "MemberExpression" && (node.object as Node).type === "Identifier" && (node.object as Node).name === constants) {
       if (node.computed) {
-        violations.push({ rule: "functions-dynamic-key", loc: locOf(file, node), message: "FUNCTIONS[...] 동적 접근은 추적할 수 없습니다" });
+        violations.push({ rule: rules.dynamicKey, loc: locOf(file, node), message: `${constants}[...] 동적 접근은 추적할 수 없습니다` });
       } else if (!allowedArgs.has(node)) {
         const key = propertyName(node.property as Node, false);
         violations.push({
-          rule: "functions-outside-hook",
+          rule: rules.outside,
           loc: locOf(file, node),
-          message: `FUNCTIONS.${key} 는 ${HOOK_NAME}(FUNCTIONS.${key}, …) 의 첫 인자로만 씁니다`,
+          message: `${constants}.${key} 는 ${hook}(${constants}.${key}, …) 의 첫 인자로만 씁니다`,
         });
       }
       return;
     }
-    if (node.type === "Identifier" && node.name === FUNCTIONS_NAME && !declarationIds.has(node)) {
+    if (node.type === "Identifier" && node.name === constants && !declarationIds.has(node)) {
       const isMemberObject = parent?.type === "MemberExpression" && parent.object === node;
       if (!isMemberObject) {
-        violations.push({ rule: "functions-escape", loc: locOf(file, node), message: "FUNCTIONS 전체를 넘기거나 대입하면 추적할 수 없습니다" });
+        violations.push({ rule: rules.escape, loc: locOf(file, node), message: `${constants} 전체를 넘기거나 대입하면 추적할 수 없습니다` });
       }
       return;
     }
     if (node.type === "StringLiteral" || node.type === "TemplateElement") {
       const text = node.type === "StringLiteral" ? (node.value as string) : ((node.value as { cooked: string }).cooked ?? "");
-      if (text.includes("/ontology-functions/")) {
+      if (text.includes(space.directPath)) {
         violations.push({
-          rule: "direct-run-call",
+          rule: rules.directCall,
           loc: locOf(file, node),
-          message: `OntologyFunction 을 직접 호출하지 말고 ${HOOK_NAME} 를 쓰세요`,
+          message: `${space.target} 을 직접 호출하지 말고 ${hook} 를 쓰세요`,
         });
       }
     }
@@ -609,6 +717,21 @@ function collectViolations(program: Node, file: string, functionIds: Map<string,
   };
   visit(program, null);
   return violations;
+}
+
+/** 템플릿 hook 파일은 면제, 다른 파일이 hook 을 새로 만들면 위반이다 */
+function spaceViolations(program: Node, file: string, ids: Map<string, string>, space: KeySpace): { violations: DataflowViolation[]; redefined: boolean } {
+  if (file === space.hookFile) return { violations: [], redefined: false };
+  const violations = collectViolations(program, file, ids, space);
+  const redefined = hookDeclaration(program, space.hook);
+  if (redefined) {
+    violations.push({
+      rule: space.rules.redefined,
+      loc: locOf(file, redefined),
+      message: `${space.hook} 는 템플릿(${space.hookFile})이 제공합니다 — 같은 이름으로 새로 만들지 말고 import 해서 쓰세요`,
+    });
+  }
+  return { violations, redefined: redefined !== null };
 }
 
 // ─── 진입점 ───────────────────────────────────────────────────────────────────
@@ -636,28 +759,30 @@ export function analyzeDataflow(ast: Node, file: string): DataflowResult {
   return analyzeProjectDataflow(AosProject.fromProgram(file, program)).files.get(file)!;
 }
 
-function computeProjectFlow(project: AosProject): ProjectFlow {
-  const programs = new Map<string, Node>();
-  for (const file of project.files()) {
-    const program = project.module(file)?.program;
-    if (program) programs.set(file, program);
-  }
+interface SpaceTables {
+  /** 파일 → 그 파일에서 쓰는 상수의 key → qualified key */
+  tables: Map<string, Map<string, string>>;
+  /** 파일 → 그 파일에서 쓰는 상수의 key → UUID */
+  effectiveIds: Map<string, Map<string, string>>;
+  idOfQualified: Map<string, string>;
+}
 
-  // 1. FUNCTIONS — 파일마다 "어느 파일의 선언을 쓰는가"
+/** 파일마다 "어느 파일의 상수 선언을 쓰는가" — 자기 선언, 없으면 import 한 모듈의 선언 */
+function spaceTables(project: AosProject, programs: Map<string, Node>, space: KeySpace): SpaceTables {
   const idOfQualified = new Map<string, string>();
   const declared = new Map<string, Map<string, string>>();
   for (const [file, program] of programs) {
-    if (declaresFunctions(program)) declared.set(file, collectFunctionIds(program));
+    if (declaresConstant(program, space.constants)) declared.set(file, collectConstantIds(program, space.constants));
   }
-  const functionsSourceOf = (file: string): string | null => {
+  const sourceOf = (file: string): string | null => {
     if (declared.has(file)) return file;
-    const found = project.resolveName(file, FUNCTIONS_NAME);
+    const found = project.resolveName(file, space.constants);
     return typeof found === "object" && declared.has(found.file) ? found.file : null;
   };
   const tables = new Map<string, Map<string, string>>();
   const effectiveIds = new Map<string, Map<string, string>>();
   for (const file of programs.keys()) {
-    const source = functionsSourceOf(file);
+    const source = sourceOf(file);
     const ids = source ? declared.get(source)! : new Map<string, string>();
     const table = new Map<string, string>();
     for (const [key, id] of ids) {
@@ -668,6 +793,19 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     tables.set(file, table);
     effectiveIds.set(file, ids);
   }
+  return { tables, effectiveIds, idOfQualified };
+}
+
+function computeProjectFlow(project: AosProject): ProjectFlow {
+  const programs = new Map<string, Node>();
+  for (const file of project.files()) {
+    const program = project.module(file)?.program;
+    if (program) programs.set(file, program);
+  }
+
+  // 1. FUNCTIONS · ACTIONS — 파일마다 "어느 파일의 선언을 쓰는가"
+  const functionSpace = spaceTables(project, programs, FUNCTION_SPACE);
+  const actionSpace = spaceTables(project, programs, ACTION_SPACE);
 
   // 2. 컴포넌트 — `파일#이름`
   const defs = new Map<string, { file: string; def: ComponentDef }>();
@@ -713,38 +851,50 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     return candidates.length === 1 ? candidates[0] : null;
   }
 
-  // 3. 컴포넌트 간(파일 경계 포함) prop 전달을 따라 수렴할 때까지
-  const states = new Map<string, PropState>([...defs.keys()].map((id) => [id, { props: new Map(), spread: EMPTY }]));
-  const results = new Map<string, ReturnType<typeof analyzeComponent>>();
-  for (let round = 0, changed = true; changed && round < 64; round++) {
-    changed = false;
-    for (const [id, { file, def }] of defs) {
-      const result = analyzeComponent(def, states.get(id)!, tables.get(file)!);
-      results.set(id, result);
-      for (const sink of result.sinks) {
-        if (sink.taint.keys.size === 0) continue;
-        const targetId = resolveElement(file, sink.element);
-        const target = targetId ? states.get(targetId) : undefined;
-        if (!target) continue;
-        if (sink.prop === null) {
-          const next = merge(target.spread, sink.taint);
-          if (!sameTaint(target.spread, next)) {
-            target.spread = next;
-            changed = true;
-          }
-        } else {
-          const next = merge(target.props.get(sink.prop) ?? EMPTY, sink.taint);
-          if (!sameTaint(target.props.get(sink.prop), next)) {
-            target.props.set(sink.prop, next);
-            changed = true;
+  // 3. 컴포넌트 간(파일 경계 포함) prop 전달을 따라 수렴할 때까지 — key 공간마다 따로
+  const propagate = (space: KeySpace, { tables }: SpaceTables) => {
+    const states = new Map<string, PropState>([...defs.keys()].map((id) => [id, { props: new Map(), spread: EMPTY }]));
+    const results = new Map<string, ReturnType<typeof analyzeComponent>>();
+    for (let round = 0, changed = true; changed && round < 64; round++) {
+      changed = false;
+      for (const [id, { file, def }] of defs) {
+        const result = analyzeComponent(def, states.get(id)!, tables.get(file)!, space);
+        results.set(id, result);
+        for (const sink of result.sinks) {
+          if (sink.taint.keys.size === 0) continue;
+          const targetId = resolveElement(file, sink.element);
+          const target = targetId ? states.get(targetId) : undefined;
+          if (!target) continue;
+          if (sink.prop === null) {
+            const next = merge(target.spread, sink.taint);
+            if (!sameTaint(target.spread, next)) {
+              target.spread = next;
+              changed = true;
+            }
+          } else {
+            const next = merge(target.props.get(sink.prop) ?? EMPTY, sink.taint);
+            if (!sameTaint(target.props.get(sink.prop), next)) {
+              target.props.set(sink.prop, next);
+              changed = true;
+            }
           }
         }
       }
     }
-  }
+    /** 컴포넌트가 직접 부른 hook 의 key + prop 으로 받은 key */
+    const keysOfComponent = (id: string) => {
+      const state = states.get(id)!;
+      const keys = new Set(results.get(id)!.ownKeys);
+      for (const t of [...state.props.values(), state.spread]) for (const k of t.keys) keys.add(k);
+      return keys;
+    };
+    return { results, keysOfComponent };
+  };
+  const functionFlow = propagate(FUNCTION_SPACE, functionSpace);
+  const actionFlow = propagate(ACTION_SPACE, actionSpace);
 
   const keysOf = (keys: Iterable<string>) => [...new Set([...keys].map(bareKey))].sort();
-  const idsOf = (keys: Iterable<string>) => {
+  const idsOf = (keys: Iterable<string>, idOfQualified: Map<string, string>) => {
     const ordered = [...keys].sort((a, b) => bareKey(a).localeCompare(bareKey(b)) || a.localeCompare(b));
     const ids: string[] = [];
     for (const qualified of ordered) {
@@ -753,23 +903,25 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     }
     return ids;
   };
+  const functionIdsOf = (keys: Iterable<string>) => idsOf(keys, functionSpace.idOfQualified);
 
   // 4. 파일별 결과
   const files = new Map<string, DataflowResult>();
   for (const [file, program] of programs) {
     const components: ComponentFlow[] = [...localDefs.get(file)!.values()].map((id) => {
       const { def } = defs.get(id)!;
-      const result = results.get(id)!;
-      const state = states.get(id)!;
-      const keys = new Set(result.ownKeys);
-      for (const t of [...state.props.values(), state.spread]) for (const k of t.keys) keys.add(k);
+      const result = functionFlow.results.get(id)!;
+      const keys = functionFlow.keysOfComponent(id);
+      const actionKeys = actionFlow.keysOfComponent(id);
       return {
         id,
         name: def.name,
         start: def.fn.start,
         end: def.fn.end,
         functionKeys: keysOf(keys),
-        functionIds: idsOf(keys),
+        functionIds: functionIdsOf(keys),
+        actionKeys: keysOf(actionKeys),
+        actionIds: idsOf(actionKeys, actionSpace.idOfQualified),
         // 위젯 판정에 쓰는 것은 컴포넌트(대문자)로 들어가는 데이터 prop 이다. host 엘리먼트 속성
         // (`button.disabled`, `span.className`)과 React `key` 는 데이터가 아니라 기록하지 않는다.
         bindings: result.sinks
@@ -779,30 +931,34 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
             prop: s.prop as string,
             loc: locOf(file, s.node),
             functionKeys: keysOf(s.taint.keys),
-            functionIds: idsOf(s.taint.keys),
+            functionIds: functionIdsOf(s.taint.keys),
             direct: s.taint.direct,
           })),
       };
     });
 
     let usesHook = false;
+    let usesActionHook = false;
     walk(program, (node) => {
-      if (node.type === "CallExpression" && isHookCall(node)) usesHook = true;
+      if (node.type !== "CallExpression") return;
+      if (isCallOf(node, HOOK_NAME)) usesHook = true;
+      if (isCallOf(node, ACTION_HOOK_NAME)) usesActionHook = true;
     });
 
-    const functionIds = effectiveIds.get(file)!;
-    const isHookModule = file === HOOK_FILE;
-    const violations = isHookModule ? [] : collectViolations(program, file, functionIds);
-    const redefined = isHookModule ? null : hookDeclaration(program);
-    if (redefined) {
-      violations.push({
-        rule: "hook-redefined",
-        loc: locOf(file, redefined),
-        message: `${HOOK_NAME} 는 템플릿(${HOOK_FILE})이 제공합니다 — 같은 이름으로 새로 만들지 말고 import 해서 쓰세요`,
-      });
-    }
+    const functionIds = functionSpace.effectiveIds.get(file)!;
+    const actionIds = actionSpace.effectiveIds.get(file)!;
+    const functionCheck = spaceViolations(program, file, functionIds, FUNCTION_SPACE);
+    const actionCheck = spaceViolations(program, file, actionIds, ACTION_SPACE);
     // hook 을 새로 만든 파일은 hook 계약 안의 파일이다 — 예전 앱 예외(usesHook=false)로 위반이 묻히지 않게.
-    files.set(file, { functionIds, components, violations, usesHook: usesHook || redefined !== null });
+    files.set(file, {
+      functionIds,
+      components,
+      violations: functionCheck.violations,
+      usesHook: usesHook || functionCheck.redefined,
+      actionIds,
+      actionViolations: actionCheck.violations,
+      usesActionHook: usesActionHook || actionCheck.redefined,
+    });
   }
 
   const isForeignElement = (file: string, element: string): boolean =>

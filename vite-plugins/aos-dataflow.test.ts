@@ -213,3 +213,132 @@ describe("analyzeDataflow — 값을 바꾸지 않는 감싸기 (AOS-4929)", () 
     expect(chartDirect(transform)).toBe(false);
   });
 });
+
+describe("analyzeDataflow — 액션 추적 (AOS-7001)", () => {
+  const ACTION_HEADER = `
+const FUNCTIONS = { save: { id: "uuid-fn-save" }, orders: { id: "uuid-orders" } };
+const ACTIONS = {
+  approve: { id: "uuid-approve", description: "승인" },
+  save: { id: "uuid-act-save" },
+};
+const TENANT_ID = "1";
+`;
+
+  function analyzeActions(body: string, file = FILE) {
+    const ast = parse(ACTION_HEADER + body, { sourceType: "module", plugins: ["typescript", "jsx"] }) as unknown as Node;
+    return analyzeDataflow(ast, file);
+  }
+
+  const componentOf = (result: ReturnType<typeof analyze>, name: string) => result.components.find((c) => c.name === name)!;
+
+  it("컴포넌트 안에서 직접 execute 를 부르면 그 컴포넌트가 액션을 쓴다", () => {
+    const result = analyzeActions(`
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        return <button onClick={() => approve.execute()}>승인</button>;
+      }
+    `);
+
+    expect(componentOf(result, "App")).toMatchObject({ actionKeys: ["approve"], actionIds: ["uuid-approve"], functionKeys: [] });
+    expect(result.actionIds.get("approve")).toBe("uuid-approve");
+    expect(result.usesActionHook).toBe(true);
+    expect(result.usesHook).toBe(false);
+    expect(result.actionViolations).toEqual([]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("execute 를 prop 으로 받은 자식은 액션을 쓰고, 실행 중 표시만 받은 자식은 쓰지 않는다", () => {
+    const result = analyzeActions(`
+      function Row({ onApprove }) { return <button onClick={() => onApprove()} />; }
+      function SaveBar({ onSave }) { return <button onClick={onSave} />; }
+      function Spinner({ busy, state, last }) { return <span>{busy ? "..." : state}{String(last)}</span>; }
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        const { execute: runSave, isRunning, data } = useOntologyAction(ACTIONS.save, { tenantId: TENANT_ID });
+        const save = useCallback(() => runSave({ x: 1 }), [runSave]);
+        return (
+          <main>
+            <Row onApprove={approve.execute} />
+            <SaveBar onSave={save} />
+            <Spinner busy={approve.isRunning || isRunning} state={approve.status} last={data ?? approve.error} />
+          </main>
+        );
+      }
+    `);
+
+    expect(componentOf(result, "Row").actionKeys).toEqual(["approve"]);
+    expect(componentOf(result, "SaveBar").actionIds).toEqual(["uuid-act-save"]);
+    expect(componentOf(result, "Spinner").actionKeys).toEqual([]);
+    expect(componentOf(result, "App").actionKeys).toEqual(["approve", "save"]);
+    expect(componentOf(result, "App").bindings).toEqual([]);
+  });
+
+  it("FUNCTIONS 와 ACTIONS 의 같은 key 는 섞이지 않는다", () => {
+    const result = analyzeActions(`
+      function Panel({ rows, onSave }) { return <div>{rows.length}<button onClick={() => onSave()} /></div>; }
+      function App() {
+        const saved = useOntologyFunction(FUNCTIONS.save, { tenantId: TENANT_ID });
+        const save = useOntologyAction(ACTIONS.save, { tenantId: TENANT_ID });
+        return <Panel rows={saved.data} onSave={save.execute} />;
+      }
+    `);
+
+    for (const name of ["Panel", "App"]) {
+      expect(componentOf(result, name)).toMatchObject({ functionIds: ["uuid-fn-save"], actionIds: ["uuid-act-save"] });
+    }
+    expect(componentOf(result, "App").bindings.map((b) => [b.prop, b.functionIds])).toEqual([["rows", ["uuid-fn-save"]]]);
+  });
+
+  it("액션 계약을 벗어난 모양을 actionViolations 로 보고한다", () => {
+    const result = analyzeActions(`
+      function useOntologyAction() { return null; }
+      function App() {
+        const a = useOntologyAction({ id: "forged-uuid" }, { tenantId: TENANT_ID });
+        const b = useOntologyAction(ACTIONS.missing, { tenantId: TENANT_ID });
+        const c = useOntologyAction(ACTIONS[name], { tenantId: TENANT_ID });
+        register(ACTIONS);
+        const run = () => apiClient.post(\`/ontology-actions/\${ACTIONS.approve.id}/execute\`, {});
+        return <div />;
+      }
+    `);
+
+    expect(result.actionViolations.map((v) => v.rule).sort()).toEqual([
+      "action-hook-redefined",
+      "actions-dynamic-key",
+      "actions-escape",
+      "actions-outside-hook",
+      "direct-action-call",
+      "hook-arg-not-actions",
+      "hook-arg-not-actions",
+      "unknown-action-key",
+    ]);
+    expect(result.actionViolations.every((v) => /^src\/App\.tsx:\d+:\d+$/.test(v.loc))).toBe(true);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("함수 hook 을 쓰며 /execute 를 직접 부르는 기존 앱은 actionViolations 에만 들어간다", () => {
+    const result = analyzeActions(`
+      export default function App() {
+        const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+        const approve = (id) =>
+          apiClient.post(\`/ontology-actions/\${ACTIONS.approve.id}/execute\`, { input: { id } }, { headers: { "X-Tenant-Id": TENANT_ID } });
+        return <button onClick={() => approve(orders.data[0].id)} />;
+      }
+    `);
+
+    expect(result.violations).toEqual([]);
+    expect(result.usesHook).toBe(true);
+    expect(result.actionViolations.map((v) => v.rule).sort()).toEqual(["actions-outside-hook", "direct-action-call"]);
+    expect(result.usesActionHook).toBe(false);
+  });
+
+  it("템플릿 액션 hook 파일은 /ontology-actions/ 를 직접 불러도 위반이 아니다", () => {
+    const result = analyzeActions(
+      "export function useOntologyAction(action, o) { return apiClient.post(`/ontology-actions/${action.id}/runs`, {}); }",
+      "src/hooks/useOntologyAction.ts",
+    );
+
+    expect(result.actionViolations).toEqual([]);
+    expect(result.violations).toEqual([]);
+  });
+});

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AOS_MANIFEST_VERSION, analyzeAosSource, aosKey, buildManifest } from "./aos-locator";
+import { AOS_MANIFEST_VERSION, analyzeAosSource, analyzeProject, aosKey, buildManifest } from "./aos-locator";
+import { AosProject } from "./aos-project";
 
 const FILE = "src/App.tsx";
 
@@ -89,6 +90,7 @@ describe("analyzeAosSource — 컴포넌트 수집", () => {
         functions: ["f-1", "f-2"],
         functionsSource: "explicit",
         functionsInferred: [],
+        actions: [],
         component: "A",
         bindings: [],
         visualizations: [],
@@ -129,6 +131,7 @@ describe("buildManifest", () => {
       functions: [],
       functionsSource: "none" as const,
       functionsInferred: [],
+      actions: [],
       component: null,
       bindings: [],
       visualizations: [],
@@ -293,5 +296,78 @@ describe("data-aos-k 와 매니페스트 visualizations (AOS-5814)", () => {
     expect(inside([card])).toEqual(["BAR"]);
     expect(inside([grid])).toEqual(["LINE"]);
     expect(inside([main, card, grid])).toEqual(["BAR", "LINE"]);
+  });
+});
+
+describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
+  const sources = (overrides: Record<string, string> = {}) =>
+    AosProject.fromSources({
+      "src/hooks/useOntologyAction.ts":
+        "export function useOntologyAction(action, o) { return apiClient.post(`/ontology-actions/${action.id}/runs`, {}); }",
+      "src/modules/constants.ts": `
+        export const FUNCTIONS = { orders: { id: "uuid-orders" }, approve: { id: "uuid-fn-approve" } };
+        export const ACTIONS = { approve: { id: "uuid-approve" } };
+        export const TENANT_ID = "1";
+      `,
+      "src/App.tsx": `
+        import { useOntologyAction } from "@/hooks/useOntologyAction";
+        import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+        import { ACTIONS, FUNCTIONS, TENANT_ID } from "@/modules/constants";
+        import { OrderRow } from "@/modules/OrderRow";
+        import { Busy } from "./modules/Busy";
+        export default function App() {
+          const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+          const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+          return (
+            <main data-aos-id="app">
+              <OrderRow rows={orders.data} onApprove={approve.execute} />
+              <Busy busy={approve.isRunning} />
+            </main>
+          );
+        }
+      `,
+      "src/modules/OrderRow.tsx": `
+        export function OrderRow({ rows, onApprove }) {
+          return <section data-aos-id="order-row"><button onClick={() => onApprove({ id: rows[0].id })} /></section>;
+        }
+      `,
+      "src/modules/Busy.tsx": `export function Busy({ busy }) { return <div data-aos-id="busy">{busy ? "..." : ""}</div>; }`,
+      ...overrides,
+    });
+
+  it("다른 파일로 넘긴 execute 를 따라 컴포넌트별 액션 id 를 싣는다", () => {
+    const { manifest } = analyzeProject(sources(), { injectLoc: false });
+    const byId = (id: string) => manifest.components.find((c) => c.id === id)!;
+
+    expect(manifest.version).toBe(7);
+    expect(byId("app")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
+    expect(byId("order-row")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
+    expect(byId("busy")).toMatchObject({ actions: [], functions: [] });
+  });
+
+  it("파일마다 usesActionHook · actionViolations 를 싣고, 템플릿 hook 파일은 싣지 않는다", () => {
+    const { manifest } = analyzeProject(sources(), { injectLoc: false });
+
+    expect(manifest.files).toEqual([
+      { file: "src/App.tsx", usesHook: true, violations: [], usesActionHook: true, actionViolations: [] },
+    ]);
+  });
+
+  it("/execute 를 직접 부르는 옛 파일은 actionViolations 에만 들어간다", () => {
+    const legacy = `
+      import { useOntologyFunction } from "@/hooks/useOntologyFunction";
+      import { ACTIONS, FUNCTIONS, TENANT_ID } from "@/modules/constants";
+      export default function Legacy() {
+        const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+        const run = () => apiClient.post(\`/ontology-actions/\${ACTIONS.approve.id}/execute\`, {});
+        return <div data-aos-id="legacy" onClick={run}>{orders.data.length}</div>;
+      }
+    `;
+    const { manifest } = analyzeProject(sources({ "src/modules/Legacy.tsx": legacy }), { injectLoc: false });
+    const report = manifest.files.find((f) => f.file === "src/modules/Legacy.tsx")!;
+
+    expect(report).toMatchObject({ usesHook: true, violations: [], usesActionHook: false });
+    expect(report.actionViolations.map((v) => v.rule).sort()).toEqual(["actions-outside-hook", "direct-action-call"]);
+    expect(manifest.components.find((c) => c.id === "legacy")!.actions).toEqual([]);
   });
 });

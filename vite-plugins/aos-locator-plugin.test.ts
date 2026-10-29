@@ -175,7 +175,7 @@ describe("템플릿 자체", () => {
   it("템플릿 src/ 는 데이터 흐름 위반도 순환도 없다", () => {
     // 템플릿이 스스로 규칙을 어기면 빈 앱의 verify 부터 실패한다
     const { manifest } = analyzeProject(AosProject.fromDisk(path.resolve(__dirname, "..")), { injectLoc: false });
-    const violations = manifest.files.flatMap((f) => f.violations.map((v) => `${f.file} ${v.rule}`));
+    const violations = manifest.files.flatMap((f) => [...f.violations, ...f.actionViolations].map((v) => `${f.file} ${v.rule}`));
     expect(violations).toEqual([]);
     expect(manifest.cycles).toEqual([]);
   });
