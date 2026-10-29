@@ -12,6 +12,12 @@ updates:
       timezone: Asia/Seoul
     allow:
       - dependency-name: "@enhans/synapse"
+    # synapse v2 는 같은 이름의 4.x 로 배포된다(AOS-7335). 생성 앱의 코드·앱빌더 프롬프트·
+    # 디자인 프리셋은 아직 v1(0.x) API 라, 4.x 로 올리면 새로 만드는 앱이 깨진다.
+    # 앱빌더를 v2 로 옮길 때 이 ignore 를 지운다. 0.x 패치·마이너는 그대로 PR 이 올라온다.
+    ignore:
+      - dependency-name: "@enhans/synapse"
+        versions: [">=1.0.0"]
     # increase-if-necessary: 새 버전이 현재 range 밖일 때만 package.json 을 고친다.
     # "@enhans/synapse": "^0.13.6" 은 0.13.x 만 허용하므로(0.x 에서 캐럿은 minor 고정)
     # 0.14.0 이 나오면 range 를 ^0.14.0 으로 올리고, 0.13.7 이면 lock 만 갱신한다.
