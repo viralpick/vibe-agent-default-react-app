@@ -345,6 +345,30 @@ const TENANT_ID = "1";
     expect(componentOf(result, "Badge").actionKeys).toEqual([]);
   });
 
+  it("결과를 spread 로 받아도 children 같은 다른 prop 만 쓰는 컴포넌트는 액션을 쓰지 않는다", () => {
+    const result = analyzeActions(`
+      function Badge({ status, children, title }) { return <span title={title}>{status}{children}</span>; }
+      function Label(props) { return <span>{props.children}{props.title}</span>; }
+      function Plain({ children }) { return <p>{children}</p>; }
+      function Mixed(props) { return <button onClick={props.save.execute}>{props.children}</button>; }
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        const save = useOntologyAction(ACTIONS.save, { tenantId: TENANT_ID });
+        return (
+          <main>
+            <Badge {...approve} title="t">승인</Badge>
+            <Label {...approve} title="t">승인</Label>
+            <Badge {...approve}><Plain>승인</Plain></Badge>
+            <Mixed {...approve} save={save}>저장</Mixed>
+          </main>
+        );
+      }
+    `);
+
+    for (const name of ["Badge", "Label", "Plain"]) expect(componentOf(result, name).actionKeys).toEqual([]);
+    expect(componentOf(result, "Mixed").actionKeys).toEqual(["save"]);
+  });
+
   it("FUNCTIONS 와 ACTIONS 의 같은 key 는 섞이지 않는다", () => {
     const result = analyzeActions(`
       function Panel({ rows, onSave }) { return <div>{rows.length}<button onClick={() => onSave()} /></div>; }

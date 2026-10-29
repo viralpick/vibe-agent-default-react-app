@@ -45,6 +45,8 @@ export const ACTION_HOOK_FILE = "src/hooks/useOntologyAction.ts";
 export const ACTIONS_NAME = "ACTIONS";
 // 액션 hook 결과에서 액션을 운반하지 않는 필드 — 실행 중 표시를 넘겨받은 컴포넌트가 액션을 쓰는 것으로 오염되지 않게
 const CLEAN_ACTION_RESULT_FIELDS = new Set(["status", "isRunning", "data", "error"]);
+// 액션 hook 결과를 spread 로 받았을 때 액션을 운반하는 prop — children 같은 다른 prop 은 결과에서 온 것이 아니다
+const SPREAD_ACTION_RESULT_FIELDS = new Set(["execute"]);
 
 type RuleName = DataflowViolation["rule"];
 
@@ -55,6 +57,8 @@ interface KeySpace {
   /** 이 이름의 결과 필드만 direct 로 운반한다 (함수의 data) */
   directField: string | null;
   cleanFields: Set<string>;
+  /** 핸들을 spread 로 받았을 때 핸들을 운반하는 prop (handleResult 일 때만) */
+  spreadFields: Set<string>;
   /**
    * hook 결과를 핸들로 보는가 (액션). 결과 전체와 그 별칭·prop 은 핸들(direct)로 운반되고, 핸들에서 꺼낸 필드는
    * 어디서든 cleanFields 를 빼고 운반한다. 핸들을 받기만 하고 운반 필드를 꺼내지 않은 컴포넌트는 쓰는 것으로 세지 않는다
@@ -79,6 +83,7 @@ const FUNCTION_SPACE: KeySpace = {
   constants: FUNCTIONS_NAME,
   directField: "data",
   cleanFields: CLEAN_RESULT_FIELDS,
+  spreadFields: new Set(),
   handleResult: false,
   target: "OntologyFunction",
   directPath: "/ontology-functions/",
@@ -99,6 +104,7 @@ const ACTION_SPACE: KeySpace = {
   constants: ACTIONS_NAME,
   directField: null,
   cleanFields: CLEAN_ACTION_RESULT_FIELDS,
+  spreadFields: SPREAD_ACTION_RESULT_FIELDS,
   handleResult: true,
   target: "OntologyAction",
   directPath: "/ontology-actions/",
@@ -361,10 +367,10 @@ interface Env {
   propState: PropState;
 }
 
-/** spread 로 받은 핸들에서 prop 하나를 꺼낸 값 — 운반하지 않는 필드면 없음 */
+/** spread 로 받은 핸들에서 prop 하나를 꺼낸 값 — 핸들을 운반하는 prop 이 아니면 없음 */
 function spreadField(state: PropState, prop: string, space: KeySpace): Taint {
   if (!space.handleResult || !isHandle(state.spread)) return state.spread;
-  return space.cleanFields.has(prop) ? EMPTY : undirect(state.spread);
+  return space.spreadFields.has(prop) ? undirect(state.spread) : EMPTY;
 }
 
 function propTaint(state: PropState, prop: string, space: KeySpace): Taint {
@@ -714,6 +720,7 @@ function handleUses(fn: Node, env: Env): Set<string> {
   const used = new Set<string>();
   const carried = (prop: string | null) => !(prop && env.space.cleanFields.has(prop));
   const spread = env.propState.spread;
+  const fromSpread = (prop: string | null) => isHandle(spread) && prop !== null && env.space.spreadFields.has(prop);
   const useSpread = () => {
     for (const k of spread.keys) used.add(k);
   };
@@ -722,7 +729,7 @@ function handleUses(fn: Node, env: Env): Set<string> {
     const param = first?.type === "AssignmentPattern" ? (first.left as Node) : first;
     if (param?.type === "ObjectPattern") {
       for (const prop of param.properties as Node[]) {
-        if (prop.type === "ObjectProperty" && carried(propertyName(prop.key as Node, prop.computed as boolean))) useSpread();
+        if (prop.type === "ObjectProperty" && fromSpread(propertyName(prop.key as Node, prop.computed as boolean))) useSpread();
       }
     }
   }
@@ -731,7 +738,7 @@ function handleUses(fn: Node, env: Env): Set<string> {
     const prop = propertyName(node.property as Node, node.computed as boolean);
     if (!carried(prop)) return;
     const object = unwrap(node.object as Node);
-    if (isHandle(spread) && object.type === "Identifier" && object.name === env.propsIdent) {
+    if (fromSpread(prop) && object.type === "Identifier" && object.name === env.propsIdent) {
       useSpread();
       return;
     }
