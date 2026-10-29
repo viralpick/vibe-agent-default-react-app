@@ -273,6 +273,43 @@ const TENANT_ID = "1";
     expect(componentOf(result, "App").bindings).toEqual([]);
   });
 
+  it("결과를 별칭·구조 분해·prop 으로 넘겨도 실행 중 표시는 액션을 운반하지 않는다", () => {
+    const result = analyzeActions(`
+      function Spinner({ busy }) { return <span>{busy ? "..." : ""}</span>; }
+      function Label({ text }) { return <span>{text}</span>; }
+      function Status({ action }) { return <span>{action.status}{String(action.isRunning)}</span>; }
+      function Runner({ action }) {
+        useEffect(() => { action.execute(); }, [action]);
+        return <span>{action.status}</span>;
+      }
+      function Forward(props) { return <button onClick={() => props.action.execute()} />; }
+      function Picked({ action }) {
+        const { execute, isRunning } = action;
+        return <button disabled={isRunning} onClick={() => execute()} />;
+      }
+      function SaveBar({ onSave }) { return <button onClick={onSave} />; }
+      function App() {
+        const approve = useOntologyAction(ACTIONS.approve, { tenantId: TENANT_ID });
+        const alias = approve;
+        const { isRunning, execute, ...rest } = alias;
+        return (
+          <main>
+            <Spinner busy={isRunning} />
+            <Label text={alias.status} />
+            <Status action={approve} />
+            <Runner action={alias} />
+            <Forward action={approve} />
+            <Picked action={rest} />
+            <SaveBar onSave={execute} />
+          </main>
+        );
+      }
+    `);
+
+    for (const name of ["Spinner", "Label", "Status"]) expect(componentOf(result, name).actionKeys).toEqual([]);
+    for (const name of ["Runner", "Forward", "Picked", "SaveBar", "App"]) expect(componentOf(result, name).actionKeys).toEqual(["approve"]);
+  });
+
   it("FUNCTIONS 와 ACTIONS 의 같은 key 는 섞이지 않는다", () => {
     const result = analyzeActions(`
       function Panel({ rows, onSave }) { return <div>{rows.length}<button onClick={() => onSave()} /></div>; }

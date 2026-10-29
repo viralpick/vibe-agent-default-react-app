@@ -165,15 +165,14 @@ export function useOntologyAction(
       }
 
       let failures = 0;
+      const pastDeadline = () => Date.now() - startedAt >= maxWaitMs;
       while (needsPolling(run) && run.id) {
         const elapsed = Date.now() - startedAt;
-        if (elapsed >= maxWaitMs) {
-          update({ status: "waiting", data: run, error: null });
-          return run;
-        }
+        if (elapsed >= maxWaitMs) break;
         update({ status: "running", data: run, error: null });
-        await sleep(pollDelayMs(elapsed), signal);
+        await sleep(Math.min(pollDelayMs(elapsed), maxWaitMs - elapsed), signal);
         if (signal.aborted) return run;
+        if (pastDeadline()) break;
         try {
           const response = await abortable(
             apiClient.get(`/ontology-actions/${action.id}/runs/${run.id}`, config),

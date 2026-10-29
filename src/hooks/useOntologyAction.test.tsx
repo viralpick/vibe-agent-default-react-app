@@ -169,12 +169,25 @@ describe("useOntologyAction", () => {
     const promise = start(hook);
     await tick(10_000);
 
-    expect(get).toHaveBeenCalledTimes(5);
+    expect(get).toHaveBeenCalledTimes(4);
     expect((await promise)?.status).toBe("RUNNING");
     expect(hook.result.current).toMatchObject({ status: "waiting", error: null });
 
     await tick(60_000);
-    expect(get).toHaveBeenCalledTimes(5);
+    expect(get).toHaveBeenCalledTimes(4);
+  });
+
+  it("상한을 지나서는 조회를 시작하지 않아 실패가 이어져도 error 가 아니라 waiting 이다", async () => {
+    post.mockResolvedValue(workflowWait());
+    get.mockRejectedValue(new Error("502"));
+    const hook = mount({ maxWaitMs: 2500 });
+
+    const promise = start(hook);
+    await tick(10_000);
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect((await promise)?.status).toBe("WAITING_CALLBACK");
+    expect(hook.result.current).toMatchObject({ status: "waiting", error: null });
   });
 
   it("조회가 중간에 실패해도 성공하면 다시 세고, 결국 끝 상태를 받는다", async () => {

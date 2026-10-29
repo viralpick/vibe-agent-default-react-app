@@ -55,8 +55,11 @@ interface KeySpace {
   /** 이 이름의 결과 필드만 direct 로 운반한다 (함수의 data) */
   directField: string | null;
   cleanFields: Set<string>;
-  /** 구조 분해한 결과 필드 중 directField 밖의 것도 운반하고, 구조 분해한 hook 도 그 컴포넌트가 쓰는 것으로 세는가 */
-  destructureCarries: boolean;
+  /**
+   * hook 결과를 핸들로 보는가 (액션). 결과 전체와 그 별칭·prop 은 핸들(direct)로 운반되고, 핸들에서 꺼낸 필드는
+   * 어디서든 cleanFields 를 빼고 운반한다. 핸들을 받기만 하고 운반 필드를 꺼내지 않은 컴포넌트는 쓰는 것으로 세지 않는다
+   */
+  handleResult: boolean;
   target: string;
   directPath: string;
   rules: {
@@ -76,7 +79,7 @@ const FUNCTION_SPACE: KeySpace = {
   constants: FUNCTIONS_NAME,
   directField: "data",
   cleanFields: CLEAN_RESULT_FIELDS,
-  destructureCarries: false,
+  handleResult: false,
   target: "OntologyFunction",
   directPath: "/ontology-functions/",
   rules: {
@@ -96,7 +99,7 @@ const ACTION_SPACE: KeySpace = {
   constants: ACTIONS_NAME,
   directField: null,
   cleanFields: CLEAN_ACTION_RESULT_FIELDS,
-  destructureCarries: true,
+  handleResult: true,
   target: "OntologyAction",
   directPath: "/ontology-actions/",
   rules: {
@@ -441,6 +444,27 @@ function peelPassThrough(node: Node): Node {
   }
 }
 
+/** 핸들 공간에서 direct 는 "hook 결과 전체를 그대로 가리킨다" 는 뜻이다 */
+function isHandle(t: Taint): boolean {
+  return t.direct && t.keys.size > 0;
+}
+
+/** 핸들을 구조 분해 — 운반하지 않는 필드는 빼고, 나머지 필드는 핸들이 아닌 값으로, rest 는 핸들로 */
+function handleFields(pattern: Node, handle: Taint, cleanFields: Set<string>): [string, Taint][] {
+  const pairs: [string, Taint][] = [];
+  for (const prop of pattern.properties as Node[]) {
+    if (prop.type === "RestElement") {
+      for (const name of patternNames(prop)) pairs.push([name, handle]);
+      continue;
+    }
+    if (prop.type !== "ObjectProperty") continue;
+    const field = propertyName(prop.key as Node, prop.computed as boolean);
+    if (field !== null && cleanFields.has(field)) continue;
+    for (const name of patternNames(prop.value as Node)) pairs.push([name, undirect(handle)]);
+  }
+  return pairs;
+}
+
 /** 식이 운반하는 taint. direct 는 식이 별칭 형태(식별자·멤버 접근)일 때만 유지된다 */
 function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map()): Taint {
   let acc: Taint = EMPTY;
@@ -449,7 +473,7 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
   };
   const lookup = (name: string): Taint | null => {
     if (locals.has(name)) return locals.get(name)!;
-    if (env.queries.has(name)) return { keys: new Set([env.queries.get(name)!]), direct: false };
+    if (env.queries.has(name)) return { keys: new Set([env.queries.get(name)!]), direct: env.space.handleResult };
     if (env.propsIdent === name) return allPropsTaint(env.propState);
     return env.bindings.get(name) ?? null;
   };
@@ -467,6 +491,11 @@ function exprTaint(expr: Node, env: Env, locals: Map<string, Taint> = new Map())
         }
         if (!locals.has(base) && env.propsIdent === base && prop) {
           add(propTaint(env.propState, prop));
+          return;
+        }
+        const handle = env.space.handleResult ? lookup(base) : null;
+        if (handle && isHandle(handle)) {
+          if (!(prop && env.space.cleanFields.has(prop))) add(undirect(handle));
           return;
         }
       }
@@ -612,14 +641,13 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
     if (id.type === "Identifier") {
       env.queries.set(id.name as string, key);
       ownKeys.add(key);
+    } else if (id.type === "ObjectPattern" && space.handleResult) {
+      ownKeys.add(key);
+      for (const [local, t] of handleFields(id, { keys: new Set([key]), direct: true }, space.cleanFields)) env.bindings.set(local, t);
     } else if (id.type === "ObjectPattern") {
-      if (space.destructureCarries) ownKeys.add(key);
       for (const prop of id.properties as Node[]) {
-        if (prop.type !== "ObjectProperty") continue;
-        const field = propertyName(prop.key as Node, false);
-        const direct = field !== null && field === space.directField;
-        if (!direct && !(space.destructureCarries && field !== null && !space.cleanFields.has(field))) continue;
-        for (const local of patternNames(prop.value as Node)) env.bindings.set(local, { keys: new Set([key]), direct });
+        if (prop.type !== "ObjectProperty" || propertyName(prop.key as Node, false) !== space.directField) continue;
+        for (const local of patternNames(prop.value as Node)) env.bindings.set(local, { keys: new Set([key]), direct: true });
       }
     }
   }
@@ -632,8 +660,14 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
       const t = exprTaint(d.init as Node, env);
       const id = d.id as Node;
       const assigned = id.type === "Identifier" ? t : undirect(t);
-      for (const name of patternNames(id)) {
-        const next = merge(env.bindings.get(name) ?? EMPTY, assigned);
+      const fromHandle = space.handleResult && id.type === "ObjectPattern" && isHandle(t);
+      const pairs: [string, Taint][] = fromHandle
+        ? handleFields(id, t, space.cleanFields)
+        : patternNames(id).map((name) => [name, assigned]);
+      // 핸들에서 운반 필드를 구조 분해로 꺼낸 것도 쓰는 것이다
+      if (fromHandle && pairs.some(([, value]) => !isHandle(value))) for (const k of t.keys) ownKeys.add(k);
+      for (const [name, value] of pairs) {
+        const next = merge(env.bindings.get(name) ?? EMPTY, value);
         if (!sameTaint(env.bindings.get(name), next)) {
           env.bindings.set(name, next);
           changed = true;
@@ -642,7 +676,36 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
     }
   }
 
+  if (space.handleResult) for (const k of handleUses(def.fn, env)) ownKeys.add(k);
   return { sinks: collectSinks(def.fn, env), ownKeys };
+}
+
+/** 컴포넌트 본문에서 핸들의 운반 필드를 꺼낸 곳 (`action.execute()`, `props.action.execute`) 의 key */
+function handleUses(fn: Node, env: Env): Set<string> {
+  const used = new Set<string>();
+  const handleOf = (object: Node): Taint | null => {
+    const target = unwrap(object);
+    if (target.type === "Identifier") {
+      const name = target.name as string;
+      if (env.queries.has(name) || env.propsIdent === name) return null;
+      return env.bindings.get(name) ?? null;
+    }
+    if ((target.type === "MemberExpression" || target.type === "OptionalMemberExpression") && !target.computed) {
+      const base = unwrap(target.object as Node);
+      const prop = propertyName(target.property as Node, false);
+      if (base.type === "Identifier" && base.name === env.propsIdent && prop) return propTaint(env.propState, prop);
+    }
+    return null;
+  };
+  walk(fn.body as Node, (node) => {
+    if (node.type !== "MemberExpression" && node.type !== "OptionalMemberExpression") return;
+    const handle = handleOf(node.object as Node);
+    if (!handle || !isHandle(handle)) return;
+    const prop = propertyName(node.property as Node, node.computed as boolean);
+    if (prop && env.space.cleanFields.has(prop)) return;
+    for (const k of handle.keys) used.add(k);
+  });
+  return used;
 }
 
 // ─── 위반 (추적 계약을 벗어난 모양) ─────────────────────────────────────────
@@ -881,11 +944,14 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
         }
       }
     }
-    /** 컴포넌트가 직접 부른 hook 의 key + prop 으로 받은 key */
+    /** 컴포넌트가 직접 부른 hook 의 key + prop 으로 받은 key (핸들은 꺼내 쓴 것만 — ownKeys 에 들어 있다) */
     const keysOfComponent = (id: string) => {
       const state = states.get(id)!;
       const keys = new Set(results.get(id)!.ownKeys);
-      for (const t of [...state.props.values(), state.spread]) for (const k of t.keys) keys.add(k);
+      for (const t of [...state.props.values(), state.spread]) {
+        if (space.handleResult && isHandle(t)) continue;
+        for (const k of t.keys) keys.add(k);
+      }
       return keys;
     };
     return { results, keysOfComponent };
