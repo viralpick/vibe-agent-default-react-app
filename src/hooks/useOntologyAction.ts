@@ -4,8 +4,10 @@ import { useApiClient } from "@/api/api.client";
 // OntologyAction 실행 hook (AOS-7001).
 //
 // 첫 인자는 `ACTIONS.<key>` 만 — 빌드 플러그인(aos-dataflow)과 앱 빌더 검사기가 그 key 로 액션을 추적하고 소유를 확인한다.
-// 워크플로우 대기(WAITING_CALLBACK + WORKFLOW_RUN)만 끝 상태까지 조회한다. 간격 1초(10초까지) → 2초(60초까지) → 5초.
+// 워크플로우 대기(WAITING_CALLBACK + WORKFLOW_RUN)만 끝 상태까지 조회한다. 간격 1초(10초까지) → 2초(60초까지) → 5초(5분까지) → 15초.
 // 상한(기본 30분 = 실행기의 한 실행 상한)을 넘기면 실패가 아니라 waiting — 실패로 보이면 다시 눌러 두 번 실행된다.
+// 실행 중(running)에 다시 부르면 새로 보내지 않고 진행 중인 Promise 를 돌려준다 — 앞 요청이 이미 서버에 닿았으면 두 번 실행되므로.
+// waiting 뒤에 다시 부르면 새로 실행한다. 웹훅 대기는 끝이 없을 수 있어 막으면 다시 누를 수 없게 된다 — 막을지는 화면이 정한다.
 // execute 는 reject 하지 않는다 — 결과를 받지 않는 onClick 의 실패가 프리뷰 오류로 보고되지 않게.
 
 export interface OntologyActionRef {
@@ -34,7 +36,7 @@ export interface UseOntologyActionOptions {
 }
 
 export interface UseOntologyActionResult {
-  /** 실행하고 끝 상태(또는 waiting)까지 기다린 응답. 요청 자체가 실패하면 null */
+  /** 실행하고 끝 상태(또는 waiting)까지 기다린 응답. 요청 자체가 실패하면 null. 실행 중에 다시 부르면 진행 중인 실행의 Promise */
   execute: (input?: Record<string, unknown>) => Promise<OntologyActionRun | null>;
   status: OntologyActionStatus;
   isRunning: boolean;
@@ -56,7 +58,8 @@ const ABORTED = Symbol("aborted");
 export function pollDelayMs(elapsedMs: number): number {
   if (elapsedMs < 10_000) return 1000;
   if (elapsedMs < 60_000) return 2000;
-  return 5000;
+  if (elapsedMs < 300_000) return 5000;
+  return 15_000;
 }
 
 function needsPolling(run: OntologyActionRun): boolean {
@@ -139,6 +142,7 @@ export function useOntologyAction(
   const apiClient = useApiClient();
   const [state, setState] = useState<State>(IDLE);
   const controllerRef = useRef<AbortController | null>(null);
+  const inflightRef = useRef<Promise<OntologyActionRun | null> | null>(null);
 
   useEffect(
     () => () => {
@@ -148,9 +152,8 @@ export function useOntologyAction(
     [],
   );
 
-  const execute = useCallback(
+  const runAction = useCallback(
     async (input?: Record<string, unknown>): Promise<OntologyActionRun | null> => {
-      controllerRef.current?.abort();
       const controller = new AbortController();
       controllerRef.current = controller;
       const { signal } = controller;
@@ -213,6 +216,18 @@ export function useOntologyAction(
       return run;
     },
     [apiClient, action.id, tenantId, maxWaitMs],
+  );
+
+  const execute = useCallback(
+    (input?: Record<string, unknown>): Promise<OntologyActionRun | null> => {
+      if (inflightRef.current) return inflightRef.current;
+      const promise = runAction(input).finally(() => {
+        if (inflightRef.current === promise) inflightRef.current = null;
+      });
+      inflightRef.current = promise;
+      return promise;
+    },
+    [runAction],
   );
 
   return {

@@ -147,7 +147,7 @@ describe("useOntologyAction", () => {
     expect((await promise)?.status).toBe("RUNNING");
   });
 
-  it("조회 간격은 10초까지 1초, 60초까지 2초, 그 뒤 5초다", async () => {
+  it("조회 간격은 10초까지 1초, 60초까지 2초, 5분까지 5초, 그 뒤 15초다", async () => {
     post.mockResolvedValue(workflowWait());
     get.mockResolvedValue(respond("RUNNING"));
     const hook = mount();
@@ -157,8 +157,10 @@ describe("useOntologyAction", () => {
     expect(get).toHaveBeenCalledTimes(10);
     await tick(50_000);
     expect(get).toHaveBeenCalledTimes(35);
-    await tick(50_000);
-    expect(get).toHaveBeenCalledTimes(45);
+    await tick(240_000);
+    expect(get).toHaveBeenCalledTimes(83);
+    await tick(60_000);
+    expect(get).toHaveBeenCalledTimes(87);
   });
 
   it("상한을 넘기면 조회만 멈추고 waiting 으로 둔다", async () => {
@@ -289,21 +291,59 @@ describe("useOntologyAction", () => {
     expect(hook.result.current.status).toBe("success");
   });
 
-  it("다시 실행하면 이전 조회를 멈추고 새 실행만 반영한다", async () => {
-    post.mockResolvedValueOnce(workflowWait());
-    get.mockResolvedValue(respond("RUNNING"));
+  it("실행 중에 다시 부르면 새로 보내지 않고 진행 중인 실행의 Promise 를 돌려준다", async () => {
+    post.mockResolvedValue(workflowWait());
+    get.mockResolvedValueOnce(respond("RUNNING")).mockResolvedValueOnce(respond("SUCCESS"));
     const hook = mount();
 
     const first = start(hook);
     await tick(1000);
-    expect(get).toHaveBeenCalledTimes(1);
+    const second = start(hook, { order: 9 });
 
-    post.mockResolvedValueOnce(respond("SUCCESS", { id: "run-2" }));
+    expect(second).toBe(first);
+    await tick(1000);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect((await second)?.status).toBe("SUCCESS");
+    expect(hook.result.current.status).toBe("success");
+  });
+
+  it("실행 응답이 오기 전 다시 불러도 두 번 보내지 않는다", async () => {
+    const slow = deferred<unknown>();
+    post.mockReturnValue(slow.promise);
+    const hook = mount();
+
+    const first = start(hook);
+    const second = start(hook);
+    await act(async () => slow.resolve(respond("SUCCESS")));
+
+    expect(second).toBe(first);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect((await first)?.status).toBe("SUCCESS");
+  });
+
+  it("끝난 뒤 다시 부르면 새로 실행한다", async () => {
+    post.mockResolvedValueOnce(respond("SUCCESS")).mockResolvedValueOnce(respond("SUCCESS", { id: "run-2" }));
+    const hook = mount();
+
     await act(() => hook.result.current.execute());
-    await tick(60_000);
+    await act(() => hook.result.current.execute());
 
-    expect(get).toHaveBeenCalledTimes(1);
-    expect((await first)?.status).toBe("RUNNING");
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(hook.result.current).toMatchObject({ status: "success", data: { id: "run-2" } });
+  });
+
+  it("waiting 뒤 다시 부르면 막지 않고 새로 실행한다", async () => {
+    post
+      .mockResolvedValueOnce(respond("WAITING_CALLBACK", { waitingFor: "WEBHOOK" }))
+      .mockResolvedValueOnce(respond("SUCCESS", { id: "run-2" }));
+    const hook = mount();
+
+    await act(() => hook.result.current.execute());
+    expect(hook.result.current.status).toBe("waiting");
+    await act(() => hook.result.current.execute());
+
+    expect(post).toHaveBeenCalledTimes(2);
     expect(hook.result.current).toMatchObject({ status: "success", data: { id: "run-2" } });
   });
 
@@ -319,25 +359,6 @@ describe("useOntologyAction", () => {
 
     expect(await promise).toBeNull();
     expect(get).not.toHaveBeenCalled();
-  });
-
-  it("조회 응답이 오기 전 다시 실행하면 늦게 온 응답이 상태를 바꾸지 않는다", async () => {
-    const slow = deferred<unknown>();
-    post.mockResolvedValueOnce(workflowWait());
-    get.mockReturnValueOnce(slow.promise);
-    const hook = mount();
-
-    start(hook);
-    await tick(1000);
-    expect(get).toHaveBeenCalledTimes(1);
-
-    post.mockResolvedValueOnce(respond("SUCCESS", { id: "run-2" }));
-    await act(() => hook.result.current.execute());
-    await act(async () => slow.resolve(respond("FAIL", { error: "늦은 응답" })));
-    await tick(60_000);
-
-    expect(get).toHaveBeenCalledTimes(1);
-    expect(hook.result.current).toMatchObject({ status: "success", error: null, data: { id: "run-2" } });
   });
 
   it("응답이 오지 않는 조회 중 언마운트하면 요청을 끊고 바로 끝난다", async () => {
