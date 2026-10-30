@@ -59,7 +59,7 @@ const stripBaseRedirect = (): PluginOption => ({
 
 // path-based proxy(`--base /sandboxes/{id}/proxy/{port}/`) 뒤에서 실행 중인지 판별.
 // stripBaseRedirect 와 동일한 조건(= base 가 "/" 가 아닌 서브패스)으로, CLI 의 `--base`
-// 인자를 보고 결정한다. 이 환경에서만 아래 토큰 검사 우회가 의미를 가진다.
+// 인자를 보고 결정한다. 이 환경에서만 아래 토큰 검사 우회와 watch 폴링이 의미를 가진다.
 const baseArgIndex = process.argv.indexOf("--base");
 const baseArg = baseArgIndex >= 0 ? process.argv[baseArgIndex + 1] : undefined;
 const isBehindPathProxy = !!baseArg && baseArg !== "/" && baseArg !== "./";
@@ -98,10 +98,19 @@ export default defineConfig({
       overlay: false,
     },
     watch: {
-      // sandbox 파일시스템(overlayfs)에서 inotify 가 에이전트의 API 경유 쓰기를
-      // 전파하지 못해 폴링이 필요하다.
-      usePolling: true,
+      // 폴링은 **path-proxy 환경(= OpenSandbox 샌드박스)에서만** 켠다.
+      //
+      // 샌드박스: e2b 시절 "overlayfs 에서 inotify 가 에이전트의 API 경유 쓰기를 전파하지
+      // 못한다" 는 관찰로 폴링을 켰다. OpenSandbox 에서는 에이전트 쓰기가 pod 안 execd 프로세스의
+      // 쓰기라 inotify 가 동작할 가능성이 높지만 아직 실측하지 않았으므로 폴링을 유지한다.
+      // `CHOKIDAR_USEPOLLING=false` 로 dev 서버를 띄우면 이 값을 덮어써 판별할 수 있다(AOS-4908).
+      //
+      // 로컬(base "/"): usePolling 을 켜면 chokidar 가 macOS FSEvents 까지 꺼 버리므로 끈다.
+      usePolling: isBehindPathProxy,
       interval: 500,
+      // binaryInterval 을 주지 않으면 chokidar 기본값 300 이 남아 interval(500)과 달라지고,
+      // 바이너리 파일(woff2 등)이 소스보다 더 자주(300ms) 폴링된다. 같은 값으로 맞춰 그 분기를 끈다.
+      binaryInterval: 500,
       // dev_server_agent 가 `npm run dev > dev.log` 로 **프로젝트 루트 안에**
       // 로그를 쓴다. 이걸 watch 대상에 두면 자기참조 루프가 된다:
       //   로그 write → 폴링 감지 → (--debug hmr 이면) 로그 3줄 추가 → 다시 감지 …
