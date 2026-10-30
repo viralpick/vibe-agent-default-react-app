@@ -3,7 +3,7 @@ import path from "path";
 import MagicString from "magic-string";
 import type { ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { childNodes, isPascalCase, locOf, type Node, walk } from "./aos-ast";
-import { analyzeProjectDataflow, type DataflowViolation, type ProjectFlow } from "./aos-dataflow";
+import { analyzeProjectDataflow, type DataflowResult, type DataflowViolation, type ProjectFlow } from "./aos-dataflow";
 import { AosProject, findCycles, isIndexable } from "./aos-project";
 import { RecipeContext, singleFileSources } from "./aos-recipe";
 import { type AosVisualization, extractVisualizations } from "./aos-viz";
@@ -48,7 +48,8 @@ export const AOS_MANIFEST_FILE = "aos-manifest.json";
 //   (앱이 만든 카드 포함), 표의 spec.props.columns. 가공된 값도 레시피를 옮길 수 있으면 reproducible 이다.
 // v6 (AOS-4902): components[].file, 최상위 modules(파일별 실행 시점 import) · cycles(순환 import) 추가.
 //   추적이 파일 경계를 넘는다 — 다른 파일에서 props 로 받은 데이터도 functions / visualizations.data 에 잡힌다.
-export const AOS_MANIFEST_VERSION = 6;
+// v7 (AOS-7001): components[].actions, files[].usesActionHook · actionViolations 추가. 액션 위반은 violations 와 따로 싣는다.
+export const AOS_MANIFEST_VERSION = 7;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -63,6 +64,8 @@ export interface AosComponent {
   functionsSource: "explicit" | "inferred" | "none";
   /** 데이터 흐름 추적이 계산한 값 (explicit 과 달라도 그대로 남긴다) */
   functionsInferred: string[];
+  /** 이 컴포넌트가 실행하는 OntologyAction id 목록 (useOntologyAction 추적값) */
+  actions: string[];
   /** data-aos-id 엘리먼트를 감싼 top-level 컴포넌트 이름 (top-level 밖이면 null) */
   component: string | null;
   /** 이 컴포넌트 안에서 함수 데이터가 흘러 들어가는 JSX 속성 (차트 data 등) */
@@ -133,6 +136,10 @@ export interface AosFileReport {
   /** useOntologyFunction 을 한 번이라도 쓰는가 — false 면 기존(Promise.all) 패턴 파일 */
   usesHook: boolean;
   violations: DataflowViolation[];
+  /** useOntologyAction 을 한 번이라도 쓰는가 */
+  usesActionHook: boolean;
+  /** 액션 추적 계약(useOntologyAction)을 벗어난 위치 */
+  actionViolations: DataflowViolation[];
 }
 
 /** 빌드에 들어간 모듈 하나의 실행 시점 import (AOS-4902) */
@@ -290,7 +297,7 @@ export function analyzeAosSource(
       code: null,
       map: null,
       components: [],
-      file: { file, usesHook: false, violations: [] },
+      file: { file, usesHook: false, violations: [], usesActionHook: false, actionViolations: [] },
       visualizations: [],
       usages: [],
     };
@@ -368,6 +375,7 @@ export function analyzeAosSource(
         functions: source === "explicit" ? explicit : inferred,
         functionsSource: source,
         functionsInferred: inferred,
+        actions: owner ? owner.actionIds : [],
         component: owner?.name ?? null,
         bindings: (owner?.bindings ?? []).map((b) => ({
           element: b.element,
@@ -396,7 +404,7 @@ export function analyzeAosSource(
     }
   });
 
-  const fileReport: AosFileReport = { file, usesHook: flow.usesHook, violations: flow.violations };
+  const fileReport = reportOf(file, flow);
   const base = { components, file: fileReport, visualizations: vizRecords, usages };
   if (!injected) return { code: null, map: null, ...base };
   return {
@@ -451,9 +459,9 @@ export function buildManifest(
     .filter(([, count]) => count > 1)
     .map(([id]) => id)
     .sort();
-  // 데이터 조회와 무관한 파일(유틸·main.tsx)은 싣지 않는다
+  // 데이터 조회 · 액션 실행과 무관한 파일(유틸·main.tsx)은 싣지 않는다
   const relevant = files
-    .filter((f) => f.usesHook || f.violations.length > 0)
+    .filter((f) => f.usesHook || f.violations.length > 0 || f.usesActionHook || f.actionViolations.length > 0)
     .sort((a, b) => a.file.localeCompare(b.file));
   const vizList: AosManifestVisualization[] = [...visualizations]
     .sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }))
@@ -504,9 +512,19 @@ export function analyzeProject(project: AosProject, options: { injectLoc: boolea
   return { results, manifest };
 }
 
+function reportOf(file: string, flow: DataflowResult): AosFileReport {
+  return {
+    file,
+    usesHook: flow.usesHook,
+    violations: flow.violations,
+    usesActionHook: flow.usesActionHook,
+    actionViolations: flow.actionViolations,
+  };
+}
+
 function fileReport(flows: ProjectFlow, file: string): AosFileReport[] {
   const flow = flows.files.get(file);
-  return flow ? [{ file, usesHook: flow.usesHook, violations: flow.violations }] : [];
+  return flow ? [reportOf(file, flow)] : [];
 }
 
 /**
