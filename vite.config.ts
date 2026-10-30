@@ -73,6 +73,33 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // 생성 앱이 자주 쓰는 의존성을 미리 번들 대상으로 지정한다 (AOS-4909).
+  //
+  // 샌드박스 이미지는 빌드할 때 `vite optimize` 로 node_modules/.vite/deps 를 만들어 둔다. 그런데 빈
+  // 템플릿은 아래 패키지를 import 하지 않아서, 지정하지 않으면 이미지에는 react·axios 정도만 구워지고
+  // 생성 앱이 차트·아이콘·synapse 를 처음 import 하는 순간 pod 마다 다시 번들한다.
+  // 여기 이름을 바꾸면 configHash 가 바뀌어 이미지에 구운 캐시가 무효가 된다 — 이미지 재빌드가 함께 돈다.
+  optimizeDeps: {
+    include: [
+      "@enhans/synapse",
+      "@enhans/synapse/charts",
+      "@enhans/synapse/data-table",
+      "echarts",
+      "recharts",
+      "lucide-react",
+      "date-fns",
+      "react-router-dom",
+      "@tanstack/react-table",
+      "react-hook-form",
+      "@hookform/resolvers/zod",
+      "react-markdown",
+      "remark-gfm",
+      "sonner",
+      "clsx",
+      "tailwind-merge",
+      "class-variance-authority",
+    ],
+  },
   // HMR WebSocket 토큰 검사 우회 — **path-proxy 환경에서만** 조건부로 켠다.
   //
   // Vite 6+ 는 CSWSH 방어로, Origin 헤더가 있는(=브라우저) WS upgrade 에 대해 URL 의
