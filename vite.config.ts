@@ -81,6 +81,9 @@ export default defineConfig({
   // 여기 이름을 바꾸면 configHash 가 바뀌어 이미지에 구운 캐시가 무효가 된다 — 이미지 재빌드가 함께 돈다.
   optimizeDeps: {
     include: [
+      // useEnableEditMode 가 모든 생성 앱에서 조건 없이(main.tsx 진입 즉시) import 한다 —
+      // 생성 앱이 고르는 나머지 항목과 달리 이건 하네스 코드라 항상 재번들 대상이다.
+      "modern-screenshot",
       "@enhans/synapse",
       "@enhans/synapse/charts",
       "@enhans/synapse/data-table",

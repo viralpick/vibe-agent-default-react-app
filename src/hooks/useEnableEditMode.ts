@@ -1,5 +1,4 @@
 import React from "react";
-import { domToPng } from "modern-screenshot";
 import { installWidgetPick } from "./widgetPick";
 
 // PascalCase 라벨 fallback: data-aos-name 이 없을 때 kebab id 를 변환.
@@ -282,6 +281,10 @@ export const useEnableEditMode = () => {
         // 데이터 페칭 + 차트 렌더가 끝날 때까지 대기. idle 못 보면 10초 후 강제 진행.
         await waitForNetworkIdle();
         const root = document.body;
+        // 캡처를 실제로 요청할 때만 로드한다 — 최상단 import 로 두면 이 모듈 하나의 번들
+        // 실패(예: 샌드박스 vite dev server 의 최초 cold 의존성 번들 지연)가 캡처와 무관한
+        // 전체 앱 마운트를 막는다. main.tsx 가 useEnableEditMode 를 조건 없이 부르기 때문.
+        const { domToPng } = await import("modern-screenshot");
         const image = await domToPng(root, {
           backgroundColor: "#ffffff",
           // device pixel ratio 2배까지만 — 메모리/전송 크기 균형
