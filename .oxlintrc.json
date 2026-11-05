@@ -74,6 +74,9 @@
     "typescript/triple-slash-reference": "off",
     "typescript/unbound-method": "off",
     "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-floating-promises": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-implied-eval": "off",
 
     "unicorn/no-empty-file": "off",
     "unicorn/no-single-promise-in-promise-methods": "off",
