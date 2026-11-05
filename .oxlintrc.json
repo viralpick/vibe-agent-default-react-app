@@ -13,6 +13,11 @@
     "correctness": "error"
   },
 
+  "options": {
+    "typeAware": true,
+    "typeCheck": true
+  },
+
   "env": {
     "builtin": true,
     "browser": true,
