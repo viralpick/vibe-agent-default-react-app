@@ -1,0 +1,37 @@
+# 템플릿 main 이 바뀌면 앱 빌더 샌드박스 이미지(agentos-view-gen)를 다시 빌드시킨다 (AOS-4910).
+#
+# 샌드박스는 런타임에 이 레포를 다시 받지 않고 이미지에 clone 해 둔 템플릿을 쓴다(AOS-6938).
+# 그래서 소스·의존성·vite 설정 어느 것이 바뀌어도 이미지를 다시 빌드해야 샌드박스에 들어간다.
+# 빌드는 viralpick/agentos-backend-v2 의 sandbox-template-docker-hub.yaml 이 하고, 여기서는
+# repository_dispatch(sandbox-template-updated)로 그 워크플로를 부르기만 한다.
+#
+# 토큰: 조직 시크릿 GH_TOKEN 을 쓴다. agentos-backend-v2 에 dispatch 할 권한(contents: write)이 있어야 한다.
+# GITHUB_TOKEN 은 다른 레포의 워크플로를 부를 수 없다.
+name: Sandbox image rebuild
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch sandbox image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: repository_dispatch to agentos-backend-v2
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_TOKEN 이 없어 샌드박스 이미지 빌드를 부르지 못했다 — agentos-backend-v2 의 sandbox-template-docker-hub.yaml 을 수동 실행해야 템플릿 변경이 샌드박스에 들어간다"
+            exit 1
+          fi
+          gh api repos/viralpick/agentos-backend-v2/dispatches \
+            -f event_type=sandbox-template-updated \
+            -f "client_payload[sha]=${GITHUB_SHA}"
+          echo "dispatched sandbox-template-updated for ${GITHUB_SHA}"
