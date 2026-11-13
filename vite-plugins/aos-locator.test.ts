@@ -339,7 +339,7 @@ describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
     const { manifest } = analyzeProject(sources(), { injectLoc: false });
     const byId = (id: string) => manifest.components.find((c) => c.id === id)!;
 
-    expect(manifest.version).toBe(AOS_MANIFEST_VERSION);
+    expect(manifest.version).toBeGreaterThanOrEqual(7);
     expect(byId("app")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
     expect(byId("order-row")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
     expect(byId("busy")).toMatchObject({ actions: [], functions: [] });

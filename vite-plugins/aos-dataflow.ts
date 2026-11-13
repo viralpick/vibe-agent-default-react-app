@@ -74,8 +74,8 @@ interface KeySpace {
    */
   handleResult: boolean;
   target: string;
-  /** 첫 인자로 `[CONST.a, CONST.b]` 배열도 받는가 */
-  arrayArg: boolean;
+  /** 첫 인자로 받는 `[CONST.a, CONST.b]` 배열의 최대 길이. 0 이면 배열을 받지 않는다 */
+  arrayArg: number;
   directPaths: string[];
   rules: {
     hookArg: RuleName;
@@ -97,7 +97,7 @@ const FUNCTION_SPACE: KeySpace = {
   spreadFields: new Set(),
   handleResult: false,
   target: "OntologyFunction",
-  arrayArg: false,
+  arrayArg: 0,
   directPaths: ["/ontology-functions/"],
   rules: {
     hookArg: "hook-arg-not-functions",
@@ -119,7 +119,7 @@ const ACTION_SPACE: KeySpace = {
   spreadFields: SPREAD_ACTION_RESULT_FIELDS,
   handleResult: true,
   target: "OntologyAction",
-  arrayArg: false,
+  arrayArg: 0,
   directPaths: ["/ontology-actions/"],
   rules: {
     hookArg: "hook-arg-not-actions",
@@ -142,7 +142,8 @@ const SIMULATION_SPACE: KeySpace = {
   spreadFields: new Set(),
   handleResult: false,
   target: "SimulationOverlay",
-  arrayArg: true,
+  // 저장본 묶음 합계는 저장본 1~4개를 나란히 본다
+  arrayArg: 4,
   // ponytail: 경로 조각 문자열 비교다. `/overlay/${kind}` 처럼 쪼갠 경로는 놓친다
   directPaths: ["/overlay/rows", "/overlay/aggregate"],
   rules: {
@@ -816,7 +817,10 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
       violations.push({
         rule: rules.hookArg,
         loc: locOf(file, node),
-        message: `${called} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
+        message:
+          space.arrayArg > 0
+            ? `${called} 의 첫 인자는 ${constants}.<key> 또는 ${space.arrayArg}개 이하의 [${constants}.<key>, …] 여야 합니다`
+            : `${called} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
       });
       return;
     }
@@ -846,14 +850,22 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
         violations.push({
           rule: rules.outside,
           loc: locOf(file, node),
-          message: `${constants}.${key} 는 ${hook}(${constants}.${key}, …) 의 첫 인자로만 씁니다`,
+          message:
+            space.hooks.length > 1
+              ? `${constants}.${key} 는 ${space.hooks.join(" · ")} 의 첫 인자로만 씁니다`
+              : `${constants}.${key} 는 ${hook}(${constants}.${key}, …) 의 첫 인자로만 씁니다`,
         });
       }
       return;
     }
     if (node.type === "Identifier" && node.name === constants && !declarationIds.has(node)) {
       const isMemberObject = parent?.type === "MemberExpression" && parent.object === node;
-      if (!isMemberObject) {
+      // `LABELS.SIMULATION` · `{ SIMULATION: "…" }` · `enum Tab { SIMULATION }` 의 이름은 상수가 아니다
+      const isName =
+        (parent?.type === "MemberExpression" && parent.property === node && !parent.computed) ||
+        (parent?.key === node && !parent.computed) ||
+        (parent?.type === "TSEnumMember" && parent.id === node);
+      if (!isMemberObject && !isName) {
         violations.push({ rule: rules.escape, loc: locOf(file, node), message: `${constants} 전체를 넘기거나 대입하면 추적할 수 없습니다` });
       }
       return;
@@ -874,13 +886,13 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
   return violations;
 }
 
-/** hook 첫 인자의 `CONST.k` 들 — `CONST.k` 하나, arrayArg 면 `[CONST.a, CONST.b]` 도. 그 밖의 모양이면 null */
+/** hook 첫 인자의 `CONST.k` 들 — `CONST.k` 하나, arrayArg 가 있으면 그 길이 이하의 `[CONST.a, CONST.b]` 도. 그 밖의 모양이면 null */
 function hookArgMembers(arg: Node | undefined, space: KeySpace): Node[] | null {
   if (!arg) return null;
   if (constantMember(arg, space.constants)) return [arg];
-  if (!space.arrayArg || arg.type !== "ArrayExpression") return null;
+  if (arg.type !== "ArrayExpression") return null;
   const elements = arg.elements as (Node | null)[];
-  if (elements.length === 0 || !elements.every((el) => el && constantMember(el, space.constants))) return null;
+  if (elements.length === 0 || elements.length > space.arrayArg || !elements.every((el) => el && constantMember(el, space.constants))) return null;
   return elements as Node[];
 }
 

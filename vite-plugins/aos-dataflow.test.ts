@@ -474,11 +474,13 @@ const TENANT_ID = "1";
   it("시뮬레이션 계약을 벗어난 모양을 simulationViolations 로 보고한다", () => {
     const result = analyzeSimulation(`
       function useSimulationOverlay() { return null; }
+      const useSimulationAggregate = () => null;
       function App() {
         const a = useSimulationOverlay({ id: "forged" }, { tenantId: TENANT_ID, objectType: "product" });
         const b = useSimulationOverlay(SIMULATION.missing, { tenantId: TENANT_ID, objectType: "product" });
         const c = useSimulationAggregate(SIMULATION[name], { tenantId: TENANT_ID, objectType: "product" });
         const d = useSimulationAggregate([SIMULATION.margin, other], { tenantId: TENANT_ID, objectType: "product" });
+        const e = useSimulationAggregate([SIMULATION.base, SIMULATION.base, SIMULATION.base, SIMULATION.base, SIMULATION.base], { tenantId: TENANT_ID, objectType: "product" });
         register(SIMULATION);
         const rows = () => apiClient.post(\`/simulation/saved-states/\${SIMULATION.margin.id}/overlay/rows\`, {});
         const sum = () => apiClient.post("/simulation/saved-states/overlay/aggregate", {});
@@ -492,9 +494,16 @@ const TENANT_ID = "1";
       "hook-arg-not-simulation",
       "hook-arg-not-simulation",
       "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
       "simulation-dynamic-key",
       "simulation-escape",
       "simulation-hook-redefined",
+      "simulation-hook-redefined",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
       "simulation-outside-hook",
       "simulation-outside-hook",
       "unknown-simulation-key",
@@ -516,6 +525,30 @@ const TENANT_ID = "1";
     expect(result.usesSimulationHook).toBe(false);
     expect(result.simulationViolations.map((v) => v.rule)).toEqual(["direct-simulation-call"]);
     expect(result.violations).toEqual([]);
+  });
+
+  it("함수 hook 은 배열 첫 인자를 받지 않는다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const orders = useOntologyFunction([FUNCTIONS.orders], { tenantId: TENANT_ID });
+        return <div>{orders.data.length}</div>;
+      }
+    `);
+
+    expect(result.violations.map((v) => v.rule).sort()).toEqual(["functions-outside-hook", "hook-arg-not-functions"]);
+  });
+
+  it("SIMULATION 이라는 이름의 속성 · 객체 key · enum 멤버는 상수 사용이 아니다", () => {
+    const result = analyzeSimulation(`
+      enum Tab { SIMULATION = "sim" }
+      const LABELS = { SIMULATION: "시뮬레이션" };
+      export default function App() {
+        return <div>{LABELS.SIMULATION}{Tab.SIMULATION}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(false);
   });
 
   it("템플릿 시뮬레이션 hook 파일은 overlay 를 직접 불러도 위반이 아니다", () => {

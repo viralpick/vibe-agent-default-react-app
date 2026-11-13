@@ -7,6 +7,7 @@ import { useApiClient } from "@/api/api.client";
 // 원본과 결과를 겹치는 join · 필터 · 정렬 · 집계는 서버가 하고, 화면은 받은 값을 그리기만 한다.
 // 브라우저에서 행을 다시 더하지 않는다 — 페이지 한도와 결측 처리 때문에 합계가 달라진다. 합계는 useSimulationAggregate 로.
 // 조회는 reject 하지 않는다 — 실패는 status 로 알린다. 보는 사람에게 결과 읽기 권한이 없으면(403) forbidden 이다.
+// 상수에 없는 key(undefined)로 불러도 렌더에서 던지지 않는다 — 요청이 실패해 error 가 된다.
 
 export interface SimulationSavedStateRef {
   /** 저장본 id (savedStateId). 다시 계산해도 바뀌지 않고, 서버가 지금 가리키는 Run 으로 읽는다 */
@@ -81,7 +82,10 @@ interface CommonOptions {
   tenantId: string;
   /** 겹칠 원본 Object */
   objectType: string;
-  /** 겹칠 파생 Property. 생략하면 저장본이 그 Object 에서 계산한 Property 전부 */
+  /**
+   * 겹칠 파생 Property. 생략하면 저장본이 그 Object 에서 계산한 Property 전부다.
+   * 묶음 합계는 첫 저장본 기준이고, 나머지 저장본도 그 Property 를 모두 계산했어야 한다
+   */
   properties?: string[];
   filters?: SimulationOverlayFilter[];
   /** false 면 조회하지 않는다 (예: 저장본을 아직 고르지 않았을 때) */
@@ -107,6 +111,7 @@ export interface SimulationResult<T> {
   isLoading: boolean;
   /** 보는 사람에게 결과 읽기 권한이 없다 — 오류가 아니라 "권한 없음" 상태로 그린다 */
   isForbidden: boolean;
+  /** status 가 error 일 때만 있다. forbidden 이면 null 이라 `if (error)` 로 그린 화면이 권한 없음을 오류로 보이지 않는다 */
   error: Error | null;
   /** 같은 조건으로 바로 다시 조회한다 */
   refetch: () => void;
@@ -139,7 +144,7 @@ function useSimulationQuery<T>(path: string, body: Record<string, unknown>, tena
     // 언마운트 · 조건 변경 때 이전 요청을 끊고, 늦게 온 응답은 버린다
     const controller = new AbortController();
     const { signal } = controller;
-    setState((prev) => ({ status: "running", data: prev.data, error: null }));
+    setState({ status: "running", data: null, error: null });
     apiClient
       .post(path, JSON.parse(bodyKey), { headers: { "X-Tenant-Id": tenantId }, signal })
       .then((response) => {
@@ -148,8 +153,11 @@ function useSimulationQuery<T>(path: string, body: Record<string, unknown>, tena
       })
       .catch((cause: unknown) => {
         if (signal.aborted) return;
-        const error = cause instanceof Error ? cause : new Error(String(cause));
-        setState({ status: statusOf(cause) === 403 ? "forbidden" : "error", data: null, error });
+        if (statusOf(cause) === 403) {
+          setState({ status: "forbidden", data: null, error: null });
+          return;
+        }
+        setState({ status: "error", data: null, error: cause instanceof Error ? cause : new Error(String(cause)) });
       });
     return () => controller.abort();
   }, [apiClient, path, bodyKey, tenantId, enabled, nonce]);
@@ -172,7 +180,7 @@ export function useSimulationOverlay(
   { tenantId, objectType, properties, filters, sort, limit, cursor, enabled = true }: UseSimulationOverlayOptions,
 ): SimulationResult<SimulationOverlayPage> {
   return useSimulationQuery<SimulationOverlayPage>(
-    `/simulation/saved-states/${savedState.id}/overlay/rows`,
+    `/simulation/saved-states/${savedState?.id}/overlay/rows`,
     { objectType, properties, filters, sort, limit, cursor },
     tenantId,
     enabled,
@@ -187,7 +195,7 @@ export function useSimulationAggregate(
   savedStates: SimulationSavedStateRef | SimulationSavedStateRef[],
   { tenantId, objectType, properties, filters, groupBy, enabled = true }: UseSimulationAggregateOptions,
 ): SimulationResult<SimulationAggregateResult> {
-  const savedStateIds = (Array.isArray(savedStates) ? savedStates : [savedStates]).map((s) => s.id);
+  const savedStateIds = (Array.isArray(savedStates) ? savedStates : [savedStates]).map((s) => s?.id);
   return useSimulationQuery<SimulationAggregateResult>(
     "/simulation/saved-states/overlay/aggregate",
     { savedStateIds, objectType, properties, groupBy, filters },
