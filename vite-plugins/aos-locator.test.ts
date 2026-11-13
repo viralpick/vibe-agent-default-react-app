@@ -339,7 +339,7 @@ describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
     const { manifest } = analyzeProject(sources(), { injectLoc: false });
     const byId = (id: string) => manifest.components.find((c) => c.id === id)!;
 
-    expect(manifest.version).toBe(7);
+    expect(manifest.version).toBe(AOS_MANIFEST_VERSION);
     expect(byId("app")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
     expect(byId("order-row")).toMatchObject({ actions: ["uuid-approve"], functions: ["uuid-orders"] });
     expect(byId("busy")).toMatchObject({ actions: [], functions: [] });
@@ -349,7 +349,15 @@ describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
     const { manifest } = analyzeProject(sources(), { injectLoc: false });
 
     expect(manifest.files).toEqual([
-      { file: "src/App.tsx", usesHook: true, violations: [], usesActionHook: true, actionViolations: [] },
+      {
+        file: "src/App.tsx",
+        usesHook: true,
+        violations: [],
+        usesActionHook: true,
+        actionViolations: [],
+        usesSimulationHook: false,
+        simulationViolations: [],
+      },
     ]);
   });
 
@@ -394,5 +402,62 @@ describe("매니페스트 v7 — 액션 (AOS-7001)", () => {
     expect(report).toMatchObject({ usesHook: true, violations: [], usesActionHook: false });
     expect(report.actionViolations.map((v) => v.rule).sort()).toEqual(["actions-outside-hook", "direct-action-call"]);
     expect(manifest.components.find((c) => c.id === "legacy")!.actions).toEqual([]);
+  });
+});
+
+describe("매니페스트 v8 — 시뮬레이션 (AOS-8037)", () => {
+  const sources = (app: string) =>
+    AosProject.fromSources({
+      "src/hooks/useSimulationResult.ts":
+        "export function useSimulationOverlay(s, o) { return apiClient.post(`/simulation/saved-states/${s.id}/overlay/rows`, {}); }",
+      "src/modules/constants.ts": `
+        export const SIMULATION = { margin: { id: "saved-margin" } };
+        export const TENANT_ID = "1";
+      `,
+      "src/App.tsx": app,
+    });
+
+  it("hook 을 쓰는 파일은 usesSimulationHook 이 true 이고 위반이 없다", () => {
+    const { manifest } = analyzeProject(
+      sources(`
+        import { useSimulationOverlay } from "@/hooks/useSimulationResult";
+        import { SIMULATION, TENANT_ID } from "@/modules/constants";
+        export default function App() {
+          const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "product" });
+          return <main data-aos-id="app">{rows.data?.items.length}</main>;
+        }
+      `),
+      { injectLoc: false },
+    );
+
+    expect(manifest.version).toBe(8);
+    expect(manifest.files).toEqual([
+      {
+        file: "src/App.tsx",
+        usesHook: false,
+        violations: [],
+        usesActionHook: false,
+        actionViolations: [],
+        usesSimulationHook: true,
+        simulationViolations: [],
+      },
+    ]);
+  });
+
+  it("overlay 를 직접 부르는 파일은 simulationViolations 에만 들어간다", () => {
+    const { manifest } = analyzeProject(
+      sources(`
+        import { SIMULATION } from "@/modules/constants";
+        export default function App() {
+          const load = () => apiClient.post(\`/simulation/saved-states/\${SIMULATION.margin.id}/overlay/rows\`, {});
+          return <main data-aos-id="app" onClick={load} />;
+        }
+      `),
+      { injectLoc: false },
+    );
+    const report = manifest.files.find((f) => f.file === "src/App.tsx")!;
+
+    expect(report).toMatchObject({ usesHook: false, violations: [], usesActionHook: false, actionViolations: [], usesSimulationHook: false });
+    expect(report.simulationViolations.map((v) => v.rule).sort()).toEqual(["direct-simulation-call", "simulation-outside-hook"]);
   });
 });
