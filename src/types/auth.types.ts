@@ -24,6 +24,14 @@ export enum PostMessageType {
   QUERY_CLICK = "QUERY_CLICK",
   /** 샌드박스 -> 호스트 FE: 생존 확인용 heartbeat */
   HEARTBEAT = "HEARTBEAT",
+  /** 샌드박스 -> 호스트 FE: 라우터 준비 완료 (처음 로드 · 전체 새로고침 뒤). 앱 안 다중 페이지 */
+  READY = "READY",
+  /** 샌드박스 -> 호스트 FE: 앱 안에서 페이지를 옮겼다 */
+  ROUTE_CHANGE = "ROUTE_CHANGE",
+  /** 호스트 FE -> 샌드박스: 이 경로로 옮겨라 (replace 로 반영, ROUTE_CHANGE 를 돌려보내지 않는다) */
+  NAVIGATE = "NAVIGATE",
+  /** 샌드박스 -> 호스트 FE: 뒤로 가기. 브라우저 이력은 호스트가 갖는다 */
+  BACK = "BACK",
 }
 
 /**
@@ -107,6 +115,35 @@ export interface FileContentErrorPayload {
 }
 
 /**
+ * 앱 안 경로 — MemoryRouter 의 pathname + search. 항상 `/` 로 시작한다 (예: `/orders/12?tab=log`).
+ */
+export type HostRoutePath = string;
+
+/** 라우터 준비 완료. 규약 버전(v)은 여기서만 싣는다 */
+export interface RouteReadyPayload {
+  type: PostMessageType.READY;
+  v: number;
+  path: HostRoutePath;
+}
+
+/** 앱 안 이동 알림 */
+export interface RouteChangePayload {
+  type: PostMessageType.ROUTE_CHANGE;
+  path: HostRoutePath;
+}
+
+/** 호스트가 정한 경로로 이동 */
+export interface NavigatePayload {
+  type: PostMessageType.NAVIGATE;
+  path: HostRoutePath;
+}
+
+/** 뒤로 가기 요청 */
+export interface BackPayload {
+  type: PostMessageType.BACK;
+}
+
+/**
  * PostMessage 유니온 타입
  */
 export type PostMessagePayload =
@@ -115,7 +152,11 @@ export type PostMessagePayload =
   | AuthErrorPayload
   | RequestFileContentPayload
   | FileContentPayload
-  | FileContentErrorPayload;
+  | FileContentErrorPayload
+  | RouteReadyPayload
+  | RouteChangePayload
+  | NavigatePayload
+  | BackPayload;
 
 /**
  * 인증 상태

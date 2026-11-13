@@ -69,6 +69,40 @@ export const authErrorPayloadSchema = z.object({
 });
 
 /**
+ * 앱 안 경로 스키마 — `/` 로 시작하고 `//`(다른 호스트로 읽힘)·역슬래시·제어문자를 받지 않는다.
+ */
+export const hostRoutePathSchema = z
+  .string()
+  .max(2048, 'Path too long')
+  .regex(/^\/(?!\/)/, 'Path must start with a single /')
+  .refine(
+    (path) => {
+      if (path.includes('\\')) return false;
+      for (let i = 0; i < path.length; i += 1) {
+        const code = path.charCodeAt(i);
+        if (code < 0x20 || code === 0x7f) return false;
+      }
+      return true;
+    },
+    { message: 'Path must not contain backslashes or control characters' }
+  );
+
+/**
+ * 호스트 → 샌드박스 경로 이동 메시지 스키마
+ */
+export const navigatePayloadSchema = z.object({
+  type: z.literal(PostMessageType.NAVIGATE),
+  path: hostRoutePathSchema,
+});
+
+/**
+ * 경로 이동 메시지 검증
+ */
+export function validateNavigatePayload(data: unknown) {
+  return navigatePayloadSchema.safeParse(data);
+}
+
+/**
  * PostMessage 페이로드 통합 스키마
  */
 export const postMessagePayloadSchema = z.discriminatedUnion('type', [
