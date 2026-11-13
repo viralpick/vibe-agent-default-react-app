@@ -803,7 +803,7 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
   const allowedArgs = new Set<Node>();
   const declarationIds = new Set<Node>();
   const { constants, rules } = space;
-  const hook = space.hooks.join(" / ");
+  const hook = space.hooks.join(" · ");
 
   walk(program, (node) => {
     if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === constants) {
@@ -837,7 +837,7 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
     }
   });
 
-  const visit = (node: Node, parent: Node | null) => {
+  const visit = (node: Node, parent: Node | null, grandparent: Node | null) => {
     // `import { FUNCTIONS } from "@/modules/constants"` · `export { FUNCTIONS }` 는 값을 넘기는 게 아니라 이름을 잇는 것이다
     if (node.type === "ImportSpecifier" || node.type === "ImportDefaultSpecifier" || node.type === "ImportNamespaceSpecifier" || node.type === "ExportSpecifier") {
       return;
@@ -860,10 +860,13 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
     }
     if (node.type === "Identifier" && node.name === constants && !declarationIds.has(node)) {
       const isMemberObject = parent?.type === "MemberExpression" && parent.object === node;
-      // `LABELS.SIMULATION` · `{ SIMULATION: "…" }` · `enum Tab { SIMULATION }` 의 이름은 상수가 아니다
+      // `LABELS.SIMULATION` · `{ SIMULATION: "…" }` · `enum Tab { SIMULATION }` 의 이름은 상수가 아니다.
+      // 구조 분해의 key(`const { SIMULATION: S } = mod`)는 상수를 꺼내는 것이라 이름으로 보지 않는다
       const isName =
-        (parent?.type === "MemberExpression" && parent.property === node && !parent.computed) ||
-        (parent?.key === node && !parent.computed) ||
+        ((parent?.type === "MemberExpression" || parent?.type === "OptionalMemberExpression") &&
+          parent.property === node &&
+          !parent.computed) ||
+        (parent?.key === node && !parent.computed && grandparent?.type !== "ObjectPattern") ||
         (parent?.type === "TSEnumMember" && parent.id === node);
       if (!isMemberObject && !isName) {
         violations.push({ rule: rules.escape, loc: locOf(file, node), message: `${constants} 전체를 넘기거나 대입하면 추적할 수 없습니다` });
@@ -880,9 +883,9 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
         });
       }
     }
-    for (const child of childNodes(node)) visit(child, node);
+    for (const child of childNodes(node)) visit(child, node, parent);
   };
-  visit(program, null);
+  visit(program, null, null);
   return violations;
 }
 

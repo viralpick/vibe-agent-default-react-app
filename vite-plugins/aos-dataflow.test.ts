@@ -527,6 +527,15 @@ const TENANT_ID = "1";
     expect(result.violations).toEqual([]);
   });
 
+  it("구조 분해로 상수를 다른 이름으로 꺼내면 escape 다", () => {
+    const result = analyzeSimulation(`
+      const { SIMULATION: S } = mod;
+      export default function App() { return <div>{S.margin.id}</div>; }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["simulation-escape"]);
+  });
+
   it("함수 hook 은 배열 첫 인자를 받지 않는다", () => {
     const result = analyzeSimulation(`
       export default function App() {
@@ -543,7 +552,7 @@ const TENANT_ID = "1";
       enum Tab { SIMULATION = "sim" }
       const LABELS = { SIMULATION: "시뮬레이션" };
       export default function App() {
-        return <div>{LABELS.SIMULATION}{Tab.SIMULATION}</div>;
+        return <div>{LABELS.SIMULATION}{Tab.SIMULATION}{LABELS?.SIMULATION}</div>;
       }
     `);
 
