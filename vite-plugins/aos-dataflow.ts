@@ -31,6 +31,12 @@ import { AosProject } from "./aos-project";
 // 결과 객체 전체와 `execute` 가 k 를 운반하고 `status` / `isRunning` / `data` / `error` 는 운반하지 않는다.
 // 액션 위반은 actionViolations 로 따로 싣는다 — 기존 앱의 `/execute` 직접 호출이 함수 위반(violations)을
 // 보는 소비자를 깨지 않게.
+//
+// 시뮬레이션 (AOS-8037): `useSimulationOverlay(SIMULATION.k)` · `useSimulationAggregate(SIMULATION.k | [SIMULATION.a, …])`.
+// 컴포넌트별 추적은 하지 않고 위반만 본다 — hook 밖의 SIMULATION, 동적 key, overlay API 직접 호출.
+// 위반은 simulationViolations 로 따로 싣는다.
+// overlay 결과의 items 를 reduce · `+=` 로 다시 더하는 것도 위반이다 — 한 번에 limit 행만 오므로
+// 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
 
 export const HOOK_NAME = "useOntologyFunction";
 /** 템플릿이 제공하는 hook 모듈 — `/ontology-functions/{id}/run` 을 직접 부를 수 있는 유일한 자리 */
@@ -48,10 +54,15 @@ const CLEAN_ACTION_RESULT_FIELDS = new Set(["status", "isRunning", "data", "erro
 // 액션 hook 결과를 spread 로 받았을 때 액션을 운반하는 prop — children 같은 다른 prop 은 결과에서 온 것이 아니다
 const SPREAD_ACTION_RESULT_FIELDS = new Set(["execute"]);
 
+export const SIMULATION_HOOK_NAMES = ["useSimulationOverlay", "useSimulationAggregate"];
+/** 템플릿이 제공하는 시뮬레이션 hook 모듈 — overlay API 를 직접 부를 수 있는 유일한 자리 */
+export const SIMULATION_HOOK_FILE = "src/hooks/useSimulationResult.ts";
+export const SIMULATION_NAME = "SIMULATION";
+
 type RuleName = DataflowViolation["rule"];
 
 interface KeySpace {
-  hook: string;
+  hooks: string[];
   hookFile: string;
   constants: string;
   /** 이 이름의 결과 필드만 direct 로 운반한다 (함수의 data) */
@@ -65,7 +76,9 @@ interface KeySpace {
    */
   handleResult: boolean;
   target: string;
-  directPath: string;
+  /** 첫 인자로 받는 `[CONST.a, CONST.b]` 배열의 최대 길이. 0 이면 배열을 받지 않는다 */
+  arrayArg: number;
+  directPaths: string[];
   rules: {
     hookArg: RuleName;
     unknownKey: RuleName;
@@ -78,7 +91,7 @@ interface KeySpace {
 }
 
 const FUNCTION_SPACE: KeySpace = {
-  hook: HOOK_NAME,
+  hooks: [HOOK_NAME],
   hookFile: HOOK_FILE,
   constants: FUNCTIONS_NAME,
   directField: "data",
@@ -86,7 +99,8 @@ const FUNCTION_SPACE: KeySpace = {
   spreadFields: new Set(),
   handleResult: false,
   target: "OntologyFunction",
-  directPath: "/ontology-functions/",
+  arrayArg: 0,
+  directPaths: ["/ontology-functions/"],
   rules: {
     hookArg: "hook-arg-not-functions",
     unknownKey: "unknown-function-key",
@@ -99,7 +113,7 @@ const FUNCTION_SPACE: KeySpace = {
 };
 
 const ACTION_SPACE: KeySpace = {
-  hook: ACTION_HOOK_NAME,
+  hooks: [ACTION_HOOK_NAME],
   hookFile: ACTION_HOOK_FILE,
   constants: ACTIONS_NAME,
   directField: null,
@@ -107,7 +121,8 @@ const ACTION_SPACE: KeySpace = {
   spreadFields: SPREAD_ACTION_RESULT_FIELDS,
   handleResult: true,
   target: "OntologyAction",
-  directPath: "/ontology-actions/",
+  arrayArg: 0,
+  directPaths: ["/ontology-actions/"],
   rules: {
     hookArg: "hook-arg-not-actions",
     unknownKey: "unknown-action-key",
@@ -116,6 +131,31 @@ const ACTION_SPACE: KeySpace = {
     escape: "actions-escape",
     directCall: "direct-action-call",
     redefined: "action-hook-redefined",
+  },
+};
+
+// 위반만 본다 — 추적 필드(directField · cleanFields · spreadFields · handleResult)는 쓰지 않는다
+const SIMULATION_SPACE: KeySpace = {
+  hooks: SIMULATION_HOOK_NAMES,
+  hookFile: SIMULATION_HOOK_FILE,
+  constants: SIMULATION_NAME,
+  directField: null,
+  cleanFields: new Set(),
+  spreadFields: new Set(),
+  handleResult: false,
+  target: "SimulationOverlay",
+  // 저장본 묶음 합계는 저장본 1~4개를 나란히 본다
+  arrayArg: 4,
+  // ponytail: 경로 조각 문자열 비교다. `/overlay/${kind}` 처럼 쪼갠 경로는 놓친다
+  directPaths: ["/overlay/rows", "/overlay/aggregate"],
+  rules: {
+    hookArg: "hook-arg-not-simulation",
+    unknownKey: "unknown-simulation-key",
+    dynamicKey: "simulation-dynamic-key",
+    outside: "simulation-outside-hook",
+    escape: "simulation-escape",
+    directCall: "direct-simulation-call",
+    redefined: "simulation-hook-redefined",
   },
 };
 
@@ -152,7 +192,15 @@ export interface DataflowViolation {
     | "actions-outside-hook"
     | "actions-escape"
     | "direct-action-call"
-    | "action-hook-redefined";
+    | "action-hook-redefined"
+    | "hook-arg-not-simulation"
+    | "unknown-simulation-key"
+    | "simulation-dynamic-key"
+    | "simulation-outside-hook"
+    | "simulation-escape"
+    | "direct-simulation-call"
+    | "simulation-hook-redefined"
+    | "simulation-overlay-resum";
   loc: string;
   message: string;
 }
@@ -183,6 +231,9 @@ export interface DataflowResult {
   /** 액션 추적 계약(useOntologyAction)을 벗어난 위치 — violations 와 따로 둔다 */
   actionViolations: DataflowViolation[];
   usesActionHook: boolean;
+  /** 시뮬레이션 hook 계약을 벗어난 위치 — violations · actionViolations 와 따로 둔다 */
+  simulationViolations: DataflowViolation[];
+  usesSimulationHook: boolean;
 }
 
 const EMPTY: Taint = { keys: new Set(), direct: true };
@@ -660,7 +711,7 @@ function analyzeComponent(def: ComponentDef, propState: PropState, table: Map<st
   const env: Env = { space, bindings: new Map(), queries: new Map(), propsIdent: null, propState };
   bindParams(def.fn, env);
   const declarators = ownedDeclarators(def.fn);
-  const isSpaceHook = (node: Node) => isCallOf(node, space.hook);
+  const isSpaceHook = (node: Node) => isCallOf(node, space.hooks[0]);
   const ownKeys = new Set<string>();
 
   for (const d of declarators) {
@@ -754,34 +805,42 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
   const violations: DataflowViolation[] = [];
   const allowedArgs = new Set<Node>();
   const declarationIds = new Set<Node>();
-  const { constants, hook, rules } = space;
+  const { constants, rules } = space;
+  const hook = space.hooks.join(" · ");
 
   walk(program, (node) => {
     if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === constants) {
       declarationIds.add(node.id as Node);
     }
-    if (node.type !== "CallExpression" || !isCallOf(node, hook)) return;
-    const arg = (node.arguments as Node[])[0];
-    const key = arg ? constantMember(arg, constants) : null;
-    if (!arg || !key) {
+    if (node.type !== "CallExpression") return;
+    const called = space.hooks.find((name) => isCallOf(node, name));
+    if (!called) return;
+    const members = hookArgMembers((node.arguments as Node[])[0], space);
+    if (!members) {
       violations.push({
         rule: rules.hookArg,
         loc: locOf(file, node),
-        message: `${hook} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
+        message:
+          space.arrayArg > 0
+            ? `${called} 의 첫 인자는 ${constants}.<key> 또는 ${space.arrayArg}개 이하의 [${constants}.<key>, …] 여야 합니다`
+            : `${called} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
       });
       return;
     }
-    allowedArgs.add(arg);
-    if (!ids.has(key)) {
-      violations.push({
-        rule: rules.unknownKey,
-        loc: locOf(file, arg),
-        message: `${constants} 에 없는 key: ${key}`,
-      });
+    for (const member of members) {
+      allowedArgs.add(member);
+      const key = constantMember(member, constants)!;
+      if (!ids.has(key)) {
+        violations.push({
+          rule: rules.unknownKey,
+          loc: locOf(file, member),
+          message: `${constants} 에 없는 key: ${key}`,
+        });
+      }
     }
   });
 
-  const visit = (node: Node, parent: Node | null) => {
+  const visit = (node: Node, parent: Node | null, grandparent: Node | null) => {
     // `import { FUNCTIONS } from "@/modules/constants"` · `export { FUNCTIONS }` 는 값을 넘기는 게 아니라 이름을 잇는 것이다
     if (node.type === "ImportSpecifier" || node.type === "ImportDefaultSpecifier" || node.type === "ImportNamespaceSpecifier" || node.type === "ExportSpecifier") {
       return;
@@ -794,21 +853,32 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
         violations.push({
           rule: rules.outside,
           loc: locOf(file, node),
-          message: `${constants}.${key} 는 ${hook}(${constants}.${key}, …) 의 첫 인자로만 씁니다`,
+          message:
+            space.hooks.length > 1
+              ? `${constants}.${key} 는 ${space.hooks.join(" · ")} 의 첫 인자로만 씁니다`
+              : `${constants}.${key} 는 ${hook}(${constants}.${key}, …) 의 첫 인자로만 씁니다`,
         });
       }
       return;
     }
     if (node.type === "Identifier" && node.name === constants && !declarationIds.has(node)) {
       const isMemberObject = parent?.type === "MemberExpression" && parent.object === node;
-      if (!isMemberObject) {
+      // `LABELS.SIMULATION` · `{ SIMULATION: "…" }` · `enum Tab { SIMULATION }` 의 이름은 상수가 아니다.
+      // 구조 분해의 key(`const { SIMULATION: S } = mod`)는 상수를 꺼내는 것이라 이름으로 보지 않는다
+      const isName =
+        ((parent?.type === "MemberExpression" || parent?.type === "OptionalMemberExpression") &&
+          parent.property === node &&
+          !parent.computed) ||
+        (parent?.key === node && !parent.computed && grandparent?.type !== "ObjectPattern") ||
+        (parent?.type === "TSEnumMember" && parent.id === node);
+      if (!isMemberObject && !isName) {
         violations.push({ rule: rules.escape, loc: locOf(file, node), message: `${constants} 전체를 넘기거나 대입하면 추적할 수 없습니다` });
       }
       return;
     }
     if (node.type === "StringLiteral" || node.type === "TemplateElement") {
       const text = node.type === "StringLiteral" ? (node.value as string) : ((node.value as { cooked: string }).cooked ?? "");
-      if (text.includes(space.directPath)) {
+      if (space.directPaths.some((path) => text.includes(path))) {
         violations.push({
           rule: rules.directCall,
           loc: locOf(file, node),
@@ -816,25 +886,148 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
         });
       }
     }
-    for (const child of childNodes(node)) visit(child, node);
+    for (const child of childNodes(node)) visit(child, node, parent);
   };
-  visit(program, null);
+  visit(program, null, null);
   return violations;
+}
+
+/** hook 첫 인자의 `CONST.k` 들 — `CONST.k` 하나, arrayArg 가 있으면 그 길이 이하의 `[CONST.a, CONST.b]` 도. 그 밖의 모양이면 null */
+function hookArgMembers(arg: Node | undefined, space: KeySpace): Node[] | null {
+  if (!arg) return null;
+  if (constantMember(arg, space.constants)) return [arg];
+  if (arg.type !== "ArrayExpression") return null;
+  const elements = arg.elements as (Node | null)[];
+  if (elements.length === 0 || elements.length > space.arrayArg || !elements.every((el) => el && constantMember(el, space.constants))) return null;
+  return elements as Node[];
 }
 
 /** 템플릿 hook 파일은 면제, 다른 파일이 hook 을 새로 만들면 위반이다 */
 function spaceViolations(program: Node, file: string, ids: Map<string, string>, space: KeySpace): { violations: DataflowViolation[]; redefined: boolean } {
   if (file === space.hookFile) return { violations: [], redefined: false };
   const violations = collectViolations(program, file, ids, space);
-  const redefined = hookDeclaration(program, space.hook);
-  if (redefined) {
+  let redefined = false;
+  for (const hook of space.hooks) {
+    const declaration = hookDeclaration(program, hook);
+    if (!declaration) continue;
+    redefined = true;
     violations.push({
       rule: space.rules.redefined,
-      loc: locOf(file, redefined),
-      message: `${space.hook} 는 템플릿(${space.hookFile})이 제공합니다 — 같은 이름으로 새로 만들지 말고 import 해서 쓰세요`,
+      loc: locOf(file, declaration),
+      message: `${hook} 는 템플릿(${space.hookFile})이 제공합니다 — 같은 이름으로 새로 만들지 말고 import 해서 쓰세요`,
     });
   }
-  return { violations, redefined: redefined !== null };
+  return { violations, redefined };
+}
+
+const OVERLAY_HOOK = "useSimulationOverlay";
+const SUM_METHODS = new Set(["reduce", "reduceRight"]);
+const LOOP_METHODS = new Set(["forEach", "map", "flatMap"]);
+
+const isMember = (n: Node) => n.type === "MemberExpression" || n.type === "OptionalMemberExpression";
+const isCall = (n: Node) => n.type === "CallExpression" || n.type === "OptionalCallExpression";
+
+/** `a ? b : c` · `a ?? b` · `a || b` 의 각 갈래 */
+function branches(expr: Node): Node[] {
+  const e = unwrap(expr);
+  if (e.type === "ConditionalExpression") return [...branches(e.consequent as Node), ...branches(e.alternate as Node)];
+  if (e.type === "LogicalExpression") return [...branches(e.left as Node), ...branches(e.right as Node)];
+  return [e];
+}
+
+function hasAccumulation(body: Node): boolean {
+  let found = false;
+  walk(body, (n) => {
+    if (n.type === "AssignmentExpression" && (n.operator === "+=" || n.operator === "-=")) found = true;
+  });
+  return found;
+}
+
+// overlay 결과의 items 를 다시 더하는 코드 (AOS-8037). 파일 안 이름만 본다.
+// ponytail: 스코프를 구분하지 않는 이름 추적이다. 다른 함수의 같은 이름 변수도 같은 값으로 본다
+function overlayResumViolations(program: Node, file: string): DataflowViolation[] {
+  if (file === SIMULATION_HOOK_FILE) return [];
+  const results = new Set<string>(); // overlay hook 결과
+  const datas = new Set<string>(); // 결과의 data
+  const items = new Set<string>(); // data.items
+  const declarators: Node[] = [];
+  walk(program, (n) => {
+    if (n.type === "VariableDeclarator" && n.init) declarators.push(n);
+  });
+
+  const isData = (e: Node): boolean => {
+    const x = unwrap(e);
+    if (x.type === "Identifier") return datas.has(x.name as string);
+    return isMember(x) && propertyName(x.property as Node, x.computed as boolean) === "data" && isResult(x.object as Node);
+  };
+  const isResult = (e: Node): boolean => {
+    const x = unwrap(e);
+    return (x.type === "Identifier" && results.has(x.name as string)) || isCallOf(x, OVERLAY_HOOK);
+  };
+  const isItems = (e: Node): boolean =>
+    branches(e).some((x) =>
+      x.type === "Identifier"
+        ? items.has(x.name as string)
+        : isMember(x) && propertyName(x.property as Node, x.computed as boolean) === "items" && isData(x.object as Node),
+    );
+
+  let changed = true;
+  const add = (set: Set<string>, name: string) => {
+    if (!set.has(name)) {
+      set.add(name);
+      changed = true;
+    }
+  };
+  while (changed) {
+    changed = false;
+    for (const d of declarators) {
+      const id = d.id as Node;
+      const init = d.init as Node;
+      if (id.type === "Identifier") {
+        const name = id.name as string;
+        if (branches(init).some(isResult)) add(results, name);
+        else if (branches(init).some(isData)) add(datas, name);
+        else if (isItems(init)) add(items, name);
+      } else if (id.type === "ObjectPattern") {
+        for (const prop of id.properties as Node[]) {
+          if (prop.type !== "ObjectProperty") continue;
+          const key = propertyName(prop.key as Node, prop.computed as boolean);
+          let value = prop.value as Node;
+          if (value.type === "AssignmentPattern") value = value.left as Node;
+          if (value.type !== "Identifier") continue;
+          if (key === "data" && branches(init).some(isResult)) add(datas, value.name as string);
+          if (key === "items" && branches(init).some(isData)) add(items, value.name as string);
+        }
+      }
+    }
+  }
+
+  // items.filter(…).reduce(…) 처럼 이어진 호출의 맨 앞까지 내려간다
+  const receiverIsItems = (receiver: Node): boolean => {
+    let r = unwrap(receiver);
+    while (isCall(r) && isMember(unwrap(r.callee as Node))) r = unwrap((unwrap(r.callee as Node).object as Node));
+    return isItems(r);
+  };
+
+  const violations: DataflowViolation[] = [];
+  const report = (node: Node) =>
+    violations.push({
+      rule: "simulation-overlay-resum",
+      loc: locOf(file, node),
+      message: `${OVERLAY_HOOK} 의 items 는 한 번에 limit 행만 옵니다 — 다시 더하면 전체 합계가 아닙니다. 합계·그룹별 합계는 useSimulationAggregate 로 받으세요`,
+    });
+  walk(program, (n) => {
+    if (isCall(n)) {
+      const callee = unwrap(n.callee as Node);
+      if (!isMember(callee) || !receiverIsItems(callee.object as Node)) return;
+      const method = propertyName(callee.property as Node, callee.computed as boolean);
+      if (method && SUM_METHODS.has(method)) report(n);
+      else if (method && LOOP_METHODS.has(method) && (n.arguments as Node[]).some(hasAccumulation)) report(n);
+    } else if (n.type === "ForOfStatement" && isItems(n.right as Node) && hasAccumulation(n.body as Node)) {
+      report(n);
+    }
+  });
+  return violations;
 }
 
 // ─── 진입점 ───────────────────────────────────────────────────────────────────
@@ -909,6 +1102,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
   // 1. FUNCTIONS · ACTIONS — 파일마다 "어느 파일의 선언을 쓰는가"
   const functionSpace = spaceTables(project, programs, FUNCTION_SPACE);
   const actionSpace = spaceTables(project, programs, ACTION_SPACE);
+  const simulationSpace = spaceTables(project, programs, SIMULATION_SPACE);
 
   // 2. 컴포넌트 — `파일#이름`
   const defs = new Map<string, { file: string; def: ComponentDef }>();
@@ -1045,16 +1239,19 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
 
     let usesHook = false;
     let usesActionHook = false;
+    let usesSimulationHook = false;
     walk(program, (node) => {
       if (node.type !== "CallExpression") return;
       if (isCallOf(node, HOOK_NAME)) usesHook = true;
       if (isCallOf(node, ACTION_HOOK_NAME)) usesActionHook = true;
+      if (SIMULATION_HOOK_NAMES.some((name) => isCallOf(node, name))) usesSimulationHook = true;
     });
 
     const functionIds = functionSpace.effectiveIds.get(file)!;
     const actionIds = actionSpace.effectiveIds.get(file)!;
     const functionCheck = spaceViolations(program, file, functionIds, FUNCTION_SPACE);
     const actionCheck = spaceViolations(program, file, actionIds, ACTION_SPACE);
+    const simulationCheck = spaceViolations(program, file, simulationSpace.effectiveIds.get(file)!, SIMULATION_SPACE);
     // hook 을 새로 만든 파일은 hook 계약 안의 파일이다 — 예전 앱 예외(usesHook=false)로 위반이 묻히지 않게.
     files.set(file, {
       functionIds,
@@ -1064,6 +1261,8 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       actionIds,
       actionViolations: actionCheck.violations,
       usesActionHook: usesActionHook || actionCheck.redefined,
+      simulationViolations: [...simulationCheck.violations, ...overlayResumViolations(program, file)],
+      usesSimulationHook: usesSimulationHook || simulationCheck.redefined,
     });
   }
 

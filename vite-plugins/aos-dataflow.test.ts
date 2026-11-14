@@ -438,3 +438,189 @@ const TENANT_ID = "1";
     expect(result.violations).toEqual([]);
   });
 });
+
+describe("analyzeDataflow — 시뮬레이션 (AOS-8037)", () => {
+  const SIM_HEADER = `
+const FUNCTIONS = { orders: { id: "uuid-orders" } };
+const SIMULATION = {
+  margin: { id: "saved-margin", description: "원가 +10%" },
+  base: { id: "saved-base" },
+};
+const TENANT_ID = "1";
+`;
+
+  function analyzeSimulation(body: string, file = FILE) {
+    const ast = parse(SIM_HEADER + body, { sourceType: "module", plugins: ["typescript", "jsx"] }) as unknown as Node;
+    return analyzeDataflow(ast, file);
+  }
+
+  it("hook 첫 인자의 SIMULATION.k · [SIMULATION.a, SIMULATION.b] 는 위반이 아니다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "product" });
+        const sum = useSimulationAggregate([SIMULATION.base, SIMULATION.margin], { tenantId: TENANT_ID, objectType: "product" });
+        const one = useSimulationAggregate(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "product" });
+        const list = () => apiClient.get("/simulation/saved-states");
+        return <div onClick={list}>{rows.data?.items.length}{sum.data?.groups.length}{one.status}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(true);
+    expect(result.violations).toEqual([]);
+    expect(result.actionViolations).toEqual([]);
+  });
+
+  it("시뮬레이션 계약을 벗어난 모양을 simulationViolations 로 보고한다", () => {
+    const result = analyzeSimulation(`
+      function useSimulationOverlay() { return null; }
+      const useSimulationAggregate = () => null;
+      function App() {
+        const a = useSimulationOverlay({ id: "forged" }, { tenantId: TENANT_ID, objectType: "product" });
+        const b = useSimulationOverlay(SIMULATION.missing, { tenantId: TENANT_ID, objectType: "product" });
+        const c = useSimulationAggregate(SIMULATION[name], { tenantId: TENANT_ID, objectType: "product" });
+        const d = useSimulationAggregate([SIMULATION.margin, other], { tenantId: TENANT_ID, objectType: "product" });
+        const e = useSimulationAggregate([SIMULATION.base, SIMULATION.base, SIMULATION.base, SIMULATION.base, SIMULATION.base], { tenantId: TENANT_ID, objectType: "product" });
+        register(SIMULATION);
+        const rows = () => apiClient.post(\`/simulation/saved-states/\${SIMULATION.margin.id}/overlay/rows\`, {});
+        const sum = () => apiClient.post("/simulation/saved-states/overlay/aggregate", {});
+        return <div />;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule).sort()).toEqual([
+      "direct-simulation-call",
+      "direct-simulation-call",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "simulation-dynamic-key",
+      "simulation-escape",
+      "simulation-hook-redefined",
+      "simulation-hook-redefined",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "simulation-outside-hook",
+      "unknown-simulation-key",
+    ]);
+    expect(result.usesSimulationHook).toBe(true);
+    expect(result.violations).toEqual([]);
+    expect(result.actionViolations).toEqual([]);
+  });
+
+  it("hook 없이 overlay 를 직접 부르는 파일은 usesSimulationHook 이 false 이고 위반만 남는다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const orders = useOntologyFunction(FUNCTIONS.orders, { tenantId: TENANT_ID });
+        const load = () => apiClient.post("/simulation/saved-states/saved-margin/overlay/rows", {});
+        return <button onClick={load}>{orders.data.length}</button>;
+      }
+    `);
+
+    expect(result.usesSimulationHook).toBe(false);
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["direct-simulation-call"]);
+    expect(result.violations).toEqual([]);
+  });
+
+  it("구조 분해로 상수를 다른 이름으로 꺼내면 escape 다", () => {
+    const result = analyzeSimulation(`
+      const { SIMULATION: S } = mod;
+      export default function App() { return <div>{S.margin.id}</div>; }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["simulation-escape"]);
+  });
+
+  it("함수 hook 은 배열 첫 인자를 받지 않는다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const orders = useOntologyFunction([FUNCTIONS.orders], { tenantId: TENANT_ID });
+        return <div>{orders.data.length}</div>;
+      }
+    `);
+
+    expect(result.violations.map((v) => v.rule).sort()).toEqual(["functions-outside-hook", "hook-arg-not-functions"]);
+  });
+
+  it("SIMULATION 이라는 이름의 속성 · 객체 key · enum 멤버는 상수 사용이 아니다", () => {
+    const result = analyzeSimulation(`
+      enum Tab { SIMULATION = "sim" }
+      const LABELS = { SIMULATION: "시뮬레이션" };
+      export default function App() {
+        return <div>{LABELS.SIMULATION}{Tab.SIMULATION}{LABELS?.SIMULATION}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(false);
+  });
+
+  it("템플릿 시뮬레이션 hook 파일은 overlay 를 직접 불러도 위반이 아니다", () => {
+    const result = analyzeSimulation(
+      "export function useSimulationOverlay(s, o) { return apiClient.post(`/simulation/saved-states/${s.id}/overlay/rows`, {}); }",
+      "src/hooks/useSimulationResult.ts",
+    );
+
+    expect(result.simulationViolations).toEqual([]);
+  });
+
+  it("overlay items 를 forEach · += 로 다시 더하면 simulation-overlay-resum 이다", () => {
+    const result = analyzeSimulation(`
+      export default function App({ pick }) {
+        const a = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const b = useSimulationOverlay(SIMULATION.base, { tenantId: TENANT_ID, objectType: "cost" });
+        const rows = pick ? a : b;
+        const total = useMemo(() => {
+          const items = rows.data?.items;
+          let sum = 0;
+          items?.forEach((item) => { sum += item.values.cost.simulated; });
+          return sum;
+        }, [rows]);
+        return <div>{total}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["simulation-overlay-resum"]);
+  });
+
+  it("구조 분해 · 이어진 호출 · for-of 로 다시 더해도 simulation-overlay-resum 이다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const { data } = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const { items = [] } = data ?? {};
+        const sum = items.filter((r) => r.source.ok).reduce((acc, r) => acc + r.values.cost.simulated, 0);
+        let base = 0;
+        for (const r of data?.items ?? []) base += r.values.cost.base;
+        return <div>{sum}{base}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual([
+      "simulation-overlay-resum",
+      "simulation-overlay-resum",
+    ]);
+  });
+
+  it("overlay items 를 행으로 그리거나 행마다 변화량을 계산하는 것은 위반이 아니다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const totals = useSimulationAggregate(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const groupSum = (totals.data?.groups ?? []).reduce((acc, g) => acc + g.simulated, 0);
+        return (
+          <ul>
+            {groupSum}
+            {rows.data?.items.map((r) => <li key={r.key}>{r.values.cost.simulated - r.values.cost.base}</li>)}
+          </ul>
+        );
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+  });
+});
