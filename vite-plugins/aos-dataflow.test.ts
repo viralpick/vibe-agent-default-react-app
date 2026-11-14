@@ -568,4 +568,59 @@ const TENANT_ID = "1";
 
     expect(result.simulationViolations).toEqual([]);
   });
+
+  it("overlay items 를 forEach · += 로 다시 더하면 simulation-overlay-resum 이다", () => {
+    const result = analyzeSimulation(`
+      export default function App({ pick }) {
+        const a = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const b = useSimulationOverlay(SIMULATION.base, { tenantId: TENANT_ID, objectType: "cost" });
+        const rows = pick ? a : b;
+        const total = useMemo(() => {
+          const items = rows.data?.items;
+          let sum = 0;
+          items?.forEach((item) => { sum += item.values.cost.simulated; });
+          return sum;
+        }, [rows]);
+        return <div>{total}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["simulation-overlay-resum"]);
+  });
+
+  it("구조 분해 · 이어진 호출 · for-of 로 다시 더해도 simulation-overlay-resum 이다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const { data } = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const { items = [] } = data ?? {};
+        const sum = items.filter((r) => r.source.ok).reduce((acc, r) => acc + r.values.cost.simulated, 0);
+        let base = 0;
+        for (const r of data?.items ?? []) base += r.values.cost.base;
+        return <div>{sum}{base}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual([
+      "simulation-overlay-resum",
+      "simulation-overlay-resum",
+    ]);
+  });
+
+  it("overlay items 를 행으로 그리거나 행마다 변화량을 계산하는 것은 위반이 아니다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const totals = useSimulationAggregate(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const groupSum = (totals.data?.groups ?? []).reduce((acc, g) => acc + g.simulated, 0);
+        return (
+          <ul>
+            {groupSum}
+            {rows.data?.items.map((r) => <li key={r.key}>{r.values.cost.simulated - r.values.cost.base}</li>)}
+          </ul>
+        );
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+  });
 });

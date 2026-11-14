@@ -35,6 +35,8 @@ import { AosProject } from "./aos-project";
 // 시뮬레이션 (AOS-8037): `useSimulationOverlay(SIMULATION.k)` · `useSimulationAggregate(SIMULATION.k | [SIMULATION.a, …])`.
 // 컴포넌트별 추적은 하지 않고 위반만 본다 — hook 밖의 SIMULATION, 동적 key, overlay API 직접 호출.
 // 위반은 simulationViolations 로 따로 싣는다.
+// overlay 결과의 items 를 reduce · `+=` 로 다시 더하는 것도 위반이다 — 한 번에 limit 행만 오므로
+// 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
 
 export const HOOK_NAME = "useOntologyFunction";
 /** 템플릿이 제공하는 hook 모듈 — `/ontology-functions/{id}/run` 을 직접 부를 수 있는 유일한 자리 */
@@ -197,7 +199,8 @@ export interface DataflowViolation {
     | "simulation-outside-hook"
     | "simulation-escape"
     | "direct-simulation-call"
-    | "simulation-hook-redefined";
+    | "simulation-hook-redefined"
+    | "simulation-overlay-resum";
   loc: string;
   message: string;
 }
@@ -917,6 +920,116 @@ function spaceViolations(program: Node, file: string, ids: Map<string, string>, 
   return { violations, redefined };
 }
 
+const OVERLAY_HOOK = "useSimulationOverlay";
+const SUM_METHODS = new Set(["reduce", "reduceRight"]);
+const LOOP_METHODS = new Set(["forEach", "map", "flatMap"]);
+
+const isMember = (n: Node) => n.type === "MemberExpression" || n.type === "OptionalMemberExpression";
+const isCall = (n: Node) => n.type === "CallExpression" || n.type === "OptionalCallExpression";
+
+/** `a ? b : c` · `a ?? b` · `a || b` 의 각 갈래 */
+function branches(expr: Node): Node[] {
+  const e = unwrap(expr);
+  if (e.type === "ConditionalExpression") return [...branches(e.consequent as Node), ...branches(e.alternate as Node)];
+  if (e.type === "LogicalExpression") return [...branches(e.left as Node), ...branches(e.right as Node)];
+  return [e];
+}
+
+function hasAccumulation(body: Node): boolean {
+  let found = false;
+  walk(body, (n) => {
+    if (n.type === "AssignmentExpression" && (n.operator === "+=" || n.operator === "-=")) found = true;
+  });
+  return found;
+}
+
+// overlay 결과의 items 를 다시 더하는 코드 (AOS-8037). 파일 안 이름만 본다.
+// ponytail: 스코프를 구분하지 않는 이름 추적이다. 다른 함수의 같은 이름 변수도 같은 값으로 본다
+function overlayResumViolations(program: Node, file: string): DataflowViolation[] {
+  if (file === SIMULATION_HOOK_FILE) return [];
+  const results = new Set<string>(); // overlay hook 결과
+  const datas = new Set<string>(); // 결과의 data
+  const items = new Set<string>(); // data.items
+  const declarators: Node[] = [];
+  walk(program, (n) => {
+    if (n.type === "VariableDeclarator" && n.init) declarators.push(n);
+  });
+
+  const isData = (e: Node): boolean => {
+    const x = unwrap(e);
+    if (x.type === "Identifier") return datas.has(x.name as string);
+    return isMember(x) && propertyName(x.property as Node, x.computed as boolean) === "data" && isResult(x.object as Node);
+  };
+  const isResult = (e: Node): boolean => {
+    const x = unwrap(e);
+    return (x.type === "Identifier" && results.has(x.name as string)) || isCallOf(x, OVERLAY_HOOK);
+  };
+  const isItems = (e: Node): boolean =>
+    branches(e).some((x) =>
+      x.type === "Identifier"
+        ? items.has(x.name as string)
+        : isMember(x) && propertyName(x.property as Node, x.computed as boolean) === "items" && isData(x.object as Node),
+    );
+
+  let changed = true;
+  const add = (set: Set<string>, name: string) => {
+    if (!set.has(name)) {
+      set.add(name);
+      changed = true;
+    }
+  };
+  while (changed) {
+    changed = false;
+    for (const d of declarators) {
+      const id = d.id as Node;
+      const init = d.init as Node;
+      if (id.type === "Identifier") {
+        const name = id.name as string;
+        if (branches(init).some(isResult)) add(results, name);
+        else if (branches(init).some(isData)) add(datas, name);
+        else if (isItems(init)) add(items, name);
+      } else if (id.type === "ObjectPattern") {
+        for (const prop of id.properties as Node[]) {
+          if (prop.type !== "ObjectProperty") continue;
+          const key = propertyName(prop.key as Node, prop.computed as boolean);
+          let value = prop.value as Node;
+          if (value.type === "AssignmentPattern") value = value.left as Node;
+          if (value.type !== "Identifier") continue;
+          if (key === "data" && branches(init).some(isResult)) add(datas, value.name as string);
+          if (key === "items" && branches(init).some(isData)) add(items, value.name as string);
+        }
+      }
+    }
+  }
+
+  // items.filter(…).reduce(…) 처럼 이어진 호출의 맨 앞까지 내려간다
+  const receiverIsItems = (receiver: Node): boolean => {
+    let r = unwrap(receiver);
+    while (isCall(r) && isMember(unwrap(r.callee as Node))) r = unwrap((unwrap(r.callee as Node).object as Node));
+    return isItems(r);
+  };
+
+  const violations: DataflowViolation[] = [];
+  const report = (node: Node) =>
+    violations.push({
+      rule: "simulation-overlay-resum",
+      loc: locOf(file, node),
+      message: `${OVERLAY_HOOK} 의 items 는 한 번에 limit 행만 옵니다 — 다시 더하면 전체 합계가 아닙니다. 합계·그룹별 합계는 useSimulationAggregate 로 받으세요`,
+    });
+  walk(program, (n) => {
+    if (isCall(n)) {
+      const callee = unwrap(n.callee as Node);
+      if (!isMember(callee) || !receiverIsItems(callee.object as Node)) return;
+      const method = propertyName(callee.property as Node, callee.computed as boolean);
+      if (method && SUM_METHODS.has(method)) report(n);
+      else if (method && LOOP_METHODS.has(method) && (n.arguments as Node[]).some(hasAccumulation)) report(n);
+    } else if (n.type === "ForOfStatement" && isItems(n.right as Node) && hasAccumulation(n.body as Node)) {
+      report(n);
+    }
+  });
+  return violations;
+}
+
 // ─── 진입점 ───────────────────────────────────────────────────────────────────
 
 // qualified key = `<FUNCTIONS 를 선언한 파일>\u0001<key>`
@@ -1148,7 +1261,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       actionIds,
       actionViolations: actionCheck.violations,
       usesActionHook: usesActionHook || actionCheck.redefined,
-      simulationViolations: simulationCheck.violations,
+      simulationViolations: [...simulationCheck.violations, ...overlayResumViolations(program, file)],
       usesSimulationHook: usesSimulationHook || simulationCheck.redefined,
     });
   }
