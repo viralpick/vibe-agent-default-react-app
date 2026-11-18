@@ -35,7 +35,7 @@ import { AosProject } from "./aos-project";
 // 시뮬레이션 (AOS-8037): `useSimulationOverlay(SIMULATION.k)` · `useSimulationAggregate(SIMULATION.k | [SIMULATION.a, …])`.
 // 컴포넌트별 추적은 하지 않고 위반만 본다 — hook 밖의 SIMULATION, 동적 key, overlay API 직접 호출.
 // 위반은 simulationViolations 로 따로 싣는다.
-// overlay 결과의 items 를 reduce · `+=` 로 다시 더하는 것도 위반이다 — 한 번에 limit 행만 오므로
+// overlay 결과의 items 를 숫자 초기값 reduce · 바깥 변수 `+=` 로 다시 더하는 것도 위반이다 — 한 번에 limit 행만 오므로
 // 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
 
 export const HOOK_NAME = "useOntologyFunction";
@@ -935,12 +935,45 @@ function branches(expr: Node): Node[] {
   return [e];
 }
 
-function hasAccumulation(body: Node): boolean {
+/** 대입 대상의 맨 앞 이름 — `sum` · `totals[k]` · `acc.cost` 모두 앞 이름을 돌려준다 */
+function assignmentRoot(target: Node): string | null {
+  let t = unwrap(target);
+  while (isMember(t)) t = unwrap(t.object as Node);
+  return t.type === "Identifier" ? (t.name as string) : null;
+}
+
+/** 이 범위 안에서 선언한 이름 (변수 · 함수 매개변수) */
+function localNames(scope: Node): Set<string> {
+  const names = new Set<string>();
+  walk(scope, (n) => {
+    if (n.type === "VariableDeclarator") patternNames(n.id as Node).forEach((x) => names.add(x));
+    if (n.type === "ArrowFunctionExpression" || n.type === "FunctionExpression" || n.type === "FunctionDeclaration") {
+      (n.params as Node[]).forEach((param) => patternNames(param).forEach((x) => names.add(x)));
+    }
+  });
+  return names;
+}
+
+/** 범위 바깥에 선언된 값에 `+=` · `-=` 로 쌓는가 — 행 하나 안에서 더하거나 문자열을 잇는 것은 제외한다 */
+function hasOuterAccumulation(scope: Node, extraLocals: string[] = []): boolean {
+  const locals = localNames(scope);
+  extraLocals.forEach((x) => locals.add(x));
   let found = false;
-  walk(body, (n) => {
-    if (n.type === "AssignmentExpression" && (n.operator === "+=" || n.operator === "-=")) found = true;
+  walk(scope, (n) => {
+    if (n.type !== "AssignmentExpression" || (n.operator !== "+=" && n.operator !== "-=")) return;
+    const root = assignmentRoot(n.left as Node);
+    if (root !== null && !locals.has(root)) found = true;
   });
   return found;
+}
+
+/** `reduce(fn, 0)` 처럼 초기값이 숫자인가 — 객체 · 배열 초기값(key 로 찾는 맵 만들기)은 합계가 아니다 */
+function hasNumericInitial(call: Node): boolean {
+  const init = (call.arguments as Node[])[1];
+  if (!init) return false;
+  const x = unwrap(init);
+  if (x.type === "NumericLiteral") return true;
+  return x.type === "UnaryExpression" && (x.operator === "-" || x.operator === "+") && unwrap(x.argument as Node).type === "NumericLiteral";
 }
 
 // overlay 결과의 items 를 다시 더하는 코드 (AOS-8037). 파일 안 이름만 본다.
@@ -1021,9 +1054,13 @@ function overlayResumViolations(program: Node, file: string): DataflowViolation[
       const callee = unwrap(n.callee as Node);
       if (!isMember(callee) || !receiverIsItems(callee.object as Node)) return;
       const method = propertyName(callee.property as Node, callee.computed as boolean);
-      if (method && SUM_METHODS.has(method)) report(n);
-      else if (method && LOOP_METHODS.has(method) && (n.arguments as Node[]).some(hasAccumulation)) report(n);
-    } else if (n.type === "ForOfStatement" && isItems(n.right as Node) && hasAccumulation(n.body as Node)) {
+      if (method && SUM_METHODS.has(method) && hasNumericInitial(n)) report(n);
+      else if (method && LOOP_METHODS.has(method) && (n.arguments as Node[]).some((arg) => hasOuterAccumulation(arg))) report(n);
+    } else if (
+      n.type === "ForOfStatement" &&
+      isItems(n.right as Node) &&
+      hasOuterAccumulation(n.body as Node, patternNames(((n.left as Node).declarations as Node[] | undefined)?.[0]?.id as Node))
+    ) {
       report(n);
     }
   });

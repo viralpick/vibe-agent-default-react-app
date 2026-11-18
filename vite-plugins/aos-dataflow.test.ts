@@ -606,6 +606,39 @@ const TENANT_ID = "1";
     ]);
   });
 
+  it("행 하나 안에서 더하기 · 라벨 잇기 · key 로 찾는 맵 만들기는 다시 더하기가 아니다", () => {
+    const result = analyzeSimulation(`
+      export default function App({ props }) {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const items = rows.data?.items ?? [];
+        const rowTotals = items.map((row) => { let t = 0; for (const p of props) t += row.values[p]?.value ?? 0; return t; });
+        const labels = items.map((row) => { let s = row.objectKey; s += " *"; return s; });
+        const byKey = items.reduce((acc, row) => ({ ...acc, [row.objectKey]: row }), {});
+        for (const row of items) { let line = row.objectKey; line += "!"; }
+        return <div>{rowTotals.length}{labels.length}{Object.keys(byKey).length}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+  });
+
+  it("바깥에 둔 묶음별 합계에 쌓거나 음수 초기값 reduce 로 더하면 simulation-overlay-resum 이다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const totals = {};
+        rows.data?.items.forEach((row) => { totals[row.source.category] += row.values.cost.value; });
+        const net = rows.data?.items.reduce((acc, row) => acc - row.values.cost.delta, -0);
+        return <div>{net}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual([
+      "simulation-overlay-resum",
+      "simulation-overlay-resum",
+    ]);
+  });
+
   it("overlay items 를 행으로 그리거나 행마다 변화량을 계산하는 것은 위반이 아니다", () => {
     const result = analyzeSimulation(`
       export default function App() {
