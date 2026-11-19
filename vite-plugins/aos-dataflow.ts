@@ -976,6 +976,24 @@ function hasNumericInitial(call: Node): boolean {
   return x.type === "UnaryExpression" && (x.operator === "-" || x.operator === "+") && unwrap(x.argument as Node).type === "NumericLiteral";
 }
 
+/** 초기값 없는 `reduce((a, b) => a + b)` — 콜백이 누적값에 `+` · `-` 를 하는가. 문자열 조각을 잇는 것은 제외한다 */
+function sumsWithoutInitial(call: Node): boolean {
+  const args = call.arguments as Node[];
+  if (args.length !== 1) return false;
+  const fn = unwrap(args[0]);
+  if (fn.type !== "ArrowFunctionExpression" && fn.type !== "FunctionExpression") return false;
+  const acc = unwrap((fn.params as Node[])[0] ?? fn);
+  if (acc.type !== "Identifier") return false;
+  const isText = (e: Node) => ["StringLiteral", "TemplateLiteral"].includes(unwrap(e).type);
+  let found = false;
+  walk(fn.body as Node, (n) => {
+    if (n.type !== "BinaryExpression" || (n.operator !== "+" && n.operator !== "-")) return;
+    const left = unwrap(n.left as Node);
+    if (left.type === "Identifier" && left.name === acc.name && !isText(n.right as Node)) found = true;
+  });
+  return found;
+}
+
 // overlay 결과의 items 를 다시 더하는 코드 (AOS-8037). 파일 안 이름만 본다.
 // ponytail: 스코프를 구분하지 않는 이름 추적이다. 다른 함수의 같은 이름 변수도 같은 값으로 본다
 function overlayResumViolations(program: Node, file: string): DataflowViolation[] {
@@ -1054,7 +1072,7 @@ function overlayResumViolations(program: Node, file: string): DataflowViolation[
       const callee = unwrap(n.callee as Node);
       if (!isMember(callee) || !receiverIsItems(callee.object as Node)) return;
       const method = propertyName(callee.property as Node, callee.computed as boolean);
-      if (method && SUM_METHODS.has(method) && hasNumericInitial(n)) report(n);
+      if (method && SUM_METHODS.has(method) && (hasNumericInitial(n) || sumsWithoutInitial(n))) report(n);
       else if (method && LOOP_METHODS.has(method) && (n.arguments as Node[]).some((arg) => hasOuterAccumulation(arg))) report(n);
     } else if (
       n.type === "ForOfStatement" &&

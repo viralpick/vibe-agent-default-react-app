@@ -639,6 +639,19 @@ const TENANT_ID = "1";
     ]);
   });
 
+  it("초기값 없는 reduce 로 더하면 simulation-overlay-resum 이고, 라벨을 이으면 위반이 아니다", () => {
+    const result = analyzeSimulation(`
+      export default function App() {
+        const rows = useSimulationOverlay(SIMULATION.margin, { tenantId: TENANT_ID, objectType: "cost" });
+        const total = rows.data?.items.map((r) => r.values.cost.simulated).reduce((a, b) => a + b);
+        const keys = rows.data?.items.map((r) => r.objectKey).reduce((a, b) => a + ", " + b);
+        return <div>{total}{keys}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["simulation-overlay-resum"]);
+  });
+
   it("overlay items 를 행으로 그리거나 행마다 변화량을 계산하는 것은 위반이 아니다", () => {
     const result = analyzeSimulation(`
       export default function App() {
