@@ -49,7 +49,8 @@ export const AOS_MANIFEST_FILE = "aos-manifest.json";
 // v6 (AOS-4902): components[].file, 최상위 modules(파일별 실행 시점 import) · cycles(순환 import) 추가.
 //   추적이 파일 경계를 넘는다 — 다른 파일에서 props 로 받은 데이터도 functions / visualizations.data 에 잡힌다.
 // v7 (AOS-7001): components[].actions, files[].usesActionHook · actionViolations 추가. 액션 위반은 violations 와 따로 싣는다.
-export const AOS_MANIFEST_VERSION = 7;
+// v8 (AOS-8037): files[].usesSimulationHook · simulationViolations 추가. 시뮬레이션 위반도 따로 싣는다.
+export const AOS_MANIFEST_VERSION = 8;
 
 export interface AosComponent {
   /** data-aos-id 값 */
@@ -140,6 +141,10 @@ export interface AosFileReport {
   usesActionHook: boolean;
   /** 액션 추적 계약(useOntologyAction)을 벗어난 위치 */
   actionViolations: DataflowViolation[];
+  /** useSimulationOverlay · useSimulationAggregate 를 한 번이라도 쓰는가 */
+  usesSimulationHook: boolean;
+  /** 시뮬레이션 hook 계약을 벗어난 위치 */
+  simulationViolations: DataflowViolation[];
 }
 
 /** 빌드에 들어간 모듈 하나의 실행 시점 import (AOS-4902) */
@@ -297,7 +302,15 @@ export function analyzeAosSource(
       code: null,
       map: null,
       components: [],
-      file: { file, usesHook: false, violations: [], usesActionHook: false, actionViolations: [] },
+      file: {
+        file,
+        usesHook: false,
+        violations: [],
+        usesActionHook: false,
+        actionViolations: [],
+        usesSimulationHook: false,
+        simulationViolations: [],
+      },
       visualizations: [],
       usages: [],
     };
@@ -459,9 +472,17 @@ export function buildManifest(
     .filter(([, count]) => count > 1)
     .map(([id]) => id)
     .sort();
-  // 데이터 조회 · 액션 실행과 무관한 파일(유틸·main.tsx)은 싣지 않는다
+  // 데이터 조회 · 액션 실행 · 시뮬레이션 결과 조회와 무관한 파일(유틸·main.tsx)은 싣지 않는다
   const relevant = files
-    .filter((f) => f.usesHook || f.violations.length > 0 || f.usesActionHook || f.actionViolations.length > 0)
+    .filter(
+      (f) =>
+        f.usesHook ||
+        f.violations.length > 0 ||
+        f.usesActionHook ||
+        f.actionViolations.length > 0 ||
+        f.usesSimulationHook ||
+        f.simulationViolations.length > 0,
+    )
     .sort((a, b) => a.file.localeCompare(b.file));
   const vizList: AosManifestVisualization[] = [...visualizations]
     .sort((a, b) => a.loc.localeCompare(b.loc, "en", { numeric: true }))
@@ -519,6 +540,8 @@ function reportOf(file: string, flow: DataflowResult): AosFileReport {
     violations: flow.violations,
     usesActionHook: flow.usesActionHook,
     actionViolations: flow.actionViolations,
+    usesSimulationHook: flow.usesSimulationHook,
+    simulationViolations: flow.simulationViolations,
   };
 }
 
