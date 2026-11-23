@@ -1,5 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
 import { usePostMessageAuth } from "../hooks/usePostMessageAuth";
+import { fixtureAdapter, isFixtureMode, isFixtureRequest } from "./fixture-adapter";
 import { isUnboundRequest, unboundAdapter } from "./unbound-mocks";
 
 type ConsoleEnv = "local" | "dev" | "stg" | "prod";
@@ -123,6 +124,12 @@ apiClient.interceptors.request.use(
     // 가져온 앱의 잇기 전 호출 — 서버로 보내지 않고 샘플로 답한다 (unbound-mocks.ts)
     if (isUnboundRequest(config.url)) {
       config.adapter = unboundAdapter();
+      return config;
+    }
+    // 로컬 프리뷰 fixture 모드 — 저장해 둔 함수 응답으로 답한다 (fixture-adapter.ts).
+    // DEV 를 여기서 직접 보아 게시 빌드에서는 이 분기와 fixture 코드가 번들에서 빠진다.
+    if (import.meta.env.DEV && isFixtureMode() && isFixtureRequest(config.url)) {
+      config.adapter = fixtureAdapter();
       return config;
     }
     try {

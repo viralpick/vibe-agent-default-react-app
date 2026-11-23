@@ -34,7 +34,15 @@ describe(".gitignore", () => {
     expect(isIgnored(relative)).toBe(false);
   });
 
-  it.each(["dist/index.js", "node_modules/x/index.js", "logs/a.txt", ".claude/x", "debug.log", ".env.local"])(
+  it.each([
+    "dist/index.js",
+    "node_modules/x/index.js",
+    "logs/a.txt",
+    ".claude/x",
+    "debug.log",
+    ".env.local",
+    ".cos/fixtures/x.json",
+  ])(
     "루트의 %s 는 그대로 무시한다",
     (relative) => {
       expect(isIgnored(relative)).toBe(true);
