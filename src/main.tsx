@@ -17,6 +17,7 @@ import { usePreviewErrorReporter } from "./hooks/usePreviewErrorReporter.ts";
 import { usePreviewConsoleMirror } from "./hooks/usePreviewConsoleMirror.ts";
 import { useUnboundSampleNotice } from "./hooks/useUnboundSampleNotice.ts";
 import { initialPathFromUrl, useHostRoute } from "./hooks/useHostRoute.ts";
+import { useReportUserActivity } from "./hooks/useReportUserActivity.ts";
 
 function AppWithHooks() {
   useEnableEditMode();
@@ -27,6 +28,7 @@ function AppWithHooks() {
   usePreviewConsoleMirror();
   useUnboundSampleNotice();
   useHostRoute();
+  useReportUserActivity();
 
   return <App />;
 }
