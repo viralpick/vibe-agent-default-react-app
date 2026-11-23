@@ -130,6 +130,12 @@ export interface RouteReadyPayload {
 export interface RouteChangePayload {
   type: PostMessageType.ROUTE_CHANGE;
   path: HostRoutePath;
+  /**
+   * 앱이 지금 칸을 바꿔 쓴 이동인가(`navigate(to, { replace: true })`, `<Navigate replace />`,
+   * `setSearchParams(next, { replace: true })`). true 면 호스트도 이력 칸을 새로 쌓지 않고 바꿔 쓴다.
+   * 이 필드를 모르는 옛 호스트는 지금처럼 쌓는다.
+   */
+  replace: boolean;
 }
 
 /** 호스트가 정한 경로로 이동 */
