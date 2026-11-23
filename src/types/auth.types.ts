@@ -32,6 +32,8 @@ export enum PostMessageType {
   NAVIGATE = "NAVIGATE",
   /** 샌드박스 -> 호스트 FE: 뒤로 가기. 브라우저 이력은 호스트가 갖는다 */
   BACK = "BACK",
+  /** 샌드박스 -> 호스트 FE: 사용자가 앱 안에서 입력했다. 호스트가 로그인 세션 갱신 판단에 쓴다 (AOS-8725) */
+  USER_ACTIVITY = "USER_ACTIVITY",
 }
 
 /**
