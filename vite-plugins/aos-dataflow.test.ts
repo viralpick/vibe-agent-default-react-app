@@ -781,6 +781,23 @@ const TENANT_ID = "1";
     ]);
   });
 
+  it("non-null 단언 · 기본값을 붙인 고르기 결과도 받고, 고르기 결과에 대입한 것은 받지 않는다", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected = null } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const a = useSimulationOverlay(picker.selected!, { tenantId: TENANT_ID, objectType: "product" });
+        const b = useSimulationOverlay(selected, { tenantId: TENANT_ID, objectType: "product" });
+        const forged = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        forged.selected = { id: "forged" };
+        const c = useSimulationOverlay(forged.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{a.status}{b.status}{c.status}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation"]);
+  });
+
   it("템플릿 hook 파일은 Rule Set 공간도 면제다", () => {
     const result = analyzePick(
       "export function useSimulationSavedStates(ruleSet, o) { return apiClient.get('/simulation/saved-states', { params: { ruleSetId: ruleSet.id } }); }",

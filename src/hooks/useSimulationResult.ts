@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApiClient } from "@/api/api.client";
 
 // 시뮬레이션 저장본 결과 조회 hook (AOS-8037).
@@ -287,6 +287,8 @@ export function useSimulationSavedStates(
   const [state, setState] = useState<State<SimulationSavedStateSummary[]> & { key: string | null }>({ ...IDLE, key: null });
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
+  // 다시 읽기 차례가 와도 앞 요청이 아직 오지 않았으면 건너뛴다 — 끊고 다시 보내면 응답이 간격보다 느린 환경에서 목록을 영영 받지 못한다
+  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -297,8 +299,12 @@ export function useSimulationSavedStates(
     const { signal } = controller;
     // 같은 조회를 다시 읽을 때는 이미 그린 목록을 지우지 않는다 — 몇 초마다 화면이 깜박이게 된다
     setState((prev) => (prev.key === key && prev.data ? prev : { status: "running", data: null, error: null, key }));
+    inFlight.current = true;
     apiClient
       .get("/simulation/saved-states", { params: { ruleSetId, size }, headers: { "X-Tenant-Id": tenantId }, signal })
+      .finally(() => {
+        if (!signal.aborted) inFlight.current = false;
+      })
       .then((response) => {
         if (signal.aborted) return;
         const items = ((response?.data?.data?.savedStates as CatalogItem[] | undefined) ?? []).map(toSummary);
@@ -314,13 +320,16 @@ export function useSimulationSavedStates(
         // 일시 오류로 고른 저장본이 사라지면 결과 hook 이 idle 로 떨어졌다가 다음 성공에 다시 조회한다
         setState((prev) => ({ status: "error", data: prev.key === key ? prev.data : null, error, key }));
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      inFlight.current = false;
+    };
   }, [apiClient, key, ruleSetId, tenantId, size, enabled, nonce]);
 
   useEffect(() => {
     if (!enabled || refreshIntervalMs <= 0) return;
     const timer = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
+      if (inFlight.current || (typeof document !== "undefined" && document.hidden)) return;
       setNonce((n) => n + 1);
     }, Math.max(refreshIntervalMs, MIN_REFRESH_MS));
     return () => clearInterval(timer);
@@ -333,16 +342,18 @@ export function useSimulationSavedStates(
   // 고른 저장본이 목록에서 빠지면(지워졌거나 최근 size 개 밖으로 밀려남) 가장 최근 저장본으로 돌아간다
   const chosen = chosenId === null ? undefined : savedStates.find((item) => item.id === chosenId);
   const selected = chosen ?? savedStates[0] ?? null;
+  // 조회 조건이 바뀐 첫 렌더에는 이전 조회의 상태를 내지 않는다
+  const status: SimulationResultStatus = state.key === key ? state.status : enabled ? "running" : "idle";
 
   return {
     savedStates,
     selected,
     select,
     followsLatest: chosen === undefined,
-    status: state.status,
-    isLoading: state.status === "running",
-    isForbidden: state.status === "forbidden",
-    error: state.error,
+    status,
+    isLoading: status === "running",
+    isForbidden: status === "forbidden",
+    error: state.key === key ? state.error : null,
     refetch,
   };
 }

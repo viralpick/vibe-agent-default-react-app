@@ -374,4 +374,39 @@ describe("useSimulationSavedStates (AOS-9031)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("Rule Set 을 바꾼 첫 렌더는 이전 조회의 상태가 아니라 running 이다", async () => {
+    get.mockImplementation((_p: string, config: { params: { ruleSetId: string } }) =>
+      config.params.ruleSetId === "a" ? Promise.resolve(page(item("sa", "2026-11-26T01:00:00Z"))) : new Promise(() => {}),
+    );
+    const hook = renderHook(({ ruleSet }) => useSimulationSavedStates(ruleSet, { tenantId: "7", refreshIntervalMs: 0 }), {
+      initialProps: { ruleSet: { id: "a" } },
+    });
+    await waitFor(() => expect(hook.result.current.status).toBe("success"));
+    const seen: string[] = [];
+    hook.rerender({ ruleSet: { id: "b" } });
+    seen.push(hook.result.current.status);
+
+    expect(seen).toEqual(["running"]);
+    expect(hook.result.current.savedStates).toEqual([]);
+  });
+
+  it("응답이 다시 읽는 간격보다 느려도 진행 중인 요청을 끊지 않고 그 응답을 받는다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const slow = deferred<unknown>();
+      get.mockReturnValueOnce(slow.promise).mockResolvedValue(page(item("s2", "2026-11-26T02:00:00Z")));
+      const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", refreshIntervalMs: 5_000 }));
+
+      await act(async () => vi.advanceTimersByTime(12_000));
+      const { signal } = get.mock.calls[0][1] as { signal: AbortSignal };
+      expect(signal.aborted).toBe(false);
+      expect(get).toHaveBeenCalledTimes(1);
+      await act(async () => slow.resolve(page(item("s1", "2026-11-26T01:00:00Z"))));
+
+      expect(hook.result.current.selected?.id).toBe("s1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
