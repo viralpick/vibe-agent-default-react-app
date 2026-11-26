@@ -15,6 +15,9 @@ lerna-debug.log*
 /dist-ssr
 *.local
 
+# 로컬 프리뷰 fixture — 저장해 둔 실제 조회 결과 (src/api/fixture-adapter.ts)
+/.cos/fixtures/
+
 # Editor directories and files
 /.vscode
 !/.vscode/extensions.json
