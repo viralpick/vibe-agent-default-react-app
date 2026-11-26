@@ -791,11 +791,16 @@ const TENANT_ID = "1";
         const forged = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
         forged.selected = { id: "forged" };
         const c = useSimulationOverlay(forged.selected, { tenantId: TENANT_ID, objectType: "product" });
-        return <div>{a.status}{b.status}{c.status}</div>;
+        const deep = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        deep.selected.id = "forged";
+        const d = useSimulationOverlay(deep.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{a.status}{b.status}{c.status}{d.status}</div>;
       }
     `);
 
-    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation"]);
+    // 대입한 forged · deep 으로 부른 c · d 만 잡힌다 — PICK_HEADER 4줄 + 본문 9 · 12번째 줄
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation", "hook-arg-not-simulation"]);
+    expect(result.simulationViolations.map((v) => v.loc.split(":")[1])).toEqual(["13", "16"]);
   });
 
   it("템플릿 hook 파일은 Rule Set 공간도 면제다", () => {

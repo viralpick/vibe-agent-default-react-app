@@ -958,7 +958,8 @@ function hookArgMembers(arg: Node | undefined, space: KeySpace, isPick: (node: N
  * 결과 hook 호출(call)의 첫 인자가 같은 함수에서 `const picker = useSimulationSavedStates(…)` 로 받은 `picker.selected`,
  * 또는 `const { selected } = useSimulationSavedStates(…)` 로 꺼낸 `selected`(다른 이름 포함)인가.
  * 함수마다 따로 본다 — 바깥 함수의 이름이나 prop 으로 받은 같은 이름은 고르기 결과가 아니다. 그 결과의 selected 에 대입하면 받지 않는다.
- * 함수 안 블록에서 같은 이름을 다시 선언하는 것은 구분하지 않는다 — 결과 읽기 권한은 서버가 보는 사람 기준으로 판정한다
+ * 함수 안 블록에서 같은 이름을 다시 선언하는 것, 콜백 안에서 대입하거나 `Object.assign` 으로 바꾸는 것은 구분하지 않는다 —
+ * 결과 읽기 권한은 서버가 보는 사람 기준으로 판정한다
  */
 function pickPredicate(program: Node, space: KeySpace): (arg: Node, call: Node) => boolean {
   const picker = space.picker;
@@ -972,9 +973,8 @@ function pickPredicate(program: Node, space: KeySpace): (arg: Node, call: Node) 
       if (node !== fn && isFunctionNode(node)) return;
       if (node.type === "CallExpression") namesOfCall.set(node, names);
       if (node.type === "AssignmentExpression") {
-        const target = node.left as Node;
-        const root = target.type === "MemberExpression" ? (target.object as Node) : target;
-        if (root.type === "Identifier") reassigned.add(root.name as string);
+        const root = assignmentRoot(node.left as Node);
+        if (root) reassigned.add(root);
       }
       if (node.type === "VariableDeclaration" && node.kind === "const") {
         for (const decl of node.declarations as Node[]) {

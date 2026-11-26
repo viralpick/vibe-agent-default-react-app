@@ -383,11 +383,9 @@ describe("useSimulationSavedStates (AOS-9031)", () => {
       initialProps: { ruleSet: { id: "a" } },
     });
     await waitFor(() => expect(hook.result.current.status).toBe("success"));
-    const seen: string[] = [];
     hook.rerender({ ruleSet: { id: "b" } });
-    seen.push(hook.result.current.status);
 
-    expect(seen).toEqual(["running"]);
+    expect(hook.result.current.status).toBe("running");
     expect(hook.result.current.savedStates).toEqual([]);
   });
 
