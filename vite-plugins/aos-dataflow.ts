@@ -37,6 +37,12 @@ import { AosProject } from "./aos-project";
 // 위반은 simulationViolations 로 따로 싣는다.
 // overlay 결과의 items 를 숫자 초기값 reduce · 바깥 변수 `+=` 로 다시 더하는 것도 위반이다 — 한 번에 limit 행만 오므로
 // 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
+//
+// 저장본 고르기 (AOS-9031): `useSimulationSavedStates(SIMULATION_RULE_SETS.k)` 는 세 번째 key 공간(Rule Set)이다.
+// 그 결과의 `selected` 는 서버가 그 Rule Set 으로 좁혀 돌려준 저장본이라, 같은 컴포넌트 안에서
+// `useSimulationOverlay(picker.selected)` · `const { selected } = useSimulationSavedStates(…)` 처럼 바로 넘기면
+// SIMULATION.k 대신 받는다. 다른 값(prop 으로 받은 저장본, 직접 만든 `{ id }`)은 그대로 위반이다.
+// Rule Set 위반도 simulationViolations 에 싣는다 — 소비자가 보는 칸은 그대로다.
 
 export const HOOK_NAME = "useOntologyFunction";
 /** 템플릿이 제공하는 hook 모듈 — `/ontology-functions/{id}/run` 을 직접 부를 수 있는 유일한 자리 */
@@ -58,6 +64,10 @@ export const SIMULATION_HOOK_NAMES = ["useSimulationOverlay", "useSimulationAggr
 /** 템플릿이 제공하는 시뮬레이션 hook 모듈 — overlay API 를 직접 부를 수 있는 유일한 자리 */
 export const SIMULATION_HOOK_FILE = "src/hooks/useSimulationResult.ts";
 export const SIMULATION_NAME = "SIMULATION";
+export const SIMULATION_PICKER_HOOK_NAME = "useSimulationSavedStates";
+export const SIMULATION_RULE_SETS_NAME = "SIMULATION_RULE_SETS";
+// 고르기 hook 결과에서 저장본을 운반하는 필드
+const PICKER_SELECTED_FIELD = "selected";
 
 type RuleName = DataflowViolation["rule"];
 
@@ -79,6 +89,8 @@ interface KeySpace {
   /** 첫 인자로 받는 `[CONST.a, CONST.b]` 배열의 최대 길이. 0 이면 배열을 받지 않는다 */
   arrayArg: number;
   directPaths: string[];
+  /** 첫 인자로 상수 대신 받는 고르기 hook 결과 필드 (`picker.selected`). 같은 파일에서 그 hook 결과에 묶인 이름만 */
+  picker?: { hook: string; field: string };
   rules: {
     hookArg: RuleName;
     unknownKey: RuleName;
@@ -146,6 +158,7 @@ const SIMULATION_SPACE: KeySpace = {
   target: "SimulationOverlay",
   // 저장본 묶음 합계는 저장본 1~4개를 나란히 본다
   arrayArg: 4,
+  picker: { hook: SIMULATION_PICKER_HOOK_NAME, field: PICKER_SELECTED_FIELD },
   // ponytail: 경로 조각 문자열 비교다. `/overlay/${kind}` 처럼 쪼갠 경로는 놓친다
   directPaths: ["/overlay/rows", "/overlay/aggregate"],
   rules: {
@@ -154,6 +167,29 @@ const SIMULATION_SPACE: KeySpace = {
     dynamicKey: "simulation-dynamic-key",
     outside: "simulation-outside-hook",
     escape: "simulation-escape",
+    directCall: "direct-simulation-call",
+    redefined: "simulation-hook-redefined",
+  },
+};
+
+// 위반만 본다. 목록 조회는 결과 값을 담지 않아 직접 호출을 따로 막지 않는다 — 결과(overlay) 직접 호출은 SIMULATION_SPACE 가 잡는다
+const SIMULATION_RULE_SET_SPACE: KeySpace = {
+  hooks: [SIMULATION_PICKER_HOOK_NAME],
+  hookFile: SIMULATION_HOOK_FILE,
+  constants: SIMULATION_RULE_SETS_NAME,
+  directField: null,
+  cleanFields: new Set(),
+  spreadFields: new Set(),
+  handleResult: false,
+  target: "SimulationSavedStates",
+  arrayArg: 0,
+  directPaths: [],
+  rules: {
+    hookArg: "hook-arg-not-simulation-rule-set",
+    unknownKey: "unknown-simulation-rule-set-key",
+    dynamicKey: "simulation-rule-set-dynamic-key",
+    outside: "simulation-rule-set-outside-hook",
+    escape: "simulation-rule-set-escape",
     directCall: "direct-simulation-call",
     redefined: "simulation-hook-redefined",
   },
@@ -200,7 +236,12 @@ export interface DataflowViolation {
     | "simulation-escape"
     | "direct-simulation-call"
     | "simulation-hook-redefined"
-    | "simulation-overlay-resum";
+    | "simulation-overlay-resum"
+    | "hook-arg-not-simulation-rule-set"
+    | "unknown-simulation-rule-set-key"
+    | "simulation-rule-set-dynamic-key"
+    | "simulation-rule-set-outside-hook"
+    | "simulation-rule-set-escape";
   loc: string;
   message: string;
 }
@@ -807,6 +848,7 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
   const declarationIds = new Set<Node>();
   const { constants, rules } = space;
   const hook = space.hooks.join(" · ");
+  const isPick = pickPredicate(program, space);
 
   walk(program, (node) => {
     if (node.type === "VariableDeclarator" && (node.id as Node).type === "Identifier" && (node.id as Node).name === constants) {
@@ -815,14 +857,14 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
     if (node.type !== "CallExpression") return;
     const called = space.hooks.find((name) => isCallOf(node, name));
     if (!called) return;
-    const members = hookArgMembers((node.arguments as Node[])[0], space);
+    const members = hookArgMembers((node.arguments as Node[])[0], space, isPick);
     if (!members) {
       violations.push({
         rule: rules.hookArg,
         loc: locOf(file, node),
         message:
           space.arrayArg > 0
-            ? `${called} 의 첫 인자는 ${constants}.<key> 또는 ${space.arrayArg}개 이하의 [${constants}.<key>, …] 여야 합니다`
+            ? `${called} 의 첫 인자는 ${constants}.<key>${space.picker ? ` · ${space.picker.hook} 결과의 ${space.picker.field}` : ""} 또는 ${space.arrayArg}개 이하의 [${constants}.<key>, …] 여야 합니다`
             : `${called} 의 첫 인자는 ${constants}.<key> 여야 합니다`,
       });
       return;
@@ -892,14 +934,57 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
   return violations;
 }
 
-/** hook 첫 인자의 `CONST.k` 들 — `CONST.k` 하나, arrayArg 가 있으면 그 길이 이하의 `[CONST.a, CONST.b]` 도. 그 밖의 모양이면 null */
-function hookArgMembers(arg: Node | undefined, space: KeySpace): Node[] | null {
+/**
+ * hook 첫 인자의 `CONST.k` 들 — `CONST.k` 하나, arrayArg 가 있으면 그 길이 이하의 `[CONST.a, CONST.b]` 도. 그 밖의 모양이면 null.
+ * 고르기 hook 결과(isPick)도 받지만 key 가 아니라 돌려주지 않는다 — 그 저장본은 서버가 Rule Set 으로 좁혀 준 것이다
+ */
+function hookArgMembers(arg: Node | undefined, space: KeySpace, isPick: (node: Node) => boolean): Node[] | null {
   if (!arg) return null;
   if (constantMember(arg, space.constants)) return [arg];
+  if (isPick(arg)) return [];
   if (arg.type !== "ArrayExpression") return null;
   const elements = arg.elements as (Node | null)[];
-  if (elements.length === 0 || elements.length > space.arrayArg || !elements.every((el) => el && constantMember(el, space.constants))) return null;
-  return elements as Node[];
+  if (
+    elements.length === 0 ||
+    elements.length > space.arrayArg ||
+    !elements.every((el) => el && (constantMember(el, space.constants) || isPick(el)))
+  ) {
+    return null;
+  }
+  return (elements as Node[]).filter((el) => constantMember(el, space.constants));
+}
+
+/**
+ * `const picker = useSimulationSavedStates(…)` 의 `picker.selected`, `const { selected } = useSimulationSavedStates(…)` 의
+ * `selected`(다른 이름으로 꺼낸 것 포함)인가.
+ * ponytail: 파일 단위 이름 비교다 — 같은 파일의 다른 함수에 같은 이름의 지역 변수를 두면 그것도 받는다. 스코프를 따져야 할 사례가 나오면 바꾼다
+ */
+function pickPredicate(program: Node, space: KeySpace): (node: Node) => boolean {
+  const picker = space.picker;
+  if (!picker) return () => false;
+  const pickerNames = new Set<string>();
+  const selectedNames = new Set<string>();
+  walk(program, (node) => {
+    if (node.type !== "VariableDeclarator" || !node.init || !isCallOf(node.init as Node, picker.hook)) return;
+    const id = node.id as Node;
+    if (id.type === "Identifier") pickerNames.add(id.name as string);
+    if (id.type !== "ObjectPattern") return;
+    for (const prop of id.properties as Node[]) {
+      if (prop.type !== "ObjectProperty" || propertyName(prop.key as Node, prop.computed as boolean) !== picker.field) continue;
+      const value = prop.value as Node;
+      if (value.type === "Identifier") selectedNames.add(value.name as string);
+    }
+  });
+  return (node: Node) => {
+    if (node.type === "Identifier") return selectedNames.has(node.name as string);
+    if (node.type !== "MemberExpression" && node.type !== "OptionalMemberExpression") return false;
+    const object = node.object as Node;
+    return (
+      object.type === "Identifier" &&
+      pickerNames.has(object.name as string) &&
+      propertyName(node.property as Node, node.computed as boolean) === picker.field
+    );
+  };
 }
 
 /** 템플릿 hook 파일은 면제, 다른 파일이 hook 을 새로 만들면 위반이다 */
@@ -1158,6 +1243,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
   const functionSpace = spaceTables(project, programs, FUNCTION_SPACE);
   const actionSpace = spaceTables(project, programs, ACTION_SPACE);
   const simulationSpace = spaceTables(project, programs, SIMULATION_SPACE);
+  const ruleSetSpace = spaceTables(project, programs, SIMULATION_RULE_SET_SPACE);
 
   // 2. 컴포넌트 — `파일#이름`
   const defs = new Map<string, { file: string; def: ComponentDef }>();
@@ -1299,7 +1385,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       if (node.type !== "CallExpression") return;
       if (isCallOf(node, HOOK_NAME)) usesHook = true;
       if (isCallOf(node, ACTION_HOOK_NAME)) usesActionHook = true;
-      if (SIMULATION_HOOK_NAMES.some((name) => isCallOf(node, name))) usesSimulationHook = true;
+      if ([...SIMULATION_HOOK_NAMES, SIMULATION_PICKER_HOOK_NAME].some((name) => isCallOf(node, name))) usesSimulationHook = true;
     });
 
     const functionIds = functionSpace.effectiveIds.get(file)!;
@@ -1307,6 +1393,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
     const functionCheck = spaceViolations(program, file, functionIds, FUNCTION_SPACE);
     const actionCheck = spaceViolations(program, file, actionIds, ACTION_SPACE);
     const simulationCheck = spaceViolations(program, file, simulationSpace.effectiveIds.get(file)!, SIMULATION_SPACE);
+    const ruleSetCheck = spaceViolations(program, file, ruleSetSpace.effectiveIds.get(file)!, SIMULATION_RULE_SET_SPACE);
     // hook 을 새로 만든 파일은 hook 계약 안의 파일이다 — 예전 앱 예외(usesHook=false)로 위반이 묻히지 않게.
     files.set(file, {
       functionIds,
@@ -1316,8 +1403,8 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       actionIds,
       actionViolations: actionCheck.violations,
       usesActionHook: usesActionHook || actionCheck.redefined,
-      simulationViolations: [...simulationCheck.violations, ...overlayResumViolations(program, file)],
-      usesSimulationHook: usesSimulationHook || simulationCheck.redefined,
+      simulationViolations: [...simulationCheck.violations, ...ruleSetCheck.violations, ...overlayResumViolations(program, file)],
+      usesSimulationHook: usesSimulationHook || simulationCheck.redefined || ruleSetCheck.redefined,
     });
   }
 

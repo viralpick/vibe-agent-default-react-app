@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApiClient } from "@/api/api.client";
 
 // 시뮬레이션 저장본 결과 조회 hook (AOS-8037).
@@ -8,11 +8,34 @@ import { useApiClient } from "@/api/api.client";
 // 브라우저에서 행을 다시 더하지 않는다 — 페이지 한도와 결측 처리 때문에 합계가 달라진다. 합계는 useSimulationAggregate 로.
 // 조회는 reject 하지 않는다 — 실패는 status 로 알린다. 보는 사람에게 결과 읽기 권한이 없으면(403) forbidden 이다.
 // 상수에 없는 key(undefined)로 불러도 렌더에서 던지지 않는다 — 요청이 실패해 error 가 된다.
+//
+// 저장본을 앱에서 고르게 하려면 (AOS-9031) `useSimulationSavedStates(SIMULATION_RULE_SETS.<key>)` 로 그 Rule Set 의
+// 저장본 목록을 받고, 그 결과의 `selected` 를 overlay · aggregate hook 의 첫 인자로 넘긴다. 목록은 주기적으로 다시 읽어
+// 새로 저장한 결과가 나타나고, 사용자가 직접 고르지 않았으면 가장 최근 저장본을 따라간다.
+// `selected` 가 아직 없으면(null) 결과 hook 은 조회하지 않고 idle 이다.
 
 export interface SimulationSavedStateRef {
   /** 저장본 id (savedStateId). 다시 계산해도 바뀌지 않고, 서버가 지금 가리키는 Run 으로 읽는다 */
   id: string;
   description?: string;
+}
+
+/** 저장본을 고를 Rule Set. 같은 Rule Set 의 저장본끼리 계산한 Property 가 같아 한 화면에 넘길 수 있다 */
+export interface SimulationRuleSetRef {
+  /** Rule Set id (ruleSetId) */
+  id: string;
+  description?: string;
+}
+
+/** 목록의 저장본 한 개. 그대로 overlay · aggregate hook 의 첫 인자로 넘긴다 */
+export interface SimulationSavedStateSummary extends SimulationSavedStateRef {
+  /** 저장할 때 붙인 이름. 없을 수 있고 유일하지 않다 */
+  name: string | null;
+  scenarioId: string;
+  scenarioName: string;
+  /** 저장한 시각 (ISO-8601) */
+  savedAt: string;
+  ruleSetVersion: number;
 }
 
 export type SimulationResultStatus = "idle" | "running" | "success" | "error" | "forbidden";
@@ -176,14 +199,14 @@ function useSimulationQuery<T>(path: string, body: Record<string, unknown>, tena
 
 /** 저장본 결과를 원본 레코드에 겹친 한 페이지 — `POST /simulation/saved-states/{id}/overlay/rows` */
 export function useSimulationOverlay(
-  savedState: SimulationSavedStateRef,
+  savedState: SimulationSavedStateRef | null,
   { tenantId, objectType, properties, filters, sort, limit, cursor, enabled = true }: UseSimulationOverlayOptions,
 ): SimulationResult<SimulationOverlayPage> {
   return useSimulationQuery<SimulationOverlayPage>(
     `/simulation/saved-states/${savedState?.id}/overlay/rows`,
     { objectType, properties, filters, sort, limit, cursor },
     tenantId,
-    enabled,
+    enabled && savedState !== null,
   );
 }
 
@@ -192,14 +215,144 @@ export function useSimulationOverlay(
  * 나란히 비교하려면 첫 인자에 `[SIMULATION.a, SIMULATION.b]` 처럼 배열을 넘긴다. 열 순서가 이 순서다.
  */
 export function useSimulationAggregate(
-  savedStates: SimulationSavedStateRef | SimulationSavedStateRef[],
+  savedStates: SimulationSavedStateRef | null | (SimulationSavedStateRef | null)[],
   { tenantId, objectType, properties, filters, groupBy, enabled = true }: UseSimulationAggregateOptions,
 ): SimulationResult<SimulationAggregateResult> {
-  const savedStateIds = (Array.isArray(savedStates) ? savedStates : [savedStates]).map((s) => s?.id);
+  const refs = Array.isArray(savedStates) ? savedStates : [savedStates];
+  const savedStateIds = refs.map((s) => s?.id);
   return useSimulationQuery<SimulationAggregateResult>(
     "/simulation/saved-states/overlay/aggregate",
     { savedStateIds, objectType, properties, groupBy, filters },
     tenantId,
-    enabled,
+    enabled && !refs.includes(null),
   );
+}
+
+export interface UseSimulationSavedStatesOptions {
+  /** `[Tenant Context]` 의 tenant_id. 모든 호출에 X-Tenant-Id 헤더로 실린다 */
+  tenantId: string;
+  /** 최근 몇 개를 받을지 (기본 20, 최대 100). 최신순이다 */
+  size?: number;
+  /** 목록을 다시 읽는 간격 (기본 30초, 최소 5초). 0 이면 다시 읽지 않는다. 화면이 가려져 있으면 건너뛴다 */
+  refreshIntervalMs?: number;
+  /** false 면 조회하지 않는다 */
+  enabled?: boolean;
+}
+
+export interface SimulationSavedStatePicker {
+  /** 그 Rule Set 의 최근 저장본, 최신순 */
+  savedStates: SimulationSavedStateSummary[];
+  /** 고른 저장본. 직접 고르지 않았으면 가장 최근 저장본이고, 목록이 비었으면 null 이다 */
+  selected: SimulationSavedStateSummary | null;
+  /** 저장본을 고른다. null 이면 다시 가장 최근 저장본을 따라간다 */
+  select: (savedStateId: string | null) => void;
+  /** 새 저장본이 생기면 selected 가 그것으로 바뀌는가 (직접 고르지 않은 상태) */
+  followsLatest: boolean;
+  /** 첫 조회 상태. 다시 읽는 동안에는 바뀌지 않고, 다시 읽다 실패하면 error · forbidden 이 된다 */
+  status: SimulationResultStatus;
+  isLoading: boolean;
+  isForbidden: boolean;
+  error: Error | null;
+  /** 바로 다시 읽는다 */
+  refetch: () => void;
+}
+
+interface CatalogItem {
+  savedStateId: string;
+  savedStateName: string | null;
+  scenarioId: string;
+  scenarioName: string;
+  createdAt: string;
+  ruleSetVersion: number;
+}
+
+const DEFAULT_REFRESH_MS = 30_000;
+const MIN_REFRESH_MS = 5_000;
+
+/**
+ * Rule Set 하나의 최근 저장본 목록과 고른 저장본 — `GET /simulation/saved-states?ruleSetId=…`.
+ * 시나리오 화면에서 가정을 고쳐 저장하면 다음 다시 읽기에 목록 맨 위에 나타난다.
+ */
+export function useSimulationSavedStates(
+  ruleSet: SimulationRuleSetRef,
+  { tenantId, size = 20, refreshIntervalMs = DEFAULT_REFRESH_MS, enabled = true }: UseSimulationSavedStatesOptions,
+): SimulationSavedStatePicker {
+  const apiClient = useApiClient();
+  const ruleSetId = ruleSet?.id;
+  const [state, setState] = useState<State<SimulationSavedStateSummary[]>>(IDLE);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  // Rule Set 이 바뀌면 고른 것을 버리고 처음부터 읽는다
+  useEffect(() => {
+    setChosenId(null);
+    setState(IDLE);
+  }, [ruleSetId, tenantId]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setState(IDLE);
+      return;
+    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    // 다시 읽을 때는 이미 그린 목록을 지우지 않는다 — 몇 초마다 화면이 깜박이게 된다
+    setState((prev) => (prev.status === "success" ? prev : { status: "running", data: null, error: null }));
+    apiClient
+      .get("/simulation/saved-states", { params: { ruleSetId, size }, headers: { "X-Tenant-Id": tenantId }, signal })
+      .then((response) => {
+        if (signal.aborted) return;
+        const items = ((response?.data?.data?.savedStates as CatalogItem[] | undefined) ?? []).map(toSummary);
+        setState({ status: "success", data: items, error: null });
+      })
+      .catch((cause: unknown) => {
+        if (signal.aborted) return;
+        if (statusOf(cause) === 403) {
+          setState({ status: "forbidden", data: null, error: null });
+          return;
+        }
+        setState({ status: "error", data: null, error: cause instanceof Error ? cause : new Error(String(cause)) });
+      });
+    return () => controller.abort();
+  }, [apiClient, ruleSetId, tenantId, size, enabled, nonce]);
+
+  useEffect(() => {
+    if (!enabled || refreshIntervalMs <= 0) return;
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setNonce((n) => n + 1);
+    }, Math.max(refreshIntervalMs, MIN_REFRESH_MS));
+    return () => clearInterval(timer);
+  }, [enabled, refreshIntervalMs]);
+
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
+  const select = useCallback((savedStateId: string | null) => setChosenId(savedStateId), []);
+
+  const savedStates = useMemo(() => state.data ?? [], [state.data]);
+  // 고른 저장본이 목록에서 빠지면(지워졌거나 최근 size 개 밖으로 밀려남) 가장 최근 저장본으로 돌아간다
+  const chosen = chosenId === null ? undefined : savedStates.find((item) => item.id === chosenId);
+  const selected = chosen ?? savedStates[0] ?? null;
+
+  return {
+    savedStates,
+    selected,
+    select,
+    followsLatest: chosen === undefined,
+    status: state.status,
+    isLoading: state.status === "running",
+    isForbidden: state.status === "forbidden",
+    error: state.error,
+    refetch,
+  };
+}
+
+function toSummary(item: CatalogItem): SimulationSavedStateSummary {
+  return {
+    id: item.savedStateId,
+    name: item.savedStateName,
+    scenarioId: item.scenarioId,
+    scenarioName: item.scenarioName,
+    savedAt: item.createdAt,
+    ruleSetVersion: item.ruleSetVersion,
+  };
 }
