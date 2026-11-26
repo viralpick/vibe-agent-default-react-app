@@ -320,4 +320,58 @@ describe("useSimulationSavedStates (AOS-9031)", () => {
     act(() => hook.result.current.picker.select("s1"));
     await waitFor(() => expect(post).toHaveBeenLastCalledWith("/simulation/saved-states/s1/overlay/rows", expect.anything(), expect.anything()));
   });
+
+  it("다시 읽다 실패해도 이미 받은 목록과 고른 저장본을 지우지 않는다 — 결과를 다시 조회하지 않는다", async () => {
+    get.mockResolvedValueOnce(page(item("s1", "2026-11-26T01:00:00Z"))).mockRejectedValueOnce(httpError(502));
+    post.mockResolvedValue(ok({ items: [] }));
+    const hook = renderHook(() => {
+      const picker = useSimulationSavedStates(COST, { tenantId: "7", refreshIntervalMs: 0 });
+      const rows = useSimulationOverlay(picker.selected, { tenantId: "7", objectType: "product" });
+      return { picker, rows };
+    });
+    await waitFor(() => expect(hook.result.current.rows.status).toBe("success"));
+
+    act(() => hook.result.current.picker.refetch());
+    await waitFor(() => expect(hook.result.current.picker.status).toBe("error"));
+
+    expect(hook.result.current.picker.selected?.id).toBe("s1");
+    expect(hook.result.current.rows.status).toBe("success");
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("Rule Set 을 바꾸면 이전 Rule Set 의 저장본으로 결과를 조회하지 않는다", async () => {
+    get.mockImplementation((_path: string, config: { params: { ruleSetId: string } }) =>
+      Promise.resolve(page(item(config.params.ruleSetId === "a" ? "sa" : "sb", "2026-11-26T01:00:00Z"))),
+    );
+    post.mockResolvedValue(ok({ items: [] }));
+    const hook = renderHook(
+      ({ ruleSet }) => {
+        const picker = useSimulationSavedStates(ruleSet, { tenantId: "7", refreshIntervalMs: 0 });
+        return useSimulationOverlay(picker.selected, { tenantId: "7", objectType: "product" });
+      },
+      { initialProps: { ruleSet: { id: "a" } } },
+    );
+    await waitFor(() => expect(hook.result.current.status).toBe("success"));
+
+    hook.rerender({ ruleSet: { id: "b" } });
+    await waitFor(() => expect(post).toHaveBeenLastCalledWith("/simulation/saved-states/sb/overlay/rows", expect.anything(), expect.anything()));
+
+    expect(post.mock.calls.map((c) => c[0])).toEqual([
+      "/simulation/saved-states/sa/overlay/rows",
+      "/simulation/saved-states/sb/overlay/rows",
+    ]);
+  });
+
+  it("enabled=false 면 목록을 읽지 않고 다시 읽지도 않는다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", refreshIntervalMs: 5_000, enabled: false }));
+      await act(async () => vi.advanceTimersByTime(20_000));
+
+      expect(get).not.toHaveBeenCalled();
+      expect(hook.result.current).toMatchObject({ status: "idle", selected: null });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

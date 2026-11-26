@@ -754,6 +754,33 @@ const TENANT_ID = "1";
     expect(result.usesSimulationHook).toBe(true);
   });
 
+  it("고르기 결과는 그 hook 을 부른 함수 안의 const 이름으로만 받는다", () => {
+    const result = analyzePick(`
+      function Child({ picker }) {
+        const rows = useSimulationOverlay(picker.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+      function Other({ selected }) {
+        const rows = useSimulationOverlay(selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        let moved = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        moved = { selected: { id: "forged" } };
+        const rows = useSimulationOverlay(moved.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}{selected?.id}<Child picker={{ selected: { id: "forged" } }} /><Other selected={{ id: "forged" }} /></div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule).sort()).toEqual([
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+    ]);
+  });
+
   it("템플릿 hook 파일은 Rule Set 공간도 면제다", () => {
     const result = analyzePick(
       "export function useSimulationSavedStates(ruleSet, o) { return apiClient.get('/simulation/saved-states', { params: { ruleSetId: ruleSet.id } }); }",

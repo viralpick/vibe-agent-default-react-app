@@ -248,7 +248,10 @@ export interface SimulationSavedStatePicker {
   select: (savedStateId: string | null) => void;
   /** 새 저장본이 생기면 selected 가 그것으로 바뀌는가 (직접 고르지 않은 상태) */
   followsLatest: boolean;
-  /** 첫 조회 상태. 다시 읽는 동안에는 바뀌지 않고, 다시 읽다 실패하면 error · forbidden 이 된다 */
+  /**
+   * 목록 조회 상태. 다시 읽는 동안에는 바뀌지 않는다. 다시 읽다 실패하면 error 지만 이미 받은 목록과 selected 는 그대로 둔다
+   * (결과를 다시 조회하지 않는다). forbidden 이면 목록을 비운다
+   */
   status: SimulationResultStatus;
   isLoading: boolean;
   isForbidden: boolean;
@@ -279,42 +282,40 @@ export function useSimulationSavedStates(
 ): SimulationSavedStatePicker {
   const apiClient = useApiClient();
   const ruleSetId = ruleSet?.id;
-  const [state, setState] = useState<State<SimulationSavedStateSummary[]>>(IDLE);
+  // 목록이 어느 조회의 것인지 함께 든다 — Rule Set 이 바뀐 첫 렌더에 이전 Rule Set 의 저장본을 selected 로 내지 않는다
+  const key = `${tenantId}|${ruleSetId}`;
+  const [state, setState] = useState<State<SimulationSavedStateSummary[]> & { key: string | null }>({ ...IDLE, key: null });
   const [chosenId, setChosenId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
-  // Rule Set 이 바뀌면 고른 것을 버리고 처음부터 읽는다
-  useEffect(() => {
-    setChosenId(null);
-    setState(IDLE);
-  }, [ruleSetId, tenantId]);
-
   useEffect(() => {
     if (!enabled) {
-      setState(IDLE);
+      setState({ ...IDLE, key: null });
       return;
     }
     const controller = new AbortController();
     const { signal } = controller;
-    // 다시 읽을 때는 이미 그린 목록을 지우지 않는다 — 몇 초마다 화면이 깜박이게 된다
-    setState((prev) => (prev.status === "success" ? prev : { status: "running", data: null, error: null }));
+    // 같은 조회를 다시 읽을 때는 이미 그린 목록을 지우지 않는다 — 몇 초마다 화면이 깜박이게 된다
+    setState((prev) => (prev.key === key && prev.data ? prev : { status: "running", data: null, error: null, key }));
     apiClient
       .get("/simulation/saved-states", { params: { ruleSetId, size }, headers: { "X-Tenant-Id": tenantId }, signal })
       .then((response) => {
         if (signal.aborted) return;
         const items = ((response?.data?.data?.savedStates as CatalogItem[] | undefined) ?? []).map(toSummary);
-        setState({ status: "success", data: items, error: null });
+        setState({ status: "success", data: items, error: null, key });
       })
       .catch((cause: unknown) => {
         if (signal.aborted) return;
         if (statusOf(cause) === 403) {
-          setState({ status: "forbidden", data: null, error: null });
+          setState({ status: "forbidden", data: null, error: null, key });
           return;
         }
-        setState({ status: "error", data: null, error: cause instanceof Error ? cause : new Error(String(cause)) });
+        const error = cause instanceof Error ? cause : new Error(String(cause));
+        // 일시 오류로 고른 저장본이 사라지면 결과 hook 이 idle 로 떨어졌다가 다음 성공에 다시 조회한다
+        setState((prev) => ({ status: "error", data: prev.key === key ? prev.data : null, error, key }));
       });
     return () => controller.abort();
-  }, [apiClient, ruleSetId, tenantId, size, enabled, nonce]);
+  }, [apiClient, key, ruleSetId, tenantId, size, enabled, nonce]);
 
   useEffect(() => {
     if (!enabled || refreshIntervalMs <= 0) return;
@@ -328,7 +329,7 @@ export function useSimulationSavedStates(
   const refetch = useCallback(() => setNonce((n) => n + 1), []);
   const select = useCallback((savedStateId: string | null) => setChosenId(savedStateId), []);
 
-  const savedStates = useMemo(() => state.data ?? [], [state.data]);
+  const savedStates = useMemo(() => (state.key === key ? (state.data ?? []) : []), [state.key, state.data, key]);
   // 고른 저장본이 목록에서 빠지면(지워졌거나 최근 size 개 밖으로 밀려남) 가장 최근 저장본으로 돌아간다
   const chosen = chosenId === null ? undefined : savedStates.find((item) => item.id === chosenId);
   const selected = chosen ?? savedStates[0] ?? null;

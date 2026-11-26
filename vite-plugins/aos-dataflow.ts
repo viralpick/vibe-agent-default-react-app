@@ -39,9 +39,9 @@ import { AosProject } from "./aos-project";
 // 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
 //
 // 저장본 고르기 (AOS-9031): `useSimulationSavedStates(SIMULATION_RULE_SETS.k)` 는 세 번째 key 공간(Rule Set)이다.
-// 그 결과의 `selected` 는 서버가 그 Rule Set 으로 좁혀 돌려준 저장본이라, 같은 컴포넌트 안에서
-// `useSimulationOverlay(picker.selected)` · `const { selected } = useSimulationSavedStates(…)` 처럼 바로 넘기면
-// SIMULATION.k 대신 받는다. 다른 값(prop 으로 받은 저장본, 직접 만든 `{ id }`)은 그대로 위반이다.
+// 그 결과의 `selected` 는 서버가 그 Rule Set 으로 좁혀 돌려준 저장본이라, 결과 hook 을 부른 함수 안에서
+// `const picker = useSimulationSavedStates(…)` 의 `picker.selected` · `const { selected } = …` 의 `selected` 를 넘기면
+// SIMULATION.k 대신 받는다. 다른 값(prop 으로 받은 저장본, 다시 대입할 수 있는 let, 직접 만든 `{ id }`)은 그대로 위반이다.
 // Rule Set 위반도 simulationViolations 에 싣는다 — 소비자가 보는 칸은 그대로다.
 
 export const HOOK_NAME = "useOntologyFunction";
@@ -857,7 +857,7 @@ function collectViolations(program: Node, file: string, ids: Map<string, string>
     if (node.type !== "CallExpression") return;
     const called = space.hooks.find((name) => isCallOf(node, name));
     if (!called) return;
-    const members = hookArgMembers((node.arguments as Node[])[0], space, isPick);
+    const members = hookArgMembers((node.arguments as Node[])[0], space, (arg) => isPick(arg, node));
     if (!members) {
       violations.push({
         rule: rules.hookArg,
@@ -955,34 +955,47 @@ function hookArgMembers(arg: Node | undefined, space: KeySpace, isPick: (node: N
 }
 
 /**
- * `const picker = useSimulationSavedStates(…)` 의 `picker.selected`, `const { selected } = useSimulationSavedStates(…)` 의
- * `selected`(다른 이름으로 꺼낸 것 포함)인가.
- * ponytail: 파일 단위 이름 비교다 — 같은 파일의 다른 함수에 같은 이름의 지역 변수를 두면 그것도 받는다. 스코프를 따져야 할 사례가 나오면 바꾼다
+ * 결과 hook 호출(call)의 첫 인자가 같은 함수에서 `const picker = useSimulationSavedStates(…)` 로 받은 `picker.selected`,
+ * 또는 `const { selected } = useSimulationSavedStates(…)` 로 꺼낸 `selected`(다른 이름 포함)인가.
+ * 함수마다 따로 본다 — 바깥 함수의 이름이나 prop 으로 받은 같은 이름은 고르기 결과가 아니다
  */
-function pickPredicate(program: Node, space: KeySpace): (node: Node) => boolean {
+function pickPredicate(program: Node, space: KeySpace): (arg: Node, call: Node) => boolean {
   const picker = space.picker;
   if (!picker) return () => false;
-  const pickerNames = new Set<string>();
-  const selectedNames = new Set<string>();
-  walk(program, (node) => {
-    if (node.type !== "VariableDeclarator" || !node.init || !isCallOf(node.init as Node, picker.hook)) return;
-    const id = node.id as Node;
-    if (id.type === "Identifier") pickerNames.add(id.name as string);
-    if (id.type !== "ObjectPattern") return;
-    for (const prop of id.properties as Node[]) {
-      if (prop.type !== "ObjectProperty" || propertyName(prop.key as Node, prop.computed as boolean) !== picker.field) continue;
-      const value = prop.value as Node;
-      if (value.type === "Identifier") selectedNames.add(value.name as string);
-    }
+  const namesOfCall = new Map<Node, { pickers: Set<string>; selected: Set<string> }>();
+  walk(program, (fn) => {
+    if (!isFunctionNode(fn)) return;
+    const names = { pickers: new Set<string>(), selected: new Set<string>() };
+    const visit = (node: Node) => {
+      if (node !== fn && isFunctionNode(node)) return;
+      if (node.type === "CallExpression") namesOfCall.set(node, names);
+      if (node.type === "VariableDeclaration" && node.kind === "const") {
+        for (const decl of node.declarations as Node[]) {
+          if (!decl.init || !isCallOf(decl.init as Node, picker.hook)) continue;
+          const id = decl.id as Node;
+          if (id.type === "Identifier") names.pickers.add(id.name as string);
+          if (id.type !== "ObjectPattern") continue;
+          for (const prop of id.properties as Node[]) {
+            if (prop.type !== "ObjectProperty" || propertyName(prop.key as Node, prop.computed as boolean) !== picker.field) continue;
+            const value = prop.value as Node;
+            if (value.type === "Identifier") names.selected.add(value.name as string);
+          }
+        }
+      }
+      for (const child of childNodes(node)) visit(child);
+    };
+    visit(fn.body as Node);
   });
-  return (node: Node) => {
-    if (node.type === "Identifier") return selectedNames.has(node.name as string);
-    if (node.type !== "MemberExpression" && node.type !== "OptionalMemberExpression") return false;
-    const object = node.object as Node;
+  return (arg: Node, call: Node) => {
+    const names = namesOfCall.get(call);
+    if (!names) return false;
+    if (arg.type === "Identifier") return names.selected.has(arg.name as string);
+    if (arg.type !== "MemberExpression" && arg.type !== "OptionalMemberExpression") return false;
+    const object = arg.object as Node;
     return (
       object.type === "Identifier" &&
-      pickerNames.has(object.name as string) &&
-      propertyName(node.property as Node, node.computed as boolean) === picker.field
+      names.pickers.has(object.name as string) &&
+      propertyName(arg.property as Node, arg.computed as boolean) === picker.field
     );
   };
 }
