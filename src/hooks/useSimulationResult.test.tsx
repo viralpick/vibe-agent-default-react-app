@@ -493,11 +493,18 @@ describe("Scenario 단위로 고르기 (AOS-9131)", () => {
     expect(hook.result.current.selected).toMatchObject({ name: null, sequenceNo: 1, scenarioName: "시나리오 sc-1" });
   });
 
-  it("scenarioId 가 null 이면 아직 고르지 않은 것이라 조회하지 않고 selected 가 null 이다", () => {
-    const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", scenarioId: null, refreshIntervalMs: 0 }));
+  it.each([null, ""])("scenarioId 가 %j 이면 아직 고르지 않은 것이라 조회하지 않고 selected 가 null 이다", (scenarioId) => {
+    const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", scenarioId, refreshIntervalMs: 0 }));
 
     expect(get).not.toHaveBeenCalled();
     expect(hook.result.current).toMatchObject({ status: "idle", selected: null, savedStates: [] });
+  });
+
+  it("두 열이 같은 저장본을 고르면 aggregate 를 조회하지 않는다", () => {
+    const hook = renderHook(() => useSimulationAggregate([MARGIN, { id: MARGIN.id }], { tenantId: "7", objectType: "product" }));
+
+    expect(post).not.toHaveBeenCalled();
+    expect(hook.result.current.status).toBe("idle");
   });
 
   it("Scenario 를 바꾸면 고른 저장본을 풀고 새 Scenario 의 최신을 따라가며, 돌아와도 예전 선택을 되살리지 않는다", async () => {

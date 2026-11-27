@@ -220,6 +220,7 @@ export function useSimulationOverlay(
 /**
  * 저장본 1~4개를 원본 컬럼으로 묶은 합계 · 변화량 · 변화율 — `POST /simulation/saved-states/overlay/aggregate`.
  * 나란히 비교하려면 첫 인자에 `[SIMULATION.a, SIMULATION.b]` 처럼 배열을 넘긴다. 열 순서가 이 순서다.
+ * 같은 저장본이 두 번 들어 있으면(두 열이 같은 저장본을 고름) 서버가 거절하므로 조회하지 않고 idle 이다 — 화면이 "같은 저장본" 으로 그린다.
  */
 export function useSimulationAggregate(
   savedStates: SimulationSavedStateRef | null | (SimulationSavedStateRef | null)[],
@@ -227,11 +228,12 @@ export function useSimulationAggregate(
 ): SimulationResult<SimulationAggregateResult> {
   const refs = Array.isArray(savedStates) ? savedStates : [savedStates];
   const savedStateIds = refs.map((s) => s?.id);
+  const distinct = new Set(savedStateIds).size === savedStateIds.length;
   return useSimulationQuery<SimulationAggregateResult>(
     "/simulation/saved-states/overlay/aggregate",
     { savedStateIds, objectType, properties, groupBy, filters },
     tenantId,
-    enabled && !refs.includes(null),
+    enabled && !refs.includes(null) && distinct,
   );
 }
 
@@ -240,7 +242,8 @@ export interface UseSimulationSavedStatesOptions {
   tenantId: string;
   /**
    * 이 Scenario 의 저장본만 받는다 (서버가 좁힌다). 비교 열마다 `useSimulationScenarios` 로 고른 Scenario id 를 넘긴다.
-   * null 이면 아직 고르지 않은 것이다 — 조회하지 않고 selected 가 null 이다. 생략하면 Rule Set 의 모든 Scenario 저장본이 섞인다
+   * null 이나 빈 문자열(`<option value="">` 의 값)이면 아직 고르지 않은 것이다 — 조회하지 않고 selected 가 null 이다.
+   * 생략하면 Rule Set 의 모든 Scenario 저장본이 섞인다
    */
   scenarioId?: string | null;
   /** 최근 몇 개를 받을지 (기본 20, 최대 100). 최신순이다 */
@@ -340,7 +343,7 @@ function usePolledList<T>(
           return;
         }
         const error = cause instanceof Error ? cause : new Error(String(cause));
-        // 일시 오류로 고른 저장본이 사라지면 결과 hook 이 idle 로 떨어졌다가 다음 성공에 다시 조회한다
+        // 일시 오류로 목록을 지우면 그 목록으로 고른 값(저장본 · Scenario)이 사라졌다가 다음 성공에 돌아온다 — 받은 목록은 남긴다
         setState((prev) => ({ status: "error", data: prev.key === key ? prev.data : null, error, key }));
       });
     return () => {
@@ -381,7 +384,7 @@ export function useSimulationSavedStates(
   { tenantId, scenarioId, size = 20, refreshIntervalMs = DEFAULT_REFRESH_MS, enabled = true }: UseSimulationSavedStatesOptions,
 ): SimulationSavedStatePicker {
   const ruleSetId = ruleSet?.id;
-  const queryEnabled = enabled && scenarioId !== null;
+  const queryEnabled = enabled && scenarioId !== null && scenarioId !== "";
   // 목록이 어느 조회의 것인지 함께 든다 — Rule Set · Scenario 가 바뀐 첫 렌더에 이전 조회의 저장본을 selected 로 내지 않는다
   const key = `${tenantId}|${ruleSetId}|${scenarioId ?? "*"}`;
   const params = scenarioId ? { ruleSetId, scenarioId, size } : { ruleSetId, size };
