@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useSimulationAggregate, useSimulationOverlay, useSimulationSavedStates } from "./useSimulationResult";
+import { useSimulationAggregate, useSimulationOverlay, useSimulationSavedStates, useSimulationScenarios } from "./useSimulationResult";
 
 const post = vi.fn();
 const get = vi.fn();
@@ -433,5 +433,127 @@ describe("useSimulationSavedStates (AOS-9031)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("Scenario 단위로 고르기 (AOS-9131)", () => {
+  const COST = { id: "rule-set-cost" };
+
+  function item(id: string, scenarioId: string, createdAt: string) {
+    return { savedStateId: id, savedStateName: null, sequenceNo: Number(id.slice(1)), scenarioId, scenarioName: `시나리오 ${scenarioId}`, createdAt, ruleSetVersion: 3 };
+  }
+
+  function page(...items: ReturnType<typeof item>[]) {
+    return ok({ savedStates: items, nextCursor: null });
+  }
+
+  it("Rule Set 의 Scenario 목록을 받는다", async () => {
+    get.mockResolvedValue(
+      ok({
+        scenarios: [
+          { scenarioId: "sc-2", scenarioName: "물류비 인하", scenarioStatus: "ACTIVE", savedStateCount: 1, latestSavedAt: "2026-11-26T02:00:00Z" },
+          { scenarioId: "sc-1", scenarioName: "원가 인상", scenarioStatus: "DISCARDED", savedStateCount: 3, latestSavedAt: "2026-11-25T02:00:00Z" },
+        ],
+        truncated: true,
+      }),
+    );
+
+    const hook = renderHook(() => useSimulationScenarios(COST, { tenantId: "7", refreshIntervalMs: 0 }));
+
+    await waitFor(() => expect(hook.result.current.status).toBe("success"));
+    expect(get).toHaveBeenCalledWith(
+      "/simulation/saved-states/scenarios",
+      expect.objectContaining({ params: { ruleSetId: "rule-set-cost" }, headers: { "X-Tenant-Id": "7" } }),
+    );
+    expect(hook.result.current.scenarios).toEqual([
+      { id: "sc-2", name: "물류비 인하", status: "ACTIVE", savedStateCount: 1, latestSavedAt: "2026-11-26T02:00:00Z" },
+      { id: "sc-1", name: "원가 인상", status: "DISCARDED", savedStateCount: 3, latestSavedAt: "2026-11-25T02:00:00Z" },
+    ]);
+    expect(hook.result.current.truncated).toBe(true);
+  });
+
+  it("Scenario 목록도 403 은 forbidden 이다", async () => {
+    get.mockRejectedValue(httpError(403));
+    const hook = renderHook(() => useSimulationScenarios(COST, { tenantId: "7", refreshIntervalMs: 0 }));
+    await waitFor(() => expect(hook.result.current.isForbidden).toBe(true));
+    expect(hook.result.current.scenarios).toEqual([]);
+  });
+
+  it("scenarioId 를 주면 서버에 그 Scenario 로 좁혀 달라고 한다", async () => {
+    get.mockResolvedValue(page(item("s1", "sc-1", "2026-11-26T01:00:00Z")));
+
+    const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", scenarioId: "sc-1", refreshIntervalMs: 0 }));
+
+    await waitFor(() => expect(hook.result.current.selected?.id).toBe("s1"));
+    expect(get).toHaveBeenCalledWith(
+      "/simulation/saved-states",
+      expect.objectContaining({ params: { ruleSetId: "rule-set-cost", scenarioId: "sc-1", size: 20 } }),
+    );
+    // 이름 없는 저장본을 구별하는 Scenario 안 순번을 그대로 싣는다
+    expect(hook.result.current.selected).toMatchObject({ name: null, sequenceNo: 1, scenarioName: "시나리오 sc-1" });
+  });
+
+  it.each([null, ""])("scenarioId 가 %j 이면 아직 고르지 않은 것이라 조회하지 않고 selected 가 null 이다", (scenarioId) => {
+    const hook = renderHook(() => useSimulationSavedStates(COST, { tenantId: "7", scenarioId, refreshIntervalMs: 0 }));
+
+    expect(get).not.toHaveBeenCalled();
+    expect(hook.result.current).toMatchObject({ status: "idle", selected: null, savedStates: [] });
+  });
+
+  it("두 열이 같은 저장본을 고르면 aggregate 를 조회하지 않고 그 이유를 error 로 준다", () => {
+    const hook = renderHook(() => useSimulationAggregate([MARGIN, { id: MARGIN.id }], { tenantId: "7", objectType: "product" }));
+
+    expect(post).not.toHaveBeenCalled();
+    // idle 이면 "아직 저장된 결과가 없습니다" 로 그려진다 — 이유가 있는 실패라 error 로 낸다
+    expect(hook.result.current).toMatchObject({ status: "error", data: null, error: expect.objectContaining({ message: expect.stringContaining("같은 저장본") }) });
+  });
+
+  it("Scenario 를 바꾸면 고른 저장본을 풀고 새 Scenario 의 최신을 따라가며, 돌아와도 예전 선택을 되살리지 않는다", async () => {
+    get.mockImplementation((_path: string, { params }: { params: { scenarioId?: string } }) =>
+      Promise.resolve(
+        params.scenarioId === "sc-1"
+          ? page(item("a2", "sc-1", "2026-11-26T02:00:00Z"), item("a1", "sc-1", "2026-11-26T01:00:00Z"))
+          : page(item("b1", "sc-2", "2026-11-26T03:00:00Z")),
+      ),
+    );
+    const hook = renderHook(({ scenarioId }) => useSimulationSavedStates(COST, { tenantId: "7", scenarioId, refreshIntervalMs: 0 }), {
+      initialProps: { scenarioId: "sc-1" },
+    });
+    await waitFor(() => expect(hook.result.current.selected?.id).toBe("a2"));
+    act(() => hook.result.current.select("a1"));
+    expect(hook.result.current).toMatchObject({ selected: expect.objectContaining({ id: "a1" }), followsLatest: false });
+
+    hook.rerender({ scenarioId: "sc-2" });
+    // 바꾼 첫 렌더에도 이전 Scenario 의 저장본을 내지 않는다
+    expect(hook.result.current.selected).toBeNull();
+    await waitFor(() => expect(hook.result.current.selected?.id).toBe("b1"));
+    expect(hook.result.current.followsLatest).toBe(true);
+
+    hook.rerender({ scenarioId: "sc-1" });
+    await waitFor(() => expect(hook.result.current.selected?.id).toBe("a2"));
+    expect(hook.result.current.followsLatest).toBe(true);
+  });
+
+  it("열마다 고른 저장본을 aggregate 에 나란히 넘기고, 한 열이라도 고르지 않았으면 조회하지 않는다", async () => {
+    get.mockImplementation((_path: string, { params }: { params: { scenarioId?: string } }) =>
+      Promise.resolve(params.scenarioId === "sc-1" ? page(item("a1", "sc-1", "2026-11-26T01:00:00Z")) : page(item("b1", "sc-2", "2026-11-26T03:00:00Z"))),
+    );
+    post.mockResolvedValue(ok({ groups: [] }));
+    const hook = renderHook(
+      ({ second }) => {
+        const left = useSimulationSavedStates(COST, { tenantId: "7", scenarioId: "sc-1", refreshIntervalMs: 0 });
+        const right = useSimulationSavedStates(COST, { tenantId: "7", scenarioId: second, refreshIntervalMs: 0 });
+        return useSimulationAggregate([left.selected, right.selected], { tenantId: "7", objectType: "product" });
+      },
+      { initialProps: { second: null as string | null } },
+    );
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+    expect(post).not.toHaveBeenCalled();
+    expect(hook.result.current.status).toBe("idle");
+
+    hook.rerender({ second: "sc-2" });
+
+    await waitFor(() => expect(hook.result.current.status).toBe("success"));
+    expect(post).toHaveBeenCalledWith(AGGREGATE, expect.objectContaining({ savedStateIds: ["a1", "b1"] }), expect.anything());
   });
 });

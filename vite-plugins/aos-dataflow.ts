@@ -39,6 +39,7 @@ import { AosProject } from "./aos-project";
 // 전체 합계가 아니다. 합계는 useSimulationAggregate 로 받는다.
 //
 // 저장본 고르기 (AOS-9031): `useSimulationSavedStates(SIMULATION_RULE_SETS.k)` 는 세 번째 key 공간(Rule Set)이다.
+// Scenario 목록 `useSimulationScenarios(SIMULATION_RULE_SETS.k)` (AOS-9131)도 같은 공간이다.
 // 그 결과의 `selected` 는 서버가 그 Rule Set 으로 좁혀 돌려준 저장본이라, 결과 hook 을 부른 함수 안에서
 // `const picker = useSimulationSavedStates(…)` 의 `picker.selected` · `const { selected } = …` 의 `selected` 를 넘기면
 // SIMULATION.k 대신 받는다. 다른 값(prop 으로 받은 저장본, 다시 대입할 수 있는 let, 직접 만든 `{ id }`)은 그대로 위반이다.
@@ -65,6 +66,8 @@ export const SIMULATION_HOOK_NAMES = ["useSimulationOverlay", "useSimulationAggr
 export const SIMULATION_HOOK_FILE = "src/hooks/useSimulationResult.ts";
 export const SIMULATION_NAME = "SIMULATION";
 export const SIMULATION_PICKER_HOOK_NAME = "useSimulationSavedStates";
+/** Rule Set 의 Scenario 목록 (AOS-9131). 고르기 hook 과 같은 Rule Set key 공간이다 */
+export const SIMULATION_SCENARIOS_HOOK_NAME = "useSimulationScenarios";
 export const SIMULATION_RULE_SETS_NAME = "SIMULATION_RULE_SETS";
 // 고르기 hook 결과에서 저장본을 운반하는 필드
 const PICKER_SELECTED_FIELD = "selected";
@@ -174,7 +177,7 @@ const SIMULATION_SPACE: KeySpace = {
 
 // 위반만 본다. 목록 조회는 결과 값을 담지 않아 직접 호출을 따로 막지 않는다 — 결과(overlay) 직접 호출은 SIMULATION_SPACE 가 잡는다
 const SIMULATION_RULE_SET_SPACE: KeySpace = {
-  hooks: [SIMULATION_PICKER_HOOK_NAME],
+  hooks: [SIMULATION_PICKER_HOOK_NAME, SIMULATION_SCENARIOS_HOOK_NAME],
   hookFile: SIMULATION_HOOK_FILE,
   constants: SIMULATION_RULE_SETS_NAME,
   directField: null,
@@ -1411,7 +1414,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       if (node.type !== "CallExpression") return;
       if (isCallOf(node, HOOK_NAME)) usesHook = true;
       if (isCallOf(node, ACTION_HOOK_NAME)) usesActionHook = true;
-      if ([...SIMULATION_HOOK_NAMES, SIMULATION_PICKER_HOOK_NAME].some((name) => isCallOf(node, name))) usesSimulationHook = true;
+      if ([...SIMULATION_SPACE.hooks, ...SIMULATION_RULE_SET_SPACE.hooks].some((name) => isCallOf(node, name))) usesSimulationHook = true;
     });
 
     const functionIds = functionSpace.effectiveIds.get(file)!;

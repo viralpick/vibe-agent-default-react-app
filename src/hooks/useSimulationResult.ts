@@ -12,6 +12,8 @@ import { useApiClient } from "@/api/api.client";
 // 저장본을 앱에서 고르게 하려면 (AOS-9031) `useSimulationSavedStates(SIMULATION_RULE_SETS.<key>)` 로 그 Rule Set 의
 // 저장본 목록을 받고, 그 결과의 `selected` 를 overlay · aggregate hook 의 첫 인자로 넘긴다. 목록은 주기적으로 다시 읽어
 // 새로 저장한 결과가 나타나고, 사용자가 직접 고르지 않았으면 가장 최근 저장본을 따라간다.
+// 사용자는 Scenario 를 먼저 고른다 (AOS-9131) — `useSimulationScenarios(SIMULATION_RULE_SETS.<key>)` 의 Scenario id 를
+// `useSimulationSavedStates` 의 scenarioId 옵션으로 넘긴다. 비교 열마다 이 한 쌍을 둔다.
 // `selected` 가 아직 없으면(null) 결과 hook 은 조회하지 않고 idle 이다.
 
 export interface SimulationSavedStateRef {
@@ -20,7 +22,10 @@ export interface SimulationSavedStateRef {
   description?: string;
 }
 
-/** 저장본을 고를 Rule Set. 같은 Rule Set 의 저장본끼리 계산한 Property 가 같아 한 화면에 넘길 수 있다 */
+/**
+ * 저장본을 고를 Rule Set. 고를 수 있는 Scenario 의 범위다. 같은 Rule Set 이어도 Scenario 마다 계산한 Object 가 다를 수 있다 —
+ * 앱이 읽는 Object 를 계산하지 않은 저장본은 결과 hook 이 400(OVERLAY_INVALID_REQUEST) error 다
+ */
 export interface SimulationRuleSetRef {
   /** Rule Set id (ruleSetId) */
   id: string;
@@ -31,6 +36,8 @@ export interface SimulationRuleSetRef {
 export interface SimulationSavedStateSummary extends SimulationSavedStateRef {
   /** 저장할 때 붙인 이름. 없을 수 있고 유일하지 않다 */
   name: string | null;
+  /** Scenario 안에서의 저장 순번 (1부터). 이름이 없을 때 `저장 #3` 처럼 구별한다 — 다른 Scenario 의 순번과는 겹친다 */
+  sequenceNo: number;
   scenarioId: string;
   scenarioName: string;
   /** 저장한 시각 (ISO-8601) */
@@ -213,6 +220,7 @@ export function useSimulationOverlay(
 /**
  * 저장본 1~4개를 원본 컬럼으로 묶은 합계 · 변화량 · 변화율 — `POST /simulation/saved-states/overlay/aggregate`.
  * 나란히 비교하려면 첫 인자에 `[SIMULATION.a, SIMULATION.b]` 처럼 배열을 넘긴다. 열 순서가 이 순서다.
+ * 같은 저장본이 두 번 들어 있으면(두 열이 같은 저장본을 고름) 서버가 거절하므로 조회하지 않고, 그 이유를 담은 error 다.
  */
 export function useSimulationAggregate(
   savedStates: SimulationSavedStateRef | null | (SimulationSavedStateRef | null)[],
@@ -220,17 +228,29 @@ export function useSimulationAggregate(
 ): SimulationResult<SimulationAggregateResult> {
   const refs = Array.isArray(savedStates) ? savedStates : [savedStates];
   const savedStateIds = refs.map((s) => s?.id);
-  return useSimulationQuery<SimulationAggregateResult>(
+  const ready = enabled && !refs.includes(null);
+  const distinct = new Set(savedStateIds).size === savedStateIds.length;
+  const result = useSimulationQuery<SimulationAggregateResult>(
     "/simulation/saved-states/overlay/aggregate",
     { savedStateIds, objectType, properties, groupBy, filters },
     tenantId,
-    enabled && !refs.includes(null),
+    ready && distinct,
   );
+  if (ready && !distinct) return { ...result, data: null, status: "error", isLoading: false, isForbidden: false, error: DUPLICATE_SAVED_STATES };
+  return result;
 }
+
+const DUPLICATE_SAVED_STATES = new Error("같은 저장본을 두 번 골랐습니다. 열마다 다른 저장본을 고르세요.");
 
 export interface UseSimulationSavedStatesOptions {
   /** `[Tenant Context]` 의 tenant_id. 모든 호출에 X-Tenant-Id 헤더로 실린다 */
   tenantId: string;
+  /**
+   * 이 Scenario 의 저장본만 받는다 (서버가 좁힌다). 비교 열마다 `useSimulationScenarios` 로 고른 Scenario id 를 넘긴다.
+   * null 이나 빈 문자열(`<option value="">` 의 값)이면 아직 고르지 않은 것이다 — 조회하지 않고 selected 가 null 이다.
+   * 생략하면 Rule Set 의 모든 Scenario 저장본이 섞인다
+   */
+  scenarioId?: string | null;
   /** 최근 몇 개를 받을지 (기본 20, 최대 100). 최신순이다 */
   size?: number;
   /** 목록을 다시 읽는 간격 (기본 30초, 최소 5초). 0 이면 다시 읽지 않는다. 화면이 가려져 있거나 forbidden 이면 건너뛴다 */
@@ -240,11 +260,11 @@ export interface UseSimulationSavedStatesOptions {
 }
 
 export interface SimulationSavedStatePicker {
-  /** 그 Rule Set 의 최근 저장본, 최신순 */
+  /** 그 Rule Set(scenarioId 를 주면 그 Scenario)의 최근 저장본, 최신순 */
   savedStates: SimulationSavedStateSummary[];
-  /** 고른 저장본. 직접 고르지 않았으면 가장 최근 저장본이고, 목록이 비었으면 null 이다 */
+  /** 고른 저장본. 직접 고르지 않았으면 가장 최근 저장본이고, 목록이 비었거나 Scenario 를 아직 고르지 않았으면 null 이다 */
   selected: SimulationSavedStateSummary | null;
-  /** 저장본을 고른다. null 이면 다시 가장 최근 저장본을 따라간다 */
+  /** 저장본을 고른다. null 이면 다시 가장 최근 저장본을 따라간다. Scenario 를 바꾸면 고른 것은 풀리고 그 Scenario 의 최신을 따라간다 */
   select: (savedStateId: string | null) => void;
   /** 새 저장본이 생기면 selected 가 그것으로 바뀌는가 (직접 고르지 않은 상태) */
   followsLatest: boolean;
@@ -263,6 +283,7 @@ export interface SimulationSavedStatePicker {
 interface CatalogItem {
   savedStateId: string;
   savedStateName: string | null;
+  sequenceNo: number;
   scenarioId: string;
   scenarioName: string;
   createdAt: string;
@@ -272,23 +293,34 @@ interface CatalogItem {
 const DEFAULT_REFRESH_MS = 30_000;
 const MIN_REFRESH_MS = 5_000;
 
+interface PolledList<T> {
+  data: T | null;
+  status: SimulationResultStatus;
+  error: Error | null;
+  refetch: () => void;
+}
+
 /**
- * Rule Set 하나의 최근 저장본 목록과 고른 저장본 — `GET /simulation/saved-states?ruleSetId=…`.
- * 시나리오 화면에서 가정을 고쳐 저장하면 다음 다시 읽기에 목록 맨 위에 나타난다.
+ * 목록을 GET 으로 받고 주기적으로 다시 읽는다. 같은 조회(key)를 다시 읽는 동안에는 이전 상태를 그대로 두고, 실패해도 받은 목록은 남긴다.
+ * key 가 바뀐 첫 렌더에는 이전 조회의 상태를 내지 않는다
  */
-export function useSimulationSavedStates(
-  ruleSet: SimulationRuleSetRef,
-  { tenantId, size = 20, refreshIntervalMs = DEFAULT_REFRESH_MS, enabled = true }: UseSimulationSavedStatesOptions,
-): SimulationSavedStatePicker {
+function usePolledList<T>(
+  path: string,
+  params: Record<string, unknown>,
+  key: string,
+  tenantId: string,
+  enabled: boolean,
+  refreshIntervalMs: number,
+  read: (body: unknown) => T,
+): PolledList<T> {
   const apiClient = useApiClient();
-  const ruleSetId = ruleSet?.id;
-  // 목록이 어느 조회의 것인지 함께 든다 — Rule Set 이 바뀐 첫 렌더에 이전 Rule Set 의 저장본을 selected 로 내지 않는다
-  const key = `${tenantId}|${ruleSetId}`;
-  const [state, setState] = useState<State<SimulationSavedStateSummary[]> & { key: string | null }>({ ...IDLE, key: null });
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [state, setState] = useState<State<T> & { key: string | null }>({ ...IDLE, key: null });
   const [nonce, setNonce] = useState(0);
   // 다시 읽기 차례가 와도 앞 요청이 아직 오지 않았으면 건너뛴다 — 끊고 다시 보내면 응답이 간격보다 느린 환경에서 목록을 영영 받지 못한다
   const inFlight = useRef(false);
+  const paramsKey = JSON.stringify(params);
+  const readRef = useRef(read);
+  readRef.current = read;
 
   useEffect(() => {
     if (!enabled) {
@@ -301,14 +333,13 @@ export function useSimulationSavedStates(
     setState((prev) => (prev.key === key && prev.status !== "idle" ? prev : { status: "running", data: null, error: null, key }));
     inFlight.current = true;
     apiClient
-      .get("/simulation/saved-states", { params: { ruleSetId, size }, headers: { "X-Tenant-Id": tenantId }, signal })
+      .get(path, { params: JSON.parse(paramsKey), headers: { "X-Tenant-Id": tenantId }, signal })
       .finally(() => {
         if (!signal.aborted) inFlight.current = false;
       })
       .then((response) => {
         if (signal.aborted) return;
-        const items = ((response?.data?.data?.savedStates as CatalogItem[] | undefined) ?? []).map(toSummary);
-        setState({ status: "success", data: items, error: null, key });
+        setState({ status: "success", data: readRef.current(response?.data?.data), error: null, key });
       })
       .catch((cause: unknown) => {
         if (signal.aborted) return;
@@ -317,14 +348,14 @@ export function useSimulationSavedStates(
           return;
         }
         const error = cause instanceof Error ? cause : new Error(String(cause));
-        // 일시 오류로 고른 저장본이 사라지면 결과 hook 이 idle 로 떨어졌다가 다음 성공에 다시 조회한다
+        // 일시 오류로 목록을 지우면 그 목록으로 고른 값(저장본 · Scenario)이 사라졌다가 다음 성공에 돌아온다 — 받은 목록은 남긴다
         setState((prev) => ({ status: "error", data: prev.key === key ? prev.data : null, error, key }));
       });
     return () => {
       controller.abort();
       inFlight.current = false;
     };
-  }, [apiClient, key, ruleSetId, tenantId, size, enabled, nonce]);
+  }, [apiClient, path, paramsKey, key, tenantId, enabled, nonce]);
 
   // 권한이 없으면 주기적으로 다시 읽어도 결과가 같다 — 다시 읽기는 refetch 나 조회 조건이 바뀔 때만 한다
   const forbidden = state.key === key && state.status === "forbidden";
@@ -339,32 +370,144 @@ export function useSimulationSavedStates(
   }, [enabled, forbidden, refreshIntervalMs]);
 
   const refetch = useCallback(() => setNonce((n) => n + 1), []);
-  const select = useCallback((savedStateId: string | null) => setChosenId(savedStateId), []);
+  const current = state.key === key;
+  return {
+    data: current ? state.data : null,
+    // 조회 조건이 바뀐 첫 렌더에는 이전 조회의 상태를 내지 않는다
+    status: current ? state.status : enabled ? "running" : "idle",
+    error: current ? state.error : null,
+    refetch,
+  };
+}
 
-  const savedStates = useMemo(() => (state.key === key ? (state.data ?? []) : []), [state.key, state.data, key]);
+/**
+ * Rule Set 하나의 최근 저장본 목록과 고른 저장본 — `GET /simulation/saved-states?ruleSetId=…[&scenarioId=…]`.
+ * 시나리오 화면에서 가정을 고쳐 저장하면 다음 다시 읽기에 목록 맨 위에 나타난다.
+ */
+export function useSimulationSavedStates(
+  ruleSet: SimulationRuleSetRef,
+  { tenantId, scenarioId, size = 20, refreshIntervalMs = DEFAULT_REFRESH_MS, enabled = true }: UseSimulationSavedStatesOptions,
+): SimulationSavedStatePicker {
+  const ruleSetId = ruleSet?.id;
+  const queryEnabled = enabled && scenarioId !== null && scenarioId !== "";
+  // 목록이 어느 조회의 것인지 함께 든다 — Rule Set · Scenario 가 바뀐 첫 렌더에 이전 조회의 저장본을 selected 로 내지 않는다
+  const key = `${tenantId}|${ruleSetId}|${scenarioId ?? "*"}`;
+  const params = scenarioId ? { ruleSetId, scenarioId, size } : { ruleSetId, size };
+  const list = usePolledList("/simulation/saved-states", params, key, tenantId, queryEnabled, refreshIntervalMs, (body) =>
+    (((body as { savedStates?: CatalogItem[] } | undefined)?.savedStates) ?? []).map(toSummary),
+  );
+  // 고른 것도 어느 조회에서 고른 것인지 함께 든다. 조회가 바뀌면 고른 것을 버린다 — Scenario 를 바꿨다 돌아와도 그 Scenario 의 최신을 따라간다
+  const [chosen, setChosen] = useState<{ key: string; id: string } | null>(null);
+  if (chosen !== null && chosen.key !== key) setChosen(null);
+  const select = useCallback((savedStateId: string | null) => setChosen(savedStateId === null ? null : { key, id: savedStateId }), [key]);
+
+  const savedStates = useMemo(() => list.data ?? [], [list.data]);
   // 고른 저장본이 목록에서 빠지면(지워졌거나 최근 size 개 밖으로 밀려남) 가장 최근 저장본으로 돌아간다
-  const chosen = chosenId === null ? undefined : savedStates.find((item) => item.id === chosenId);
-  const selected = chosen ?? savedStates[0] ?? null;
-  // 조회 조건이 바뀐 첫 렌더에는 이전 조회의 상태를 내지 않는다
-  const status: SimulationResultStatus = state.key === key ? state.status : enabled ? "running" : "idle";
+  const chosenItem = chosen?.key === key ? savedStates.find((item) => item.id === chosen.id) : undefined;
+  const selected = chosenItem ?? savedStates[0] ?? null;
 
   return {
     savedStates,
     selected,
     select,
-    followsLatest: chosen === undefined,
-    status,
-    isLoading: status === "running",
-    isForbidden: status === "forbidden",
-    error: state.key === key ? state.error : null,
-    refetch,
+    followsLatest: chosenItem === undefined,
+    status: list.status,
+    isLoading: list.status === "running",
+    isForbidden: list.status === "forbidden",
+    error: list.error,
+    refetch: list.refetch,
   };
 }
+
+/** Rule Set 의 저장본을 가진 Scenario 하나. id 를 `useSimulationSavedStates` 의 scenarioId 옵션으로 넘긴다 */
+export interface SimulationScenarioSummary {
+  id: string;
+  name: string;
+  /** ACTIVE · DISCARDED. 폐기된 Scenario 의 저장본도 열 수 있다 — 표시로 구별한다 */
+  status: string;
+  /** 이 Rule Set 의 저장본 수 */
+  savedStateCount: number;
+  /** 이 Rule Set 의 저장본 중 가장 최근 저장 시각 (ISO-8601) */
+  latestSavedAt: string;
+}
+
+export interface UseSimulationScenariosOptions {
+  /** `[Tenant Context]` 의 tenant_id. 모든 호출에 X-Tenant-Id 헤더로 실린다 */
+  tenantId: string;
+  /** 목록을 다시 읽는 간격 (기본 30초, 최소 5초). 0 이면 다시 읽지 않는다 */
+  refreshIntervalMs?: number;
+  enabled?: boolean;
+}
+
+export interface SimulationScenarioList {
+  /** 마지막 저장 시각 내림차순 (최대 100) */
+  scenarios: SimulationScenarioSummary[];
+  /** 100 개를 넘어 마지막 저장이 오래된 Scenario 가 빠졌다 */
+  truncated: boolean;
+  status: SimulationResultStatus;
+  isLoading: boolean;
+  isForbidden: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+interface ScenarioItem {
+  scenarioId: string;
+  scenarioName: string;
+  scenarioStatus: string;
+  savedStateCount: number;
+  latestSavedAt: string;
+}
+
+/**
+ * Rule Set 의 저장본을 가진 Scenario 목록 — `GET /simulation/saved-states/scenarios?ruleSetId=…`.
+ * 비교 열마다 여기서 Scenario 를 고르고, 그 id 를 `useSimulationSavedStates` 의 scenarioId 로 넘겨 그 Scenario 의 저장본을 고른다.
+ * 저장본 목록에서 Scenario 를 모으지 않는다 — 최근 저장본 N 개라 저장이 잦은 Scenario 가 나머지를 밀어낸다.
+ */
+export function useSimulationScenarios(
+  ruleSet: SimulationRuleSetRef,
+  { tenantId, refreshIntervalMs = DEFAULT_REFRESH_MS, enabled = true }: UseSimulationScenariosOptions,
+): SimulationScenarioList {
+  const ruleSetId = ruleSet?.id;
+  const list = usePolledList(
+    "/simulation/saved-states/scenarios",
+    { ruleSetId },
+    `${tenantId}|${ruleSetId}`,
+    tenantId,
+    enabled,
+    refreshIntervalMs,
+    (body) => {
+      const page = body as { scenarios?: ScenarioItem[]; truncated?: boolean } | undefined;
+      return {
+        scenarios: (page?.scenarios ?? []).map((item) => ({
+          id: item.scenarioId,
+          name: item.scenarioName,
+          status: item.scenarioStatus,
+          savedStateCount: item.savedStateCount,
+          latestSavedAt: item.latestSavedAt,
+        })),
+        truncated: page?.truncated ?? false,
+      };
+    },
+  );
+  return {
+    scenarios: list.data?.scenarios ?? EMPTY_SCENARIOS,
+    truncated: list.data?.truncated ?? false,
+    status: list.status,
+    isLoading: list.status === "running",
+    isForbidden: list.status === "forbidden",
+    error: list.error,
+    refetch: list.refetch,
+  };
+}
+
+const EMPTY_SCENARIOS: SimulationScenarioSummary[] = [];
 
 function toSummary(item: CatalogItem): SimulationSavedStateSummary {
   return {
     id: item.savedStateId,
     name: item.savedStateName,
+    sequenceNo: item.sequenceNo,
     scenarioId: item.scenarioId,
     scenarioName: item.scenarioName,
     savedAt: item.createdAt,

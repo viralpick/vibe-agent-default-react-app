@@ -717,6 +717,62 @@ const TENANT_ID = "1";
     expect(result.usesSimulationHook).toBe(true);
   });
 
+  it("열마다 Scenario 를 고른 저장본을 나란히 넘기는 모양을 받는다 (AOS-9131)", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const scenarios = useSimulationScenarios(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const [leftId, setLeftId] = useState(null);
+        const [rightId, setRightId] = useState(null);
+        const left = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID, scenarioId: leftId });
+        const right = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID, scenarioId: rightId });
+        const sums = useSimulationAggregate([left.selected, right.selected], { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{scenarios.scenarios.length}{sums.status}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(true);
+  });
+
+  it("Scenario 목록 hook 도 Rule Set 상수로만 부르고, 새로 만들면 위반이다 (AOS-9131)", () => {
+    const result = analyzePick(`
+      function useSimulationScenarios() { return null; }
+      export default function App() {
+        const a = useSimulationScenarios({ id: "forged" }, { tenantId: TENANT_ID });
+        const b = useSimulationScenarios(SIMULATION_RULE_SETS.missing, { tenantId: TENANT_ID });
+        return <div>{a}{b}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule).sort()).toEqual(
+      ["hook-arg-not-simulation-rule-set", "simulation-hook-redefined", "unknown-simulation-rule-set-key"].sort(),
+    );
+  });
+
+  it("Scenario 목록 hook 의 결과는 저장본이 아니다 — 결과 hook 에 넘기면 위반이다 (AOS-9131)", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const scenarios = useSimulationScenarios(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const rows = useSimulationOverlay(scenarios.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation"]);
+  });
+
+  it("Scenario 목록 hook 만 쓰는 파일도 시뮬레이션 hook 을 쓰는 파일이다 (AOS-9131)", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const scenarios = useSimulationScenarios(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        return <div>{scenarios.scenarios.length}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(true);
+  });
+
   it("Rule Set 계약을 벗어난 모양과 고르기 결과가 아닌 저장본을 위반으로 보고한다", () => {
     const result = analyzePick(`
       function useSimulationSavedStates() { return null; }
