@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useApiClient } from "@/api/api.client";
+import { isLocalMockMode, mockFunctionRows } from "./localMock";
 
 // OntologyFunction 조회 hook (AOS-4888).
 //
@@ -93,12 +94,15 @@ function revalidate(
   // 늦게 도착한 이전 응답이 최신 결과를 덮어쓰지 않도록 요청 순번을 기억한다
   const seq = ++entry.seq;
   publish(entry, { inFlight: true });
-  apiClient
-    .post(
-      `/ontology-functions/${fnId}/run`,
-      { parameters: JSON.parse(parametersKey) },
-      { headers: { "X-Tenant-Id": tenantId } },
-    )
+  // 로컬 더미 모드면 서버로 보내지 않고 더미 파일로 답한다 (localMock.ts)
+  const request = isLocalMockMode()
+    ? mockFunctionRows(fnId).then((rows) => ({ data: { data: { result: rows } } }))
+    : apiClient.post(
+        `/ontology-functions/${fnId}/run`,
+        { parameters: JSON.parse(parametersKey) },
+        { headers: { "X-Tenant-Id": tenantId } },
+      );
+  request
     .then((response) => {
       if (seq !== entry.seq) return;
       // 행이 아닌 값(null 등)은 여기서 걸러 둔다 — 앱 코드가 방어용 filter 를 붙이지 않아도 되게.

@@ -15,8 +15,8 @@ lerna-debug.log*
 /dist-ssr
 *.local
 
-# 로컬 프리뷰 fixture — 저장해 둔 실제 조회 결과 (src/api/fixture-adapter.ts)
-/.cos/fixtures/
+# 로컬 프리뷰 더미 데이터 (src/hooks/localMock.ts) — 로컬 전용이라 등록본에 넣지 않는다
+/.cos/mocks/
 
 # Editor directories and files
 /.vscode

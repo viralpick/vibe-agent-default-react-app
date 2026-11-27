@@ -1,6 +1,7 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearOntologyFunctionCache, useOntologyFunction } from "./useOntologyFunction";
+import { resetLocalMockState } from "./localMock";
 
 const post = vi.fn();
 vi.mock("@/api/api.client", () => ({ useApiClient: () => ({ post }) }));
@@ -129,5 +130,30 @@ describe("useOntologyFunction", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data).toEqual([{ total: 1 }]);
+  });
+});
+
+describe("useOntologyFunction 로컬 더미 모드", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    resetLocalMockState();
+  });
+
+  it("서버로 보내지 않고 .cos/mocks/<함수 id>.json 의 행으로 답한다", async () => {
+    vi.stubEnv("VITE_AOS_PREVIEW", "mock");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ result: [{ total: 9 }] }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useOntologyFunction(SALES, { tenantId: "7" }));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.data).toEqual([{ total: 9 }]);
+    expect(post).not.toHaveBeenCalled();
+    expect(String(fetchMock.mock.calls[0][0])).toContain(".cos/mocks/fn-sales.json");
   });
 });

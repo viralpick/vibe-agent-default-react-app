@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type OntologyActionRun, useOntologyAction } from "./useOntologyAction";
+import { resetLocalMockState } from "./localMock";
 
 const post = vi.fn();
 const get = vi.fn();
@@ -387,6 +388,28 @@ describe("useOntologyAction", () => {
 
     expect(get).toHaveBeenCalledTimes(1);
     expect((await promise)?.status).toBe("SUCCESS");
+    expect(hook.result.current.status).toBe("success");
+  });
+});
+
+describe("useOntologyAction 로컬 더미 모드", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    resetLocalMockState();
+  });
+
+  it("실행하지 않고 성공으로 답한다", async () => {
+    vi.stubEnv("VITE_AOS_PREVIEW", "mock");
+    const hook = mount();
+
+    let run: OntologyActionRun | null = null;
+    await act(async () => {
+      run = await hook.result.current.execute({ id: 1 });
+    });
+
+    expect(post).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(run).toMatchObject({ status: "SUCCEEDED", mock: true });
     expect(hook.result.current.status).toBe("success");
   });
 });
