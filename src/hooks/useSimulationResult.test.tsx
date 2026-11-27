@@ -500,11 +500,12 @@ describe("Scenario 단위로 고르기 (AOS-9131)", () => {
     expect(hook.result.current).toMatchObject({ status: "idle", selected: null, savedStates: [] });
   });
 
-  it("두 열이 같은 저장본을 고르면 aggregate 를 조회하지 않는다", () => {
+  it("두 열이 같은 저장본을 고르면 aggregate 를 조회하지 않고 그 이유를 error 로 준다", () => {
     const hook = renderHook(() => useSimulationAggregate([MARGIN, { id: MARGIN.id }], { tenantId: "7", objectType: "product" }));
 
     expect(post).not.toHaveBeenCalled();
-    expect(hook.result.current.status).toBe("idle");
+    // idle 이면 "아직 저장된 결과가 없습니다" 로 그려진다 — 이유가 있는 실패라 error 로 낸다
+    expect(hook.result.current).toMatchObject({ status: "error", data: null, error: expect.objectContaining({ message: expect.stringContaining("같은 저장본") }) });
   });
 
   it("Scenario 를 바꾸면 고른 저장본을 풀고 새 Scenario 의 최신을 따라가며, 돌아와도 예전 선택을 되살리지 않는다", async () => {

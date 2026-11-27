@@ -220,7 +220,7 @@ export function useSimulationOverlay(
 /**
  * 저장본 1~4개를 원본 컬럼으로 묶은 합계 · 변화량 · 변화율 — `POST /simulation/saved-states/overlay/aggregate`.
  * 나란히 비교하려면 첫 인자에 `[SIMULATION.a, SIMULATION.b]` 처럼 배열을 넘긴다. 열 순서가 이 순서다.
- * 같은 저장본이 두 번 들어 있으면(두 열이 같은 저장본을 고름) 서버가 거절하므로 조회하지 않고 idle 이다 — 화면이 "같은 저장본" 으로 그린다.
+ * 같은 저장본이 두 번 들어 있으면(두 열이 같은 저장본을 고름) 서버가 거절하므로 조회하지 않고, 그 이유를 담은 error 다.
  */
 export function useSimulationAggregate(
   savedStates: SimulationSavedStateRef | null | (SimulationSavedStateRef | null)[],
@@ -228,14 +228,19 @@ export function useSimulationAggregate(
 ): SimulationResult<SimulationAggregateResult> {
   const refs = Array.isArray(savedStates) ? savedStates : [savedStates];
   const savedStateIds = refs.map((s) => s?.id);
+  const ready = enabled && !refs.includes(null);
   const distinct = new Set(savedStateIds).size === savedStateIds.length;
-  return useSimulationQuery<SimulationAggregateResult>(
+  const result = useSimulationQuery<SimulationAggregateResult>(
     "/simulation/saved-states/overlay/aggregate",
     { savedStateIds, objectType, properties, groupBy, filters },
     tenantId,
-    enabled && !refs.includes(null) && distinct,
+    ready && distinct,
   );
+  if (ready && !distinct) return { ...result, data: null, status: "error", isLoading: false, isForbidden: false, error: DUPLICATE_SAVED_STATES };
+  return result;
 }
+
+const DUPLICATE_SAVED_STATES = new Error("같은 저장본을 두 번 골랐습니다. 열마다 다른 저장본을 고르세요.");
 
 export interface UseSimulationSavedStatesOptions {
   /** `[Tenant Context]` 의 tenant_id. 모든 호출에 X-Tenant-Id 헤더로 실린다 */

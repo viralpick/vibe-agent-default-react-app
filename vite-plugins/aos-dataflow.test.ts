@@ -749,6 +749,18 @@ const TENANT_ID = "1";
     );
   });
 
+  it("Scenario 목록 hook 의 결과는 저장본이 아니다 — 결과 hook 에 넘기면 위반이다 (AOS-9131)", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const scenarios = useSimulationScenarios(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const rows = useSimulationOverlay(scenarios.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation"]);
+  });
+
   it("Scenario 목록 hook 만 쓰는 파일도 시뮬레이션 hook 을 쓰는 파일이다 (AOS-9131)", () => {
     const result = analyzePick(`
       export default function App() {

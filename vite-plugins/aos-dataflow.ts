@@ -1414,7 +1414,7 @@ function computeProjectFlow(project: AosProject): ProjectFlow {
       if (node.type !== "CallExpression") return;
       if (isCallOf(node, HOOK_NAME)) usesHook = true;
       if (isCallOf(node, ACTION_HOOK_NAME)) usesActionHook = true;
-      if ([...SIMULATION_HOOK_NAMES, SIMULATION_PICKER_HOOK_NAME, SIMULATION_SCENARIOS_HOOK_NAME].some((name) => isCallOf(node, name))) usesSimulationHook = true;
+      if ([...SIMULATION_SPACE.hooks, ...SIMULATION_RULE_SET_SPACE.hooks].some((name) => isCallOf(node, name))) usesSimulationHook = true;
     });
 
     const functionIds = functionSpace.effectiveIds.get(file)!;
