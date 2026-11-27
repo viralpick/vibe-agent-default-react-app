@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "@/api/api.client";
+import { isLocalMockMode, mockActionRun } from "./localMock";
 
 // OntologyAction 실행 hook (AOS-7001).
 //
@@ -164,6 +165,13 @@ export function useOntologyAction(
       const startedAt = Date.now();
 
       update({ status: "running", data: null, error: null });
+
+      // 로컬 더미 모드면 실행하지 않고 성공으로 답한다 (localMock.ts)
+      if (isLocalMockMode()) {
+        const mocked: OntologyActionRun = mockActionRun(action.id);
+        update(settledState(mocked));
+        return mocked;
+      }
 
       let run: OntologyActionRun;
       try {

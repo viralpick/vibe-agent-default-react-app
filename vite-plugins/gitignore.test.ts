@@ -41,7 +41,7 @@ describe(".gitignore", () => {
     ".claude/x",
     "debug.log",
     ".env.local",
-    ".cos/fixtures/x.json",
+    ".cos/mocks/x.json",
   ])(
     "루트의 %s 는 그대로 무시한다",
     (relative) => {
