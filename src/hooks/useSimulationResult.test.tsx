@@ -285,6 +285,33 @@ describe("useSimulationSavedStates (AOS-9031)", () => {
     expect(denied.result.current).toMatchObject({ isForbidden: true, error: null, savedStates: [], selected: null });
   });
 
+  it("403 을 받으면 주기 다시 읽기를 멈추고, 직접 다시 읽어도 로딩으로 바뀌지 않는다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      get.mockRejectedValue(httpError(403));
+      const seen: string[] = [];
+      const hook = renderHook(() => {
+        const picker = useSimulationSavedStates(COST, { tenantId: "7", refreshIntervalMs: 5_000 });
+        seen.push(picker.status);
+        return picker;
+      });
+      await waitFor(() => expect(hook.result.current.status).toBe("forbidden"));
+      const firstForbidden = seen.indexOf("forbidden");
+
+      await act(async () => vi.advanceTimersByTime(30_000));
+      expect(get).toHaveBeenCalledTimes(1);
+
+      act(() => hook.result.current.refetch());
+      await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+      await act(async () => vi.advanceTimersByTime(0));
+
+      expect(seen.slice(firstForbidden)).not.toContain("running");
+      expect(hook.result.current.status).toBe("forbidden");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("화면이 가려져 있으면 다시 읽지 않는다", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);

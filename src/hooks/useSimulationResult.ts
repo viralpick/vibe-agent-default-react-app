@@ -233,7 +233,7 @@ export interface UseSimulationSavedStatesOptions {
   tenantId: string;
   /** 최근 몇 개를 받을지 (기본 20, 최대 100). 최신순이다 */
   size?: number;
-  /** 목록을 다시 읽는 간격 (기본 30초, 최소 5초). 0 이면 다시 읽지 않는다. 화면이 가려져 있으면 건너뛴다 */
+  /** 목록을 다시 읽는 간격 (기본 30초, 최소 5초). 0 이면 다시 읽지 않는다. 화면이 가려져 있거나 forbidden 이면 건너뛴다 */
   refreshIntervalMs?: number;
   /** false 면 조회하지 않는다 */
   enabled?: boolean;
@@ -297,8 +297,8 @@ export function useSimulationSavedStates(
     }
     const controller = new AbortController();
     const { signal } = controller;
-    // 같은 조회를 다시 읽을 때는 이미 그린 목록을 지우지 않는다 — 몇 초마다 화면이 깜박이게 된다
-    setState((prev) => (prev.key === key && prev.data ? prev : { status: "running", data: null, error: null, key }));
+    // 같은 조회를 다시 읽을 때는 이전 상태(목록 · 권한 없음 · 오류)를 그대로 둔다 — 몇 초마다 화면이 로딩으로 깜박이게 된다
+    setState((prev) => (prev.key === key && prev.status !== "idle" ? prev : { status: "running", data: null, error: null, key }));
     inFlight.current = true;
     apiClient
       .get("/simulation/saved-states", { params: { ruleSetId, size }, headers: { "X-Tenant-Id": tenantId }, signal })
@@ -326,14 +326,17 @@ export function useSimulationSavedStates(
     };
   }, [apiClient, key, ruleSetId, tenantId, size, enabled, nonce]);
 
+  // 권한이 없으면 주기적으로 다시 읽어도 결과가 같다 — 다시 읽기는 refetch 나 조회 조건이 바뀔 때만 한다
+  const forbidden = state.key === key && state.status === "forbidden";
+
   useEffect(() => {
-    if (!enabled || refreshIntervalMs <= 0) return;
+    if (!enabled || forbidden || refreshIntervalMs <= 0) return;
     const timer = setInterval(() => {
       if (inFlight.current || (typeof document !== "undefined" && document.hidden)) return;
       setNonce((n) => n + 1);
     }, Math.max(refreshIntervalMs, MIN_REFRESH_MS));
     return () => clearInterval(timer);
-  }, [enabled, refreshIntervalMs]);
+  }, [enabled, forbidden, refreshIntervalMs]);
 
   const refetch = useCallback(() => setNonce((n) => n + 1), []);
   const select = useCallback((savedStateId: string | null) => setChosenId(savedStateId), []);
