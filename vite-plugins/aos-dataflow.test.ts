@@ -670,3 +670,145 @@ const TENANT_ID = "1";
     expect(result.simulationViolations).toEqual([]);
   });
 });
+
+describe("analyzeDataflow — 시뮬레이션 저장본 고르기 (AOS-9031)", () => {
+  const PICK_HEADER = `
+const SIMULATION = { base: { id: "saved-base" } };
+const SIMULATION_RULE_SETS = { cost: { id: "rule-set-cost", description: "원가 계산" } };
+const TENANT_ID = "1";
+`;
+
+  function analyzePick(body: string, file = FILE) {
+    const ast = parse(PICK_HEADER + body, { sourceType: "module", plugins: ["typescript", "jsx"] }) as unknown as Node;
+    return analyzeDataflow(ast, file);
+  }
+
+  it("고르기 hook 결과의 selected 는 결과 hook 의 첫 인자로 받는다", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected: chosen } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const rows = useSimulationOverlay(picker.selected, { tenantId: TENANT_ID, objectType: "product" });
+        const one = useSimulationAggregate(selected, { tenantId: TENANT_ID, objectType: "product" });
+        const pair = useSimulationAggregate([SIMULATION.base, chosen], { tenantId: TENANT_ID, objectType: "product" });
+        return (
+          <select value={picker.selected?.id ?? ""} onChange={(e) => picker.select(e.target.value)}>
+            {picker.savedStates.map((s) => <option key={s.id} value={s.id}>{s.name ?? s.scenarioName}</option>)}
+            {rows.status}{one.status}{pair.status}
+          </select>
+        );
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(true);
+  });
+
+  it("고르기 hook 만 쓰는 파일도 시뮬레이션 hook 을 쓰는 파일이다", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        return <div>{picker.savedStates.length}</div>;
+      }
+    `);
+
+    expect(result.simulationViolations).toEqual([]);
+    expect(result.usesSimulationHook).toBe(true);
+  });
+
+  it("Rule Set 계약을 벗어난 모양과 고르기 결과가 아닌 저장본을 위반으로 보고한다", () => {
+    const result = analyzePick(`
+      function useSimulationSavedStates() { return null; }
+      function Child({ savedState }) {
+        const rows = useSimulationOverlay(savedState, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+      export default function App() {
+        const a = useSimulationSavedStates({ id: "forged" }, { tenantId: TENANT_ID });
+        const b = useSimulationSavedStates(SIMULATION_RULE_SETS.missing, { tenantId: TENANT_ID });
+        const c = useSimulationSavedStates(SIMULATION_RULE_SETS[name], { tenantId: TENANT_ID });
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const other = { selected: { id: "forged" } };
+        const d = useSimulationOverlay(picker.savedStates[0], { tenantId: TENANT_ID, objectType: "product" });
+        const e = useSimulationOverlay(other.selected, { tenantId: TENANT_ID, objectType: "product" });
+        const f = useSimulationOverlay(picker.selected.id, { tenantId: TENANT_ID, objectType: "product" });
+        register(SIMULATION_RULE_SETS);
+        return <div title={SIMULATION_RULE_SETS.cost.description}>{a}{b}{c}{d.status}{e.status}{f.status}<Child savedState={picker.selected} /></div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule).sort()).toEqual([
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation-rule-set",
+      "hook-arg-not-simulation-rule-set",
+      "simulation-hook-redefined",
+      "simulation-rule-set-dynamic-key",
+      "simulation-rule-set-escape",
+      "simulation-rule-set-outside-hook",
+      "unknown-simulation-rule-set-key",
+    ]);
+    expect(result.usesSimulationHook).toBe(true);
+  });
+
+  it("고르기 결과는 그 hook 을 부른 함수 안의 const 이름으로만 받는다", () => {
+    const result = analyzePick(`
+      function Child({ picker }) {
+        const rows = useSimulationOverlay(picker.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+      function Other({ selected }) {
+        const rows = useSimulationOverlay(selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}</div>;
+      }
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        let moved = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        moved = { selected: { id: "forged" } };
+        const rows = useSimulationOverlay(moved.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{rows.status}{selected?.id}<Child picker={{ selected: { id: "forged" } }} /><Other selected={{ id: "forged" }} /></div>;
+      }
+    `);
+
+    expect(result.simulationViolations.map((v) => v.rule).sort()).toEqual([
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+      "hook-arg-not-simulation",
+    ]);
+  });
+
+  it("non-null 단언 · 기본값을 붙인 고르기 결과도 받고, 고르기 결과에 대입한 것은 받지 않는다", () => {
+    const result = analyzePick(`
+      export default function App() {
+        const picker = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const { selected = null } = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        const a = useSimulationOverlay(picker.selected!, { tenantId: TENANT_ID, objectType: "product" });
+        const b = useSimulationOverlay(selected, { tenantId: TENANT_ID, objectType: "product" });
+        const forged = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        forged.selected = { id: "forged" };
+        const c = useSimulationOverlay(forged.selected, { tenantId: TENANT_ID, objectType: "product" });
+        const deep = useSimulationSavedStates(SIMULATION_RULE_SETS.cost, { tenantId: TENANT_ID });
+        deep.selected.id = "forged";
+        const d = useSimulationOverlay(deep.selected, { tenantId: TENANT_ID, objectType: "product" });
+        return <div>{a.status}{b.status}{c.status}{d.status}</div>;
+      }
+    `);
+
+    // 대입한 forged · deep 으로 부른 c · d 만 잡힌다 — PICK_HEADER 4줄 + 본문 9 · 12번째 줄
+    expect(result.simulationViolations.map((v) => v.rule)).toEqual(["hook-arg-not-simulation", "hook-arg-not-simulation"]);
+    expect(result.simulationViolations.map((v) => v.loc.split(":")[1])).toEqual(["13", "16"]);
+  });
+
+  it("템플릿 hook 파일은 Rule Set 공간도 면제다", () => {
+    const result = analyzePick(
+      "export function useSimulationSavedStates(ruleSet, o) { return apiClient.get('/simulation/saved-states', { params: { ruleSetId: ruleSet.id } }); }",
+      "src/hooks/useSimulationResult.ts",
+    );
+
+    expect(result.simulationViolations).toEqual([]);
+  });
+});
